@@ -24,7 +24,7 @@ router.post("/", async (req, res) => {
     await newContract.save();
 
     // Notify Wix that a contract has been created
-    await axios.post("https://www.yourwixsite.com/_functions/webhookUpdate", {
+    await axios.post("https://www.ntari.org/_functions/webhookUpdate", {
       contractId: newContract._id,
       status: "created",
     });
