@@ -51,7 +51,7 @@ Agrinet is a decentralized agricultural trading and service platform built to en
 
 1. Clone the repository
 ```
-git clone https://github.com/YOUR_USERNAME/Agrinet.git
+git clone https://github.com/YOUR_USERNAME/Fruitful.git
 cd Agrinet
 ```
 
