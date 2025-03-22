@@ -5,6 +5,12 @@ const User = require("../models/User");
 const router = express.Router();
 require("dotenv").config();
 
+// Test Route to Verify authRoutes
+router.get("/test", (req, res) => {
+    console.log("Test route hit");
+    res.status(200).json({ message: "Auth routes are working!" });
+});
+
 // Register User
 router.post("/register", async (req, res) => {
     try {
