@@ -18,7 +18,7 @@ const authRoutes = require("./routes/authRoutes");
 const keyRoutes = require("./routes/keyRoutes");
 const contractRoutes = require("./routes/contracts");
 const adminRoutes = require("./routes/admin");
-const marketplaceRoutes = require("./marketplace/routes/marketplaceRoutes");
+const marketplaceRoutes = require("./marketplace/marketplace_routes");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/keys", keyRoutes);
