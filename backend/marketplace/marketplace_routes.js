@@ -82,7 +82,9 @@ const TransactionSchema = new mongoose.Schema({
   pingCount: { type: Number, default: 0 },
   dialogNotes: { type: String, default: "" },
   dialogConfirmed: { type: Boolean, default: false },
-  flaggedForReview: { type: Boolean, default: false }
+  flaggedForReview: { type: Boolean, default: false },
+  escrowLocked: { type: Boolean, default: true }, // Funds are locked by default
+  escrowReleasedAt: { type: Date, default: null } // Timestamp of escrow release
 });
 
 const Transaction = mongoose.model("Transaction", TransactionSchema);
@@ -95,6 +97,28 @@ router.post("/transactions", async (req, res) => {
     res.status(201).json({ message: "Transaction initiated", transaction: newTransaction });
   } catch (error) {
     res.status(500).json({ error: "Error initiating transaction" });
+  }
+});
+
+// Endpoint to release escrow funds
+router.post("/transactions/release-escrow", async (req, res) => {
+  try {
+    const { transactionId } = req.body;
+    const transaction = await Transaction.findById(transactionId);
+    if (!transaction) return res.status(404).json({ error: "Transaction not found" });
+
+    // Require that both ratings have been given before releasing funds
+    if (!transaction.buyerRated || !transaction.sellerRated) {
+      return res.status(403).json({ error: "Cannot release escrow until both parties rate the transaction." });
+    }
+
+    transaction.escrowLocked = false;
+    transaction.escrowReleasedAt = new Date();
+    await transaction.save();
+
+    res.json({ message: "Escrow funds released.", transaction });
+  } catch (error) {
+    res.status(500).json({ error: "Error releasing escrow." });
   }
 });
 
