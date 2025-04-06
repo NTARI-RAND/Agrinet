@@ -15,3 +15,26 @@ const upsertMany = async (Model, items, key = "_id") => {
     }
   }
 };
+
+const syncFromPeers = async () => {
+  try {
+    const nodes = await NodeRegistry.find();
+    for (let node of nodes) {
+      const res = await axios.get(`${node.nodeUrl}/federation/export`);
+      const { listings, transactions, users } = res.data;
+
+      if (listings) await upsertMany(Listing, listings);
+      if (transactions) await upsertMany(Transaction, transactions);
+      if (users) await upsertMany(User, users);
+
+      console.log(`✔ Synced data from node: ${node.nodeUrl}`);
+    }
+  } catch (err) {
+    console.error("❌ Federation sync error:", err.message);
+  }
+};
+
+// Example scheduled interval (every 30 mins)
+setInterval(syncFromPeers, 30 * 60 * 1000);
+
+module.exports = { syncFromPeers };
