@@ -56,3 +56,16 @@ mongoose.connect(process.env.MONGO_URI)
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
+// Federation
+const federationRoutes = require('./federation/federationRoutes');
+const trendsRoutes = require('./trends/trendsRoutes');
+
+app.use('/federation', federationRoutes);
+app.use('/trends', trendsRoutes);
+
+Optionally run federationSyncJob.js on boot:
+
+const runFederationSync = require('./federation/federationSyncJob');
+runFederationSync(); // kicks off first run
