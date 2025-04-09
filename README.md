@@ -113,4 +113,4 @@ MIT License – Feel free to modify and share. 📜
 ## Contact & Support
 - NTARI https://www.ntari.org/ 
 - Email - support@agrinet.org
-- Discord - Join our community for discussions!
+- Lougue - [Join our community for discussions!](https://www.ntari.org/group-page/the-agrinet-project/discussion) 
