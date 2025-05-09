@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:5.0
+    container_name: agrinet_mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  api:
+    build: ./backend
+    container_name: agrinet_api
+    restart: always
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongo
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - JWT_SECRET=${JWT_SECRET}
+      - STRIPE_KEY=${STRIPE_KEY}
+      - NODE_ID=${NODE_ID}
+    volumes:
+      - ./backend:/app
+    command: ["sh", "-c", "node server.js"]
+
+  federation-sync:
+    build: ./backend
+    container_name: agrinet_federation_sync
+    depends_on:
+      - mongo
+    environment:
+      - MONGO_URI=${MONGO_URI}
+      - NODE_ID=${NODE_ID}
+    command: ["node", "sync/federationSyncJob.js"]
+
+  key-expiry-cleaner:
+    build: ./backend
+    container_name: agrinet_key_cleaner
+    depends_on:
+      - mongo
+    environment:
+      - MONGO_URI=${MONGO_URI}
+    command: ["node", "jobs/keyExpiryCleaner.js"]
+
+volumes:
+  mongo_data:
