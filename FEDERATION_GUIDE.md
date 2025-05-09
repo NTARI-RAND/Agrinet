@@ -28,8 +28,8 @@ Based on Agrinet’s Linux-like protocol-first design, all tooling here respects
 #!/bin/bash
 sudo apt update && sudo apt install -y nodejs npm git mongodb
 
-git clone https://github.com/NTARI-ForgeLab/agrinet-protocol.git
-cd agrinet-protocol/backend
+git clone https://github.com/NTARI-ForgeLab/Fruitful.git 
+cd Fruitful/backend
 
 cp .env.example .env
 npm install
