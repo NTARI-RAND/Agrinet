@@ -14,7 +14,7 @@ bash
 git clone https://github.com/NTARI-ForgeLab/Fruitful.git
 cd Fruitful
 ```
-4. Install Dependencies
+3. Install Dependencies
 ```
 bash
 # Using yarn
