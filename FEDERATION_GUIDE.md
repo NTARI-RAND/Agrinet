@@ -103,7 +103,15 @@ Verify:
 
 ---
 
-## 📊 5. Community Tools in This Release
+## 🏁 5. Federation Compliance Rules
+To be federated:
+- Use the exact transmission string format: key1/key2/UI_string.
+- Store user data according to Agrinet key-auth standards.
+- Implement the Open Dialog and Mycelium sync modules.
+- Ensure every transaction is LBTAS rated.
+
+
+## 📊 6. Community Tools in This Release
 
 - trendsRoutes.js → /trends/* (AI + MongoDB insights)
 - depositRoutes.js → Local wallet + Stripe support
@@ -113,13 +121,19 @@ Verify:
 
 ---
 
-## 🧠 6. Git-Based Decentralization Roadmap
+## 🧠 7. Git-Based Decentralization Roadmap
 
 Fork Naming Examples:
 - agrinet-urbanroots → smart cities
 - agrinet-foodforest → permaculture
 - agrinet-sahara → desert microgrids
 - agrinet-mashamba → Kiswahili agro-coops
+
+## 🔗 8. Legal & Licensing
+Agrinet is licensed under GNU GPL v3.0. Your fork:
+- Must remain open-source.
+- Cannot restrict access or charge license fees.
+- Must include the original license and clearly indicate any modifications.
 
 ---
 
