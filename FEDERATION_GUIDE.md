@@ -103,12 +103,18 @@ Verify:
 
 ---
 
-## 🏁 5. Federation Compliance Rules
-To be federated:
+## 🔗 5. Federation Compliance Rules
+I: To be federated:
 - Use the exact transmission string format: key1/key2/UI_string.
 - Store user data according to Agrinet key-auth standards.
 - Implement the Open Dialog and Mycelium sync modules.
 - Ensure every transaction is LBTAS rated.
+
+### Legal & Licensing
+II: Agrinet is licensed under GNU GPL v3.0. Your fork:
+- Must remain open-source.
+- Cannot restrict access or charge license fees.
+- Must include the original license and clearly indicate any modifications.
 
 
 ## 📊 6. Community Tools in This Release
@@ -129,12 +135,36 @@ Fork Naming Examples:
 - agrinet-sahara → desert microgrids
 - agrinet-mashamba → Kiswahili agro-coops
 
-## 🔗 8. Legal & Licensing
-Agrinet is licensed under GNU GPL v3.0. Your fork:
-- Must remain open-source.
-- Cannot restrict access or charge license fees.
-- Must include the original license and clearly indicate any modifications.
+## 🖥 8. Federation Status CLI
+A command-line tool is provided to check the health of your federation and all connected peer nodes.
 
+Features:
+- Calls your local Agrinet node’s /federation/status endpoint
+- Displays a colored, formatted table of all peer nodes
+- Shows last sync time and data counts (listings, transactions, users)
+- Uses chalk and cli-table3 for formatting
+
+How to run:
+```bash
+cd frontend
+node federationStatusCLI.js
+```
+
+You’ll see a report like:
+```
+🌍 Federation Node Status Report
+┌─────────────────────────────┬────────────┬───────────┬──────────────┬─────────┬───────────────┐
+│ Node URL                    │ Status     │ Listings  │ Transactions │ Users   │ Last Sync     │
+├─────────────────────────────┼────────────┼───────────┼──────────────┼─────────┼───────────────┤
+│ http://node1.example.org    │ ✅ ONLINE  │ 123       │ 456          │ 10      │ 5/20/2025 ... │
+│ http://node2.example.org    │ ❌ OFFLINE │ -         │ -            │ -       │ N/A           │
+└─────────────────────────────┴────────────┴───────────┴──────────────┴─────────┴───────────────┘
+```
+
+Install required dependencies if needed:
+```bash
+npm install chalk cli-table3 axios
+```
 ---
 
 📦 Agrinet is ready to be deployed like Linux: peer-first, forkable, and sovereign. Let's get your first federation online. 🌐🧱
