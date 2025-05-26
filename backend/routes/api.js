@@ -1,23 +1,35 @@
+const express = require('express');
+const router = express.Router();
+
 const Notification = require("../models/Notification");
 const { addPingJob } = require('../bull/pingJobs');
+const Transaction = require("../models/Transaction");
 
-// Example: wrapping in an Express route handler
-router.post('/your-route', async (req, res) => {
+// POST /api/transactions - create a new transaction and send notification
+router.post('/transactions', async (req, res) => {
   try {
-    // ...other logic, e.g. creating transaction object
-    const transaction = /* your transaction logic here */;
-    const newTransaction = /* your newTransaction logic here */;
+    // Get transaction data from request body
+    const transactionData = req.body;
 
+    // Create a new transaction instance
+    const newTransaction = new Transaction(transactionData);
+
+    // Save the new transaction to the database
+    await newTransaction.save();
+
+    // Create a notification for the buyer
     await Notification.create({
-      userId: transaction.buyerId,
-      message: `Your transaction ${transaction._id} has been initiated.`
+      userId: newTransaction.buyerId,
+      message: `Your transaction ${newTransaction._id} has been initiated.`
     });
 
-    await newTransaction.save();
+    // Add a ping job for this transaction
     addPingJob(newTransaction._id);
 
-    res.status(201).json({ message: 'Transaction and notification created.' });
+    res.status(201).json({ message: 'Transaction created and notification sent.' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+module.exports = router;
