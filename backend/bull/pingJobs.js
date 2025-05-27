@@ -1,6 +1,6 @@
 const { Queue, Worker } = require('bullmq');
 const Redis = require('ioredis');
-const Transaction = require('../models/transaction');
+const Transaction = require('../marketplace/models/transaction');
 
 const pingQueue = new Queue('ping-deadline', {
   connection: new Redis()
