@@ -1,6 +1,6 @@
 const express = require("express");
 const User = require("../models/user");
-const Key = require("../models/Key");
+const Key = require("../models/key");
 const router = express.Router();
 
 // Get all users
