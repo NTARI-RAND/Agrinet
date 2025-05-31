@@ -172,7 +172,7 @@ router.post("/transactions/dialog-validate", async (req, res) => {
 });
 
 // Import user model for rating logic
-const User = require("../models/User");
+const User = require("../models/user");
 
 // Submit a rating as part of the LBTAS reputation system
 router.post("/transactions/rate", async (req, res) => {
