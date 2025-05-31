@@ -8,4 +8,5 @@ const TransactionSchema = new mongoose.Schema({
   status: { type: String, enum: ["pending", "completed"], default: "pending" },
 });
 
-module.exports = mongoose.model("Transaction", TransactionSchema);
+// Fix: Prevent OverwriteModelError in dev/hot-reload/multiple import environments
+module.exports = mongoose.models.Transaction || mongoose.model("Transaction", TransactionSchema);
