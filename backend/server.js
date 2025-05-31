@@ -14,6 +14,11 @@ app.use(cors());
 app.use(express.json());
 app.use("/deposit", depositRoutes);
 
+// Health Check Endpoint
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
 // Server & Socket
 const server = http.createServer(app);
 const io = new Server(server, {
