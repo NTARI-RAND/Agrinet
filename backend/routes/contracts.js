@@ -1,5 +1,5 @@
 const express = require("express");
-const Contract = require("../models/Contract");
+const Contract = require("../models/contract");
 const router = express.Router();
 const cache = new Map();
 const axios = require("axios");
