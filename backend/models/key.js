@@ -8,4 +8,4 @@ const KeySchema = new mongoose.Schema({
   expiresAt: { type: Date, required: true },
 });
 
-module.exports = mongoose.model("Key", KeySchema);
+module.exports = mongoose.models.Key || mongoose.model("Key", KeySchema);
