@@ -70,7 +70,7 @@ const trendsRoutes = require('./trends/trendsRoutes');
 app.use('/federation', federationRoutes);
 app.use('/trends', trendsRoutes);
 
-Optionally run federationSyncJob.js on boot:
+//Optionally run federationSyncJob.js on boot:
 
 const runFederationSync = require('./federation/federationSyncJob');
 runFederationSync(); // kicks off first run
