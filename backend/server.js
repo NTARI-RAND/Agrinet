@@ -63,6 +63,7 @@ const contractRoutes = require("./routes/contracts");
 const adminRoutes = require("./routes/admin");
 const marketplaceRoutes = require("./marketplace/marketplace_routes");
 const userRoutes = require('./routes/userRoutes');
+const productRoutes = require('./routes/products');
 
 app.use('/', routes);
 app.use("/api/auth", authRoutes);
@@ -71,6 +72,7 @@ app.use("/api/contracts", contractRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/marketplace", marketplaceRoutes);
 app.use('/users', userRoutes);
+app.use('/products', productRoutes);
 
 // Connect to MongoDB and start server
 mongoose.connect(process.env.MONGO_URI)
