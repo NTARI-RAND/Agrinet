@@ -23,3 +23,14 @@ router.post('/', (req, res) => {
 });
 
 module.exports = router;
+
+// POST /users - create a new user
+router.post('/', async (req, res) => {
+  try {
+    const newUser = await User.create(req.body);
+    res.status(201).json({ message: "User created", user: newUser });
+  } catch (err) {
+    console.error("User creation error:", err);
+    res.status(400).json({ error: err.message });
+  }
+});
