@@ -7,7 +7,7 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   verified: { type: Boolean, default: false },
   location: { type: String, required: true },
-  role: { type: String, enum: ["producer", "consumer", "admin"], deafult: "consumer" },
+  role: { type: String, enum: ["producer", "consumer", "admin"], default: "consumer" },
   reputationScore: { type: Number, default: 0 },  // LBTAS Score
 });
 
