@@ -24,4 +24,17 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.get('/', async (req, res) => {
+  try {
+    const query = {};
+    if (req.query.role) query.role = req.query.role;
+    if (req.query.location) query.location = req.query.location;
+
+    const users = await User.find(query, '-password');
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch filtered users" });
+  }
+});
+
 module.exports = router;
