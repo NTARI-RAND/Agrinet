@@ -13,26 +13,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /users - simple user creation
-router.post('/', (req, res) => {
-  const { name } = req.body;
-  if (!name) {
-    return res.status(400).json({ error: 'Name is required' });
-  }
-  res.status(201).json({ message: 'User created', user: { name } });
-});
-
-// POST /users - create a new user
-router.post('/', async (req, res) => {
-  try {
-    const newUser = await User.create(req.body);
-    res.status(201).json({ message: "User created", user: newUser });
-  } catch (err) {
-    console.error("User creation error:", err);
-    res.status(400).json({ error: err.message });
-  }
-});
-
 // POST /users - create a new user
 router.post('/', async (req, res) => {
   try {
