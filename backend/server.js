@@ -12,7 +12,9 @@ dotenv.config();
 const app = express();
 
 // --- PRODUCTION-READY CORS RESTRICTION ---
-const allowedOrigins = ['https://www.ntari.org'];
+const allowedOrigins = ['http://localhost:3000'];  // Allow localhost for local development
+//'https://www.ntari.org'; // Production domain
+
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -52,27 +54,29 @@ io.on("connection", (socket) => {
 
 // Middleware
 app.use(express.json());
-app.use(cors({ origin: "https://www.ntari.org", credentials: true }));
+// app.use(cors({ origin: "https://www.ntari.org", credentials: true })); // commented for local dev
 app.use(authMiddleware);
 
 // Routes
-const routes = require('./routes/api');
-const authRoutes = require("./routes/authRoutes");
-const keyRoutes = require("./routes/keyRoutes");
-const contractRoutes = require("./routes/contracts");
-const adminRoutes = require("./routes/admin");
-const marketplaceRoutes = require("./marketplace/marketplace_routes");
-const userRoutes = require('./routes/userRoutes');
-const productRoutes = require('./routes/products');
+// In-memory registration and verification routes
+const apiRoutes = require('./routes/api');
+app.use('/', apiRoutes);
 
-app.use('/', routes);
-app.use("/api/auth", authRoutes);
-app.use("/api/keys", keyRoutes);
-app.use("/api/contracts", contractRoutes);
-app.use("/api/admin", adminRoutes);
-app.use("/api/marketplace", marketplaceRoutes);
-app.use('/users', userRoutes);
-app.use('/products', productRoutes);
+// --- Old route registrations (commented for local/in-memory dev) ---
+// const authRoutes = require("./routes/authRoutes");
+// const keyRoutes = require("./routes/keyRoutes");
+// const contractRoutes = require("./routes/contracts");
+// const adminRoutes = require("./routes/admin");
+// const marketplaceRoutes = require("./marketplace/marketplace_routes");
+const userRoutes = require('./routes/userRoutes');
+// const productRoutes = require('./routes/products');
+// app.use("/api/auth", authRoutes);
+// app.use("/api/keys", keyRoutes);
+// app.use("/api/contracts", contractRoutes);
+// app.use("/api/admin", adminRoutes);
+// app.use("/api/marketplace", marketplaceRoutes);
+ app.use('/users', userRoutes);
+// app.use('/products', productRoutes);
 
 // REMOVE MongoDB connection and instead ensure DynamoDB client is configured in your data access files
 
@@ -86,8 +90,9 @@ const trendsRoutes = require('./trends/trendsRoutes');
 app.use('/federation', federationRoutes);
 app.use('/trends', trendsRoutes);
 
-//Optionally run federationSyncJob.js on boot:
-const runFederationSync = require('./federation/federationSyncJob');
-runFederationSync(); // kicks off first run
+
+// Federation sync job is disabled for local/dev without AWS credentials
+// const runFederationSync = require('./federation/federationSyncJob');
+// runFederationSync(); // kicks off first run
 
 // No MongoDB-specific code remains. All DynamoDB access should be handled in controller/data files.

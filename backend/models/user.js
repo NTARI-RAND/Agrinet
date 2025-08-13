@@ -6,25 +6,31 @@ const USER_TABLE_NAME = "Users";
 
 function createUserItem({
   id, // You should generate a unique id for each user (e.g., uuid)
-  username,
+  name,
   email,
   phone,
   password,
   verified = false,
   location,
   role = "consumer",
-  reputationScore = 0
+  reputationScore = 0,
+  certificationDocs = [],
+  contractAgreement = false,
+  verificationCode = null
 }) {
   return {
     id, // Partition key for DynamoDB table
-    username,
+    name,
     email,
     phone,
     password,
     verified,
     location,
     role,
-    reputationScore
+    reputationScore,
+    certificationDocs,
+    contractAgreement,
+    verificationCode
   };
 }
 
