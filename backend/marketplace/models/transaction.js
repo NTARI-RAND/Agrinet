@@ -1,37 +1,43 @@
-// DynamoDB: No schema or model definitions needed.
-// This file provides the table name and a helper for building transaction items for DynamoDB.
-
+// DynamoDB helper for Transactions table
 const TRANSACTION_TABLE_NAME = "Transactions";
 
-/**
- * Helper to create a transaction item for DynamoDB.
- * @param {Object} params
- * @param {string} id - Unique ID for the transaction (partition key)
- * @param {string} buyerId
- * @param {string} sellerId
- * @param {string} listingId
- * @param {string} status - "pending" or "completed"
- * @param {string} createdAt - ISO string, e.g., new Date().toISOString()
- * @param {boolean} ratingGiven
- * @returns {Object}
- */
 function createTransactionItem({
   id,
   buyerId,
   sellerId,
   listingId,
+  listingTitle,
   status = "pending",
   createdAt = new Date().toISOString(),
-  ratingGiven = false
+  buyerRated = false,
+  sellerRated = false,
+  ratingGiven = false,
+  lastPing = new Date().toISOString(),
+  pingCount = 0,
+  dialogNotes = "",
+  dialogConfirmed = false,
+  flaggedForReview = false,
+  escrowLocked = true,
+  escrowReleasedAt = null
 }) {
   return {
-    id,         // Partition key for DynamoDB table
+    id, // partition key
     buyerId,
     sellerId,
     listingId,
+    listingTitle,
     status,
     createdAt,
-    ratingGiven
+    buyerRated,
+    sellerRated,
+    ratingGiven,
+    lastPing,
+    pingCount,
+    dialogNotes,
+    dialogConfirmed,
+    flaggedForReview,
+    escrowLocked,
+    escrowReleasedAt
   };
 }
 
