@@ -56,7 +56,6 @@ exports.fundAccount = async (req, res) => {
         ],
         ':empty_list': []
       },
-      ConditionExpression: 'attribute_exists(userId)',
       ReturnValues: 'UPDATED_NEW'
     };
 
