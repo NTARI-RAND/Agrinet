@@ -11,6 +11,7 @@ function createUserItem({
   phone,
   password,
   verified = false,
+  verificationCode,
   location,
   role = "consumer",
   reputationScore = 0
@@ -22,6 +23,7 @@ function createUserItem({
     phone,
     password,
     verified,
+    verificationCode,
     location,
     role,
     reputationScore
