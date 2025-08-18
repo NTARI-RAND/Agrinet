@@ -10,19 +10,34 @@ const NODE_REGISTRY_TABLE_NAME = "NodeRegistry";
  * @param {string} region
  * @param {string} contact
  * @param {string|null} lastSyncAt - ISO string or null
+ * @param {Object} production
+ * @param {Object} services
+ * @param {number} reputation
+ * @param {Array<string>} interoperability
+ * @param {Object} support
  * @returns {Object}
  */
 function createNodeRegistryItem({
   url,
   region,
   contact,
-  lastSyncAt = null
+  lastSyncAt = null,
+  production = {},
+  services = {},
+  reputation = null,
+  interoperability = [],
+  support = {}
 }) {
   return {
     url,        // Partition key for DynamoDB table
     region,
     contact,
     lastSyncAt, // Should be an ISO string or null
+    production,
+    services,
+    reputation,
+    interoperability,
+    support
   };
 }
 

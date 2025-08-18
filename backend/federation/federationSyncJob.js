@@ -6,16 +6,16 @@ const runFederationSync = async () => {
 
   for (const node of nodes) {
     try {
-      const { data } = await axios.get(`${node.url}/export`);
+      const { data } = await axios.get(`${node.nodeUrl}/federation/export`);
 
       await axios.post("http://localhost:5000/import", data);
 
       node.lastSyncAt = new Date();
       await node.save();
 
-      console.log(`✅ Synced with ${node.url}`);
+      console.log(`✅ Synced with ${node.nodeUrl}`);
     } catch (err) {
-      console.error(`❌ Failed to sync with ${node.url}`);
+      console.error(`❌ Failed to sync with ${node.nodeUrl}`);
     }
   }
 };

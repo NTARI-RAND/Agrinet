@@ -6,13 +6,13 @@ async function runFederationSync() {
   const nodes = await NodeRegistry.find();
   for (const node of nodes) {
     try {
-      const { data } = await axios.get(`${node.url}/export`);
-      const result = await importFederatedData(data);
+      const { data } = await axios.get(`${node.nodeUrl}/federation/export`);
+      await importFederatedData(data);
       node.lastSyncAt = new Date();
       await node.save();
-      console.log(`✅ Synced with ${node.url}`);
+      console.log(`✅ Synced with ${node.nodeUrl}`);
     } catch (err) {
-      console.error(`❌ Failed to sync with ${node.url}: ${err.message}`);
+      console.error(`❌ Failed to sync with ${node.nodeUrl}: ${err.message}`);
     }
   }
 }
