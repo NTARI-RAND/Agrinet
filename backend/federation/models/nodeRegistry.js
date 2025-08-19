@@ -1,6 +1,7 @@
 // DynamoDB: No schema or model definitions needed.
 // This file provides the table name and a helper for building node registry items for DynamoDB.
 
+const docClient = require("../../lib/dynamodbClient");
 const NODE_REGISTRY_TABLE_NAME = "NodeRegistry";
 
 /**
@@ -43,5 +44,25 @@ function createNodeRegistryItem({
 
 module.exports = {
   NODE_REGISTRY_TABLE_NAME,
-  createNodeRegistryItem
+  createNodeRegistryItem,
+  getAllNodes,
+  saveNode
 };
+
+/**
+ * Scan the NodeRegistry table for all nodes.
+ * @returns {Promise<Array<Object>>}
+ */
+async function getAllNodes() {
+  const data = await docClient.scan({ TableName: NODE_REGISTRY_TABLE_NAME }).promise();
+  return data.Items || [];
+}
+
+/**
+ * Persist a node item back to DynamoDB.
+ * @param {Object} node
+ * @returns {Promise<void>}
+ */
+async function saveNode(node) {
+  await docClient.put({ TableName: NODE_REGISTRY_TABLE_NAME, Item: node }).promise();
+}

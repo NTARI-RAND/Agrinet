@@ -1,21 +1,21 @@
 const axios = require("axios");
-const NodeRegistry = require("./models/nodeRegistry");
+const { getAllNodes, saveNode } = require("./models/nodeRegistry");
 
 const runFederationSync = async () => {
-  const nodes = await NodeRegistry.find();
+  const nodes = await getAllNodes();
 
   for (const node of nodes) {
     try {
-      const { data } = await axios.get(`${node.nodeUrl}/federation/export`);
+      const { data } = await axios.get(`${node.url}/federation/export`);
 
       await axios.post("http://localhost:5000/import", data);
 
-      node.lastSyncAt = new Date();
-      await node.save();
+      node.lastSyncAt = new Date().toISOString();
+      await saveNode(node);
 
-      console.log(`✅ Synced with ${node.nodeUrl}`);
+      console.log(`✅ Synced with ${node.url}`);
     } catch (err) {
-      console.error(`❌ Failed to sync with ${node.nodeUrl}`);
+      console.error(`❌ Failed to sync with ${node.url}`);
     }
   }
 };
