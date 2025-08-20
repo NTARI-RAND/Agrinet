@@ -16,6 +16,9 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.10.0"
+    "@aws-sdk/client-dynamodb": "^3.583.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
   }
 }
