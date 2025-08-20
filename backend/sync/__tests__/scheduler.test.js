@@ -66,7 +66,10 @@ describe('scheduler', () => {
     expect(dynamodbClient.update).toHaveBeenCalledTimes(1);
     const params = dynamodbClient.update.mock.calls[0][0];
     const lastSyncAt = params.ExpressionAttributeValues[':lastSyncAt'];
-    expect(new Date(lastSyncAt).toISOString()).toBe(lastSyncAt);
+    // Check that lastSyncAt is a valid ISO string and close to now
+    const lastSyncDate = new Date(lastSyncAt);
+    expect(lastSyncDate.toISOString()).toBe(lastSyncAt);
+    expect(Math.abs(Date.now() - lastSyncDate.getTime())).toBeLessThan(5000); // within 5 seconds
   });
 
   test('schedules syncFromPeers at interval', () => {
