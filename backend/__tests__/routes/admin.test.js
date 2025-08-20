@@ -51,7 +51,7 @@ describe('admin routes', () => {
       const items = [{ id: 1, key: 'abc' }];
       docClient.scan.mockReturnValueOnce({
         promise: () => Promise.resolve({ Items: items })
-      });
+      docClient.scan.mockReturnValueOnce(Promise.resolve({ Items: items }));
 
       const res = await request(app).get('/keys');
 
