@@ -62,7 +62,7 @@ describe('admin routes', () => {
     it('handles scan errors', async () => {
       docClient.scan.mockReturnValueOnce({
         promise: () => Promise.reject(new Error('fail'))
-      });
+      docClient.scan.mockReturnValueOnce(Promise.reject(new Error('fail')));
 
       const res = await request(app).get('/keys');
 
