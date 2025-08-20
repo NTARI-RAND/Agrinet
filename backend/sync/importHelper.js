@@ -1,4 +1,4 @@
-const Listing = require("../models/listing");
+const Listing = require("../marketplace/models/listings");
 const Transaction = require("../models/transaction");
 const User = require("../models/user");
 

@@ -1,10 +1,22 @@
-const mongoose = require("mongoose");
+const NOTIFICATION_TABLE_NAME = "Notifications";
 
-const NotificationSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  message: String,
-  read: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
-});
+function createNotificationItem({
+  userId,
+  notificationId,
+  message,
+  read = false,
+  createdAt = new Date().toISOString()
+}) {
+  return {
+    userId,         // Partition key for Notifications table
+    notificationId, // Sort key for Notifications table
+    message,
+    read,
+    createdAt
+  };
+}
 
-module.exports = mongoose.model("Notification", NotificationSchema);
+module.exports = {
+  NOTIFICATION_TABLE_NAME,
+  createNotificationItem
+};
