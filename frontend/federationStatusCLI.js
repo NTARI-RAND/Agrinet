@@ -13,7 +13,7 @@ const BASE_URL = "http://localhost:5000/federation/status";
     });
 
     data.federationHealth.forEach((node) => {
-      const statusColor = node.status === "✅ ONLINE" ? chalk.green : chalk.red;
+      const statusColor = node.status === "ONLINE" ? chalk.green : chalk.red;
       table.push([
         node.node,
         statusColor(node.status),

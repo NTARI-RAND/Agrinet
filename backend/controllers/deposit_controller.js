@@ -1,17 +1,25 @@
-const DepositAccount = require("../models/depositAccount");
+const docClient = require('../lib/dynamodbClient');
+const {
+  DEPOSIT_ACCOUNT_TABLE_NAME,
+  createDepositAccountItem
+} = require('../models/depositAccount');
 
 // Create or return a user's deposit account
 exports.getOrCreateAccount = async (req, res) => {
   try {
     const userId = req.user.id; // Assumes auth middleware adds user
-    let account = await DepositAccount.findOne({ userId });
-    if (!account) {
-      account = new DepositAccount({ userId });
-      await account.save();
-    }
-    res.json(account);
+    const params = {
+      TableName: DEPOSIT_ACCOUNT_TABLE_NAME,
+      Key: { userId }
+    };
+    const { Item } = await docClient.get(params).promise();
+    if (Item) return res.json(Item);
+
+    const newAccount = createDepositAccountItem({ userId });
+    await docClient.put({ TableName: DEPOSIT_ACCOUNT_TABLE_NAME, Item: newAccount }).promise();
+    res.json(newAccount);
   } catch (error) {
-    res.status(500).json({ error: "Error fetching deposit account" });
+    res.status(500).json({ error: 'Error fetching deposit account' });
   }
 };
 
@@ -19,19 +27,43 @@ exports.getOrCreateAccount = async (req, res) => {
 exports.fundAccount = async (req, res) => {
   try {
     const { amount, note } = req.body;
-    if (!amount || amount <= 0) return res.status(400).json({ error: "Invalid amount" });
+    const numericAmount = parseFloat(amount);
+    if (!numericAmount || numericAmount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
 
     const userId = req.user.id;
-    let account = await DepositAccount.findOne({ userId });
-    if (!account) return res.status(404).json({ error: "Account not found" });
+    const getRes = await docClient
+      .get({ TableName: DEPOSIT_ACCOUNT_TABLE_NAME, Key: { userId } })
+      .promise();
+    if (!getRes.Item) return res.status(404).json({ error: 'Account not found' });
 
-    account.balance += amount;
-    account.transactionHistory.push({ type: "fund", amount, note });
-    await account.save();
+    const updateParams = {
+      TableName: DEPOSIT_ACCOUNT_TABLE_NAME,
+      Key: { userId },
+      UpdateExpression:
+        'SET balance = if_not_exists(balance, :zero) + :amount, transactionHistory = list_append(if_not_exists(transactionHistory, :empty_list), :entry)',
+      ExpressionAttributeValues: {
+        ':amount': numericAmount,
+        ':zero': 0,
+        ':entry': [
+          {
+            type: 'fund',
+            amount: numericAmount,
+            date: new Date().toISOString(),
+            note
+          }
+        ],
+        ':empty_list': []
+      },
+      ConditionExpression: 'attribute_exists(userId)',
+      ReturnValues: 'UPDATED_NEW'
+    };
 
-    res.json({ message: "Account funded", newBalance: account.balance });
+    const result = await docClient.update(updateParams).promise();
+    res.json({ message: 'Account funded', newBalance: result.Attributes.balance });
   } catch (error) {
-    res.status(500).json({ error: "Error funding account" });
+    res.status(500).json({ error: 'Error funding account' });
   }
 };
 
@@ -39,21 +71,48 @@ exports.fundAccount = async (req, res) => {
 exports.withdrawAccount = async (req, res) => {
   try {
     const { amount, note } = req.body;
-    if (!amount || amount <= 0) return res.status(400).json({ error: "Invalid amount" });
+    const numericAmount = parseFloat(amount);
+    if (!numericAmount || numericAmount <= 0) {
+      return res.status(400).json({ error: 'Invalid amount' });
+    }
 
     const userId = req.user.id;
-    let account = await DepositAccount.findOne({ userId });
-    if (!account) return res.status(404).json({ error: "Account not found" });
+    const { Item } = await docClient
+      .get({ TableName: DEPOSIT_ACCOUNT_TABLE_NAME, Key: { userId } })
+      .promise();
+    if (!Item) return res.status(404).json({ error: 'Account not found' });
+    if ((Item.balance || 0) < numericAmount) {
+      return res.status(400).json({ error: 'Insufficient funds' });
+    }
 
-    if (account.balance < amount) return res.status(400).json({ error: "Insufficient funds" });
+    const updateParams = {
+      TableName: DEPOSIT_ACCOUNT_TABLE_NAME,
+      Key: { userId },
+      UpdateExpression:
+        'SET balance = balance - :amount, transactionHistory = list_append(if_not_exists(transactionHistory, :empty_list), :entry)',
+      ConditionExpression: 'attribute_exists(userId) AND balance >= :amount',
+      ExpressionAttributeValues: {
+        ':amount': numericAmount,
+        ':entry': [
+          {
+            type: 'withdraw',
+            amount: numericAmount,
+            date: new Date().toISOString(),
+            note
+          }
+        ],
+        ':empty_list': []
+      },
+      ReturnValues: 'UPDATED_NEW'
+    };
 
-    account.balance -= amount;
-    account.transactionHistory.push({ type: "withdraw", amount, note });
-    await account.save();
-
-    res.json({ message: "Withdrawal successful", newBalance: account.balance });
+    const result = await docClient.update(updateParams).promise();
+    res.json({ message: 'Withdrawal successful', newBalance: result.Attributes.balance });
   } catch (error) {
-    res.status(500).json({ error: "Error withdrawing from account" });
+    if (error.code === 'ConditionalCheckFailedException') {
+      return res.status(400).json({ error: 'Insufficient funds' });
+    }
+    res.status(500).json({ error: 'Error withdrawing from account' });
   }
 };
 
@@ -61,11 +120,13 @@ exports.withdrawAccount = async (req, res) => {
 exports.getTransactionHistory = async (req, res) => {
   try {
     const userId = req.user.id;
-    let account = await DepositAccount.findOne({ userId });
-    if (!account) return res.status(404).json({ error: "Account not found" });
+    const { Item } = await docClient
+      .get({ TableName: DEPOSIT_ACCOUNT_TABLE_NAME, Key: { userId } })
+      .promise();
+    if (!Item) return res.status(404).json({ error: 'Account not found' });
 
-    res.json(account.transactionHistory);
+    res.json(Item.transactionHistory || []);
   } catch (error) {
-    res.status(500).json({ error: "Error retrieving transaction history" });
+    res.status(500).json({ error: 'Error retrieving transaction history' });
   }
 };

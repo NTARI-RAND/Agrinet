@@ -43,7 +43,7 @@ Agrinet is a decentralized agricultural trading and service platform built to en
 
 - Frontend: WIX (for web interface & UI logic)
 - Backend: Node.js (API handling)
-- Database: MongoDB (for storing users, contracts, and transactions)
+- Database: Amazon DynamoDB (for storing users, contracts, and transactions)
 - Security: OAuth 2.0 / McEliese Key Cryptography
 - Real-Time Processing: Webhooks & PING System
 
@@ -64,6 +64,15 @@ node server.js
 
 3. Deploy the frontend
 - TBD
+
+### Environment Variables
+
+The backend now uses Amazon DynamoDB. Set the following variables in your environment or `.env` file:
+
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_REGION`
+- `DYNAMODB_ENDPOINT` *(optional, for DynamoDB Local e.g. `http://localhost:8000`)*
 
 ## API Endpoints
 ### User Registration

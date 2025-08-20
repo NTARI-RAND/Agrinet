@@ -1,17 +1,20 @@
-const mongoose = require("mongoose");
+const DEPOSIT_ACCOUNT_TABLE_NAME = "DepositAccounts";
 
-const DepositAccountSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  balance: { type: Number, default: 0 },
-  currency: { type: String, default: "USD" },
-  transactionHistory: [
-    {
-      type: { type: String, enum: ["fund", "withdraw"], required: true },
-      amount: { type: Number, required: true },
-      date: { type: Date, default: Date.now },
-      note: { type: String }
-    }
-  ]
-});
+function createDepositAccountItem({
+  userId,
+  balance = 0,
+  currency = "USD",
+  transactionHistory = []
+}) {
+  return {
+    userId, // Partition key for DynamoDB table
+    balance,
+    currency,
+    transactionHistory
+  };
+}
 
-module.exports = mongoose.model("DepositAccount", DepositAccountSchema);
+module.exports = {
+  DEPOSIT_ACCOUNT_TABLE_NAME,
+  createDepositAccountItem
+};
