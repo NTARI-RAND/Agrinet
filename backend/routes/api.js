@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-
+//const crypto = require('crypto');
+//const Notification = require('../models/notifications');
 const { randomUUID } = require('crypto');
 const docClient = require('../lib/dynamodbClient');
 const { addPingJob } = require('../bull/pingJobs');
@@ -11,10 +12,21 @@ const { NOTIFICATION_TABLE_NAME, createNotificationItem } = require('../models/n
 router.post('/transactions', async (req, res) => {
   try {
     const transactionData = req.body;
-
+    //const id = crypto.randomUUID();
     const transactionId = randomUUID();
     const createdAt = new Date().toISOString();
+    const item = { id, ...transactionData };
     const transactionItem = {
+    /*
+    await docClient.put({ TableName: TRANSACTION_TABLE_NAME, Item: item }).promise();
+
+    await Notification.create({
+      userId: item.buyerId || item.consumerId,
+      message: `Your transaction ${id} has been initiated.`
+    });
+
+    addPingJob(id);
+    */
       buyerId: transactionData.buyerId, // Partition key
       transactionId,                    // Sort key
       sellerId: transactionData.sellerId,

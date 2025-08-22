@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
 const depositController = require('../controllers/deposit_controller');
+const asyncHandler = require('../utils/asyncHandler');
 
 // All routes are protected
 router.use(authMiddleware);
