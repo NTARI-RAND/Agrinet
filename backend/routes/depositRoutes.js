@@ -7,6 +7,13 @@ const asyncHandler = require('../utils/asyncHandler');
 // All routes are protected
 router.use(authMiddleware);
 
+const asyncHandler = fn => (req, res) => {
+  Promise.resolve(fn(req, res)).catch(err => {
+    console.error('DynamoDB error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  });
+};
+
 // Get or create user deposit account
 router.get('/', asyncHandler(depositController.getOrCreateAccount));
 

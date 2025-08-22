@@ -1,17 +1,39 @@
 const axios = require("axios");
-const NodeRegistry = require("./models/nodeRegistry");
+const dynamodbClient = require("../lib/dynamodbClient");
+const { NODE_REGISTRY_TABLE_NAME } = require("./models/nodeRegistry");
 
 const runFederationSync = async () => {
-  const nodes = await NodeRegistry.find();
+   // Scan all nodes from DynamoDB table
+  const { Items: nodes } = await dynamodbClient
+    .scan({ TableName: NODE_REGISTRY_TABLE_NAME })
+    .promise();
+/*
+const { getAllNodes, saveNode } = require("./models/nodeRegistry");
 
+const runFederationSync = async () => {
+  const nodes = await getAllNodes();
+*/
   for (const node of nodes) {
     try {
-      const { data } = await axios.get(`${node.url}/export`);
-
+      // Fetch federation/export data from the node
+      const { data } = await axios.get(`${node.url}/federation/export`);
+      
+      // Update lastSyncAt in DynamoDB for this node
       await axios.post("http://localhost:5000/import", data);
 
-      node.lastSyncAt = new Date();
-      await node.save();
+      await dynamodbClient
+        .update({
+          TableName: NODE_REGISTRY_TABLE_NAME,
+          Key: { url: node.url },
+          UpdateExpression: "set lastSyncAt = :time",
+          ExpressionAttributeValues: {
+            ":time": new Date().toISOString(),
+          },
+        })
+        .promise();
+
+      //node.lastSyncAt = new Date().toISOString();
+      //await saveNode(node);
 
       console.log(`✅ Synced with ${node.url}`);
     } catch (err) {

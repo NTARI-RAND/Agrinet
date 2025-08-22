@@ -5,9 +5,11 @@ const TRANSACTION_LOG_TABLE_NAME = "TransactionLogs";
 
 /**
  * Helper to create a transaction log item for DynamoDB.
+ * The table is expected to have `transactionId` as the partition key and
+ * `timestamp` as the sort key so that logs can be queried chronologically per transaction.
+ *
  * @param {Object} params
- * @param {string} id - Unique ID for the log (partition key)
- * @param {string} transactionId
+ * @param {string} transactionId - Partition key for the log item
  * @param {string} actorId
  * @param {string} action - One of: "ping", "rating", "status_change", "flag", "escrow_release"
  * @param {string} note
@@ -15,7 +17,6 @@ const TRANSACTION_LOG_TABLE_NAME = "TransactionLogs";
  * @returns {Object}
  */
 function createTransactionLogItem({
-  id,
   transactionId,
   actorId,
   action,
@@ -23,12 +24,11 @@ function createTransactionLogItem({
   timestamp = new Date().toISOString()
 }) {
   return {
-    id,
-    transactionId,
+    transactionId, // Partition key
+    timestamp,     // Sort key
     actorId,
     action,
-    note,
-    timestamp
+    note
   };
 }
 
