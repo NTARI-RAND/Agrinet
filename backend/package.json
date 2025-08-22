@@ -16,6 +16,9 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
     "aws-sdk": "^2.1534.0"
     "@aws-sdk/client-dynamodb": "^3.583.0"
   },
@@ -24,6 +27,5 @@
     "supertest": "^7.1.1"
   },
   "jest": {
-    "testEnvironment": "node"
   }
 }
