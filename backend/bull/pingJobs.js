@@ -1,6 +1,6 @@
 const { Queue, Worker } = require('bullmq');
 const docClient = require('../lib/dynamodbClient');
-const { TRANSACTION_TABLE_NAME } = require('../models/transaction');
+const { TRANSACTION_TABLE_NAME } = require('../marketplace/models/transaction');
 
 const connection = {
   host: 'localhost',
@@ -10,15 +10,31 @@ const connection = {
 
 const pingQueue = new Queue('ping-deadline', { connection });
 
-const addPingJob = (transactionId) => {
-  pingQueue.add('checkPing', { transactionId }, { delay: 24 * 60 * 60 * 1000 });
+const addPingJob = (buyerId, transactionId) => {
+  pingQueue.add('checkPing', { buyerId, transactionId }, { delay: 24 * 60 * 60 * 1000 }); // 24h delay
 };
 
 const worker = new Worker('ping-deadline', async job => {
-  const { transactionId } = job.data;
-  const result = await docClient.get({ TableName: TRANSACTION_TABLE_NAME, Key: { id: transactionId } }).promise();
-  const transaction = result.Item;
+  const { buyerId, transactionId } = job.data;
+  const params = {
+    TableName: TRANSACTION_TABLE_NAME,
+    Key: { buyerId, transactionId }
+  };
+  
+  /*
+  result = await docClient.get({ TableName: TRANSACTION_TABLE_NAME, Key: { id: transactionId } }).promise();
+  //const transaction = result.Item;
+  };
+
+  const worker = new Worker('ping-deadline', async job => {
+  const { buyerId, transactionId } = job.data;
+  const params = {
+    TableName: TRANSACTION_TABLE_NAME,
+    Key: { buyerId, transactionId }
+  };
+  const { Item: transaction } = await docClient.get(params).promise();
   if (!transaction) return;
+  */
 
   const now = new Date();
   const pingAge = now - new Date(transaction.lastPing);
