@@ -46,7 +46,7 @@ describe('contracts routes', () => {
   test('POST /contracts stores contract, calls webhook and invalidates cache', async () => {
     // Seed cache with initial scan
     docClient.scan.mockResolvedValueOnce({ Items: [{ id: 'cached' }] });
-    let app = createApp();
+    const app = createApp();
     await request(app).get('/contracts');
     expect(docClient.scan).toHaveBeenCalledTimes(1);
 
