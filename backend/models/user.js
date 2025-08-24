@@ -13,6 +13,9 @@ function createUserItem({
   verified = false,
   verificationCode,
   location,
+  coordinates, // { lat, long }
+  locationType, // 'farm' | 'production' | 'delivery'
+  locationPrivacy = false,
   role = "consumer",
   reputationScore = 0
 }) {
@@ -25,6 +28,9 @@ function createUserItem({
     verified,
     verificationCode,
     location,
+    coordinates,
+    locationType,
+    locationPrivacy,
     role,
     reputationScore
   };
