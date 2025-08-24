@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Service Post</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 1rem; }
+    label { display: block; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Post a Service</h1>
+  <form id="service-form">
+    <label>Title
+      <input type="text" name="title" required />
+    </label>
+    <label>Category
+      <select name="category" required>
+        <option value="la-pa">Labor - Planning/Advising</option>
+        <option value="la-sm">Labor - Setup/Maintenance</option>
+        <option value="la-ph">Labor - Planting/Harvest</option>
+        <option value="pr-hb">Processing - Hand/Basic</option>
+        <option value="pr-p">Processing - Packing</option>
+        <option value="pr-ap">Processing - Advanced/Processing</option>
+        <option value="composting">Composting</option>
+        <option value="environmental">Environmental Service</option>
+      </select>
+    </label>
+    <label>Description
+      <textarea name="description" required></textarea>
+    </label>
+    <label>Pricing
+      <input type="number" name="pricing" required />
+    </label>
+    <label>Logistics Range
+      <input type="text" name="logistics" />
+    </label>
+    <label>Processing Category
+      <select name="processing">
+        <option value="">None</option>
+        <option value="pr-hb">Hand/Basic</option>
+        <option value="pr-p">Packing</option>
+        <option value="pr-ap">Advanced Processing</option>
+      </select>
+    </label>
+    <label>
+      <input type="checkbox" name="composting" /> Composting/Environmental Service
+    </label>
+    <label>Location
+      <input type="text" name="location" />
+    </label>
+    <label>Availability Dates
+      <div id="availability-wrapper">
+        <input type="date" class="avail-date" />
+      </div>
+      <button type="button" id="add-date">Add Date</button>
+    </label>
+    <label>Media (up to 5 files)
+      <input type="file" id="media" multiple accept="image/*,video/*" />
+    </label>
+    <button type="submit">Post Service</button>
+  </form>
+  <script>
+    const form = document.getElementById('service-form');
+    document.getElementById('add-date').addEventListener('click', () => {
+      const input = document.createElement('input');
+      input.type = 'date';
+      input.className = 'avail-date';
+      document.getElementById('availability-wrapper').appendChild(input);
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const files = Array.from(document.getElementById('media').files).slice(0, 5);
+      const media = await Promise.all(files.map(file => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      })));
+      const availability = Array.from(document.querySelectorAll('.avail-date'))
+        .map(i => i.value)
+        .filter(Boolean);
+      const body = {
+        t: form.title.value,
+        c: form.category.value,
+        d: form.description.value,
+        term: form.pricing.value,
+        med: media,
+        lr: form.logistics.value,
+        pr: form.processing.value,
+        composting: form.composting.checked,
+        availability,
+        location: form.location.value
+      };
+      const res = await fetch('/api/marketplace/listings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      alert(data.message || 'Error posting service');
+    });
+  </script>
+</body>
+</html>
