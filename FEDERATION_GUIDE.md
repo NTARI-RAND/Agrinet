@@ -167,4 +167,44 @@ npm install chalk cli-table3 axios
 ```
 ---
 
+## 📘 Appendix: Node Template (Recursion Format)
+
+```json
+{
+  "nodeId": "node-1",
+  "production": {
+    "capabilities": []
+  },
+  "services": {
+    "educational": [],
+    "socialMedia": [],
+    "extension": [],
+    "financial": {
+      "marketListings": [],
+      "grants": []
+    },
+    "marketing": {
+      "onNetwork": [],
+      "socialMediaSyndication": []
+    },
+    "messaging": {
+      "enabled": false,
+      "levesonRatings": []
+    }
+  },
+  "reputation": { "leveson": 0 },
+  "interoperability": [],
+  "support": {
+    "compostingGrazing": [],
+    "environmentalServices": [],
+    "labor": [],
+    "collectiveManagement": []
+  }
+}
+```
+
+This recursive template mirrors Agrinet WP section 4 and helps nodes document capabilities, services, and support resources.
+
+---
+
 📦 Agrinet is ready to be deployed like Linux: peer-first, forkable, and sovereign. Let's get your first federation online. 🌐🧱
