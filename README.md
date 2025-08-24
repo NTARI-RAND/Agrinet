@@ -29,6 +29,11 @@ Agrinet is a decentralized agricultural trading and service platform built to en
 - Production Progress Reporting: Allows contract buyers to track order status.
 - Real-Time Notifications: Updates on market trends, contract changes, and service requests.
 
+#### SMS Access 📱
+
+- Query market and weather data through SMS using simple text commands.
+- Supports local languages and queues messages offline with delivery confirmation.
+
 #### Financial Transactions 🏦
 
 - Deposit & Donations to NTARI Account: Supports decentralized funding.
@@ -73,6 +78,10 @@ The backend now uses Amazon DynamoDB. Set the following variables in your enviro
 - `AWS_SECRET_ACCESS_KEY`
 - `AWS_REGION`
 - `DYNAMODB_ENDPOINT` *(optional, for DynamoDB Local e.g. `http://localhost:8000`)*
+- `TWILIO_SID`
+- `TWILIO_AUTH_TOKEN`
+- `TWILIO_FROM_NUMBER`
+- `TWILIO_STATUS_CALLBACK_URL` *(optional for delivery confirmation)*
 
 ## API Endpoints
 ### User Registration

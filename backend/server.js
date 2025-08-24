@@ -64,6 +64,7 @@ const adminRoutes = require("./routes/admin");
 const marketplaceRoutes = require("./marketplace/marketplace_routes");
 const userRoutes = require('./routes/userRoutes');
 const productRoutes = require('./routes/products');
+const smsRoutes = require('./routes/smsRoutes');
 
 app.use('/', routes);
 app.use("/api/auth", authRoutes);
@@ -73,6 +74,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/marketplace", marketplaceRoutes);
 app.use('/users', userRoutes);
 app.use('/products', productRoutes);
+app.use('/sms', smsRoutes);
 
 // REMOVE MongoDB connection and instead ensure DynamoDB client is configured in your data access files
 
