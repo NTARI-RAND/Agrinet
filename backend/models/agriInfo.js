@@ -11,8 +11,11 @@ async function getPrice(crop) {
   };
   try {
     const { Item } = await client.send(new GetItemCommand(params));
-    if (Item && Item.price) {
-      return Item.price.S;
+      if (Item.price.S !== undefined) {
+        return Item.price.S;
+      } else if (Item.price.N !== undefined) {
+        return Item.price.N.toString();
+      }
     }
   } catch (err) {
     // Fallback to static data when DB is unavailable
