@@ -17,7 +17,8 @@ function createUserItem({
   locationType, // 'farm' | 'production' | 'delivery'
   locationPrivacy = false,
   role = "consumer",
-  reputationScore = 0
+  reputationScore = 0,
+  reputationWeight = 0
 }) {
   return {
     id, // Partition key for DynamoDB table
@@ -32,7 +33,8 @@ function createUserItem({
     locationType,
     locationPrivacy,
     role,
-    reputationScore
+    reputationScore,
+    reputationWeight
   };
 }
 

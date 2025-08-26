@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>LBTAS Feedback</title>
+</head>
+<body>
+  <h1>Transaction Feedback</h1>
+  <form id="feedback-form">
+    <label>Transaction ID: <input type="text" id="transactionId" required /></label><br />
+    <label>Rater ID: <input type="text" id="raterId" required /></label><br />
+    <label>Rating (-1 to 4): <input type="number" id="rating" min="-1" max="4" required /></label><br />
+    <label>Feedback:<br /><textarea id="feedback"></textarea></label><br />
+    <button type="submit">Submit</button>
+  </form>
+  <div id="result"></div>
+  <script src="feedback.js"></script>
+</body>
+</html>
