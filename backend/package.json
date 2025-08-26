@@ -2,12 +2,10 @@
   "name": "fruitful",
   "version": "1.0.0",
   "description": "Agrinet Platform",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
     "test": "jest"
   },
-  "keywords": [],
-  "author": "",
   "license": "ISC",
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.583.0",
