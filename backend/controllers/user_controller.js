@@ -20,7 +20,8 @@ exports.registerUser = async (req, res) => {
             verificationCode,
             location,
             role,
-            reputationScore: 0
+            reputationScore: 0,
+            reputationWeight: 0
         });
 
         await docClient

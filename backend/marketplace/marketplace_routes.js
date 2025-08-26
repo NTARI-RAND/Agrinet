@@ -1,7 +1,7 @@
 const express = require("express");
 const { randomUUID } = require("crypto");
 const docClient = require("../lib/dynamodbClient");
-const { LISTINGS_TABLE_NAME } = require("./models/listings");
+const { LISTINGS_TABLE_NAME, createListingItem } = require("./models/listings");
 const {
   BROADCAST_TABLE_NAME,
   createBroadcastItem
@@ -38,10 +38,63 @@ router.get("/broadcasts", async (req, res) => {
   }
 });
 
+// Create a new service listing following AgriNet protocol
+router.post("/listings", async (req, res) => {
+  try {
+    const {
+      t: title,
+      c: category,
+      d: description,
+      term,
+      med = [],
+      lr,
+      pr,
+      composting,
+      availability = [],
+      tags = [],
+      location = "",
+      userId = ""
+    } = req.body;
+
+    if (!title || !category || !description) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const media = Array.isArray(med) ? med.slice(0, 5) : [];
+    const autoTags = Array.from(
+      new Set([...tags, category, ...title.split(/\s+/)])
+    );
+    const id = randomUUID();
+    const item = createListingItem({
+      id,
+      userId,
+      type: "service",
+      title,
+      category,
+      description,
+      price: term,
+      location,
+      media,
+      logisticsRange: lr,
+      processingCategory: pr,
+      compostingService: composting,
+      availability,
+      tags: autoTags
+    });
+
+    await docClient.put({ TableName: LISTINGS_TABLE_NAME, Item: item }).promise();
+    res
+      .status(201)
+      .json({ message: "Service posted successfully", listing: item });
+  } catch (error) {
+    res.status(500).json({ error: "Error posting service" });
+  }
+});
+
 // Retrieve listings with filtering options
 router.get("/listings", async (req, res) => {
   try {
-    const { location, type, minPrice, maxPrice, keyword } = req.query;
+    const { location, type, minPrice, maxPrice, keyword, tag } = req.query;
     const params = { TableName: LISTINGS_TABLE_NAME };
     const filterExpressions = [];
     const expressionAttributeValues = {};
@@ -71,6 +124,11 @@ router.get("/listings", async (req, res) => {
       filterExpressions.push("contains(#title, :keyword)");
       expressionAttributeValues[":keyword"] = keyword;
       expressionAttributeNames["#title"] = "title";
+    }
+    if (tag) {
+      filterExpressions.push("contains(#tags, :tag)");
+      expressionAttributeValues[":tag"] = tag;
+      expressionAttributeNames["#tags"] = "tags";
     }
 
     if (filterExpressions.length) {

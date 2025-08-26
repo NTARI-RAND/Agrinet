@@ -13,8 +13,12 @@ function createUserItem({
   verified = false,
   verificationCode,
   location,
+  coordinates, // { lat, long }
+  locationType, // 'farm' | 'production' | 'delivery'
+  locationPrivacy = false,
   role = "consumer",
-  reputationScore = 0
+  reputationScore = 0,
+  reputationWeight = 0
 }) {
   return {
     id, // Partition key for DynamoDB table
@@ -25,8 +29,12 @@ function createUserItem({
     verified,
     verificationCode,
     location,
+    coordinates,
+    locationType,
+    locationPrivacy,
     role,
-    reputationScore
+    reputationScore,
+    reputationWeight
   };
 }
 
