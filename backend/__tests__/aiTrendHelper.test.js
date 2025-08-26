@@ -1,31 +1,37 @@
-const mockListingCount = jest.fn();
-const mockUserFind = jest.fn();
-const mockTransactionCount = jest.fn();
+const mockScan = jest.fn();
 
-jest.mock('../models/listing', () => ({ countDocuments: mockListingCount }));
-jest.mock('../models/user', () => ({ find: mockUserFind }));
-jest.mock('../models/transaction', () => ({ countDocuments: mockTransactionCount }));
+jest.mock('../lib/dynamodbClient', () => ({
+  scan: mockScan
+}));
 
 const { generateAIInsight } = require('../utils/aiTrendHelper');
 
 describe('generateAIInsight', () => {
   beforeEach(() => {
-    mockListingCount.mockReset();
-    mockUserFind.mockReset();
-    mockTransactionCount.mockReset();
+    mockScan.mockReset();
   });
 
-  it('produces insights from listing and transaction data', async () => {
-    mockListingCount.mockResolvedValueOnce(150);
-    const mockLimit = jest.fn().mockReturnValue([{ name: 'Alice' }]);
-    const mockSort = jest.fn().mockReturnValue({ limit: mockLimit });
-    mockUserFind.mockReturnValue({ sort: mockSort });
-    mockTransactionCount.mockResolvedValueOnce(12);
+  it('produces localized insights from marketplace data', async () => {
+    // Mock listing scan
+    mockScan
+      .mockReturnValueOnce({
+        promise: () => Promise.resolve({ Items: Array(150).fill({}) })
+      })
+      // Mock user scan
+      .mockReturnValueOnce({
+        promise: () => Promise.resolve({ Items: [{ name: 'Alice', reputationScore: 5 }] })
+      })
+      // Mock transaction scan
+      .mockReturnValueOnce({
+        promise: () => Promise.resolve({ Items: Array(12).fill({}) })
+      });
 
-    const insights = await generateAIInsight('RegionX');
+    const insights = await generateAIInsight('RegionX', 'es-MX');
 
-    expect(insights).toContain('📈 High listing volume detected in RegionX – over 100 active listings.');
-    expect(insights).toContain('🏆 Top rated producers this week: Alice');
-    expect(insights).toContain('⚠️ Several transactions are experiencing delays. Encourage producers to respond to PINGs promptly.');
-});
+    expect(insights).toContain('📈 Chorro de anuncios en RegionX – más de 100 activos.');
+    expect(insights).toContain('🏆 productores mejor valorados esta semana: Alice');
+    expect(
+      insights
+    ).toContain('⚠️ Varias transacciones están experimentando retrasos. Incentiva a los productores a responder a los PINGs rápidamente.');
+  });
 });

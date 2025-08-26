@@ -2,8 +2,15 @@ const docClient = require('../lib/dynamodbClient');
 const { USER_TABLE_NAME } = require('../models/user');
 const { LISTING_TABLE_NAME } = require('../models/listing');
 const { TRANSACTION_TABLE_NAME } = require('../models/transaction');
+const { translateMessage, translateTerm } = require('./translation');
 
-async function generateAIInsight(region) {
+/**
+ * Generate localized AI insights for marketplace trends.
+ * @param {string} region - Region or locale identifier used for data filtering.
+ * @param {string} locale - Language/region code (e.g. "en", "es-MX").
+ * @returns {Promise<string[]>} Array of translated insight strings.
+ */
+async function generateAIInsight(region, locale = 'en') {
   const insights = [];
 
   // 1. Top Listing Density
@@ -16,9 +23,19 @@ async function generateAIInsight(region) {
   const listingRes = await docClient.scan(listingParams).promise();
   const listingCount = listingRes.Items.length;
   if (listingCount > 100) {
-    insights.push(`📈 High listing volume detected in ${region || 'this region'} – over 100 active listings.`);
+    insights.push(
+      translateMessage('high_listing_volume', locale, {
+        region: region || translateMessage('this_region', locale),
+        listingTerm: translateTerm('listing', locale),
+        listingTermPlural: translateTerm('listingPlural', locale)
+      })
+    );
   } else if (listingCount < 10) {
-    insights.push(`🌱 Low market activity in ${region || 'this region'}. Consider broadcasting market needs.`);
+    insights.push(
+      translateMessage('low_market_activity', locale, {
+        region: region || translateMessage('this_region', locale)
+      })
+    );
   }
 
   // 2. Top Sellers Reputation
@@ -37,7 +54,12 @@ async function generateAIInsight(region) {
   const topUsers = usersRes.Items.sort((a, b) => b.reputationScore - a.reputationScore).slice(0, 3);
   if (topUsers.length > 0) {
     const names = topUsers.map(u => u.name || u.email).join(', ');
-    insights.push(`🏆 Top rated producers this week: ${names}`);
+    insights.push(
+      translateMessage('top_rated_producers', locale, {
+        names,
+        producerTermPlural: translateTerm('producerPlural', locale)
+      })
+    );
   }
 
   // 3. PING Health
@@ -49,9 +71,20 @@ async function generateAIInsight(region) {
   const transRes = await docClient.scan(transParams).promise();
   const slowPings = transRes.Items.length;
   if (slowPings > 10) {
-    insights.push('⚠️ Several transactions are experiencing delays. Encourage producers to respond to PINGs promptly.');
+    insights.push(
+      translateMessage('transaction_delays', locale, {
+        transactionTermPlural: translateTerm('transactionPlural', locale),
+        producerTermPlural: translateTerm('producerPlural', locale),
+        pingTermPlural: translateTerm('pingPlural', locale)
+      })
+    );
   } else {
-    insights.push('✅ Average transaction health is good. PING responsiveness is within expected limits.');
+    insights.push(
+      translateMessage('transaction_health_good', locale, {
+        transactionTerm: translateTerm('transaction', locale),
+        pingTerm: translateTerm('ping', locale)
+      })
+    );
   }
 
   return insights;
