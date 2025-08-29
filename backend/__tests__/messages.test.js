@@ -1,16 +1,20 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
-const fs = require('fs');
-const path = require('path');
+const Message = require('../models/message');
 
-const dataFile = path.join(__dirname, '../data/messages.json');
-
-test('sendMessage stores and listMessages retrieves', () => {
-  fs.writeFileSync(dataFile, '[]');
-  delete require.cache[require.resolve('../models/message')];
-  const Message = require('../models/message');
-  const msg = Message.sendMessage(1, 'u1', 'u2', 'hello');
+test('sendMessage stores and listMessages retrieves', async () => {
+  const store = [];
+  const mockClient = {
+    put: ({ Item }) => ({ promise: async () => { store.push(Item); } }),
+    query: ({ ExpressionAttributeValues }) => ({
+      promise: async () => ({ Items: store.filter(i => i.conversationId === ExpressionAttributeValues[':cid']) }),
+    }),
+    batchWrite: () => ({ promise: async () => {} }),
+  };
+  Message.setDocClient(mockClient);
+  const msg = await Message.sendMessage('c1', 'u1', 'u2', 'hello');
   assert.ok(msg.id);
-  const list = Message.listMessages(1);
-  assert.deepStrictEqual(list[0].content, 'hello');
+  const list = await Message.listMessages('c1');
+  assert.strictEqual(list[0].content, 'hello');
 });
+

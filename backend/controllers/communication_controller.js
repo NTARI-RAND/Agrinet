@@ -1,17 +1,17 @@
 const Message = require('../models/message');
 
-exports.sendMessage = (req, res) => {
+exports.sendMessage = async (req, res) => {
   const { conversationId } = req.params;
   const { from, to, content, type, file } = req.body;
-  const msg = Message.sendMessage(parseInt(conversationId), from, to, content, type, file);
+  const msg = await Message.sendMessage(conversationId, from, to, content, type, file);
   if (global.io) {
     global.io.emit('message', msg);
   }
   res.status(201).json(msg);
 };
 
-exports.listMessages = (req, res) => {
+exports.listMessages = async (req, res) => {
   const { conversationId } = req.params;
-  const msgs = Message.listMessages(parseInt(conversationId));
+  const msgs = await Message.listMessages(conversationId);
   res.json(msgs);
 };

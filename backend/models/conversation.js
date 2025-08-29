@@ -1,58 +1,71 @@
-const fs = require('fs');
-const path = require('path');
+const { randomUUID } = require('crypto');
+let docClient = require('../lib/dynamodbClient');
 const Message = require('./message');
 
-const DATA_FILE = path.join(__dirname, '../data/conversations.json');
-let conversations = [];
-try {
-  conversations = JSON.parse(fs.readFileSync(DATA_FILE));
-} catch (e) {
-  conversations = [];
-}
+const CONVERSATION_TABLE_NAME = process.env.CONVERSATION_TABLE_NAME || 'Conversations';
 
-function save() {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(conversations, null, 2));
-}
-
-function create(title = 'New Chat') {
+async function create(title = 'New Chat') {
   const convo = {
-    id: conversations.length + 1,
+    id: randomUUID(),
     title,
     pinned: false,
     createdAt: new Date().toISOString(),
   };
-  conversations.push(convo);
-  save();
+  await docClient.put({ TableName: CONVERSATION_TABLE_NAME, Item: convo }).promise();
   return convo;
 }
 
-function list() {
-  return conversations;
+async function list() {
+  const res = await docClient.scan({ TableName: CONVERSATION_TABLE_NAME }).promise();
+  return res.Items || [];
 }
 
-function rename(id, title) {
-  const convo = conversations.find((c) => c.id === parseInt(id));
-  if (convo) {
-    convo.title = title;
-    save();
+async function rename(id, title) {
+  try {
+    const res = await docClient
+      .update({
+        TableName: CONVERSATION_TABLE_NAME,
+        Key: { id },
+        UpdateExpression: 'SET title = :t',
+        ExpressionAttributeValues: { ':t': title },
+        ReturnValues: 'ALL_NEW',
+        ConditionExpression: 'attribute_exists(id)',
+      })
+      .promise();
+    return res.Attributes;
+  } catch (err) {
+    if (err.code === 'ConditionalCheckFailedException') return null;
+    throw err;
   }
-  return convo;
 }
 
-function remove(id) {
-  const cid = parseInt(id);
-  conversations = conversations.filter((c) => c.id !== cid);
-  save();
-  Message.removeByConversation(cid);
+async function remove(id) {
+  await docClient.delete({ TableName: CONVERSATION_TABLE_NAME, Key: { id } }).promise();
+  await Message.removeByConversation(id);
 }
 
-function pin(id, pinned) {
-  const convo = conversations.find((c) => c.id === parseInt(id));
-  if (convo) {
-    convo.pinned = pinned;
-    save();
+async function pin(id, pinned) {
+  try {
+    const res = await docClient
+      .update({
+        TableName: CONVERSATION_TABLE_NAME,
+        Key: { id },
+        UpdateExpression: 'SET pinned = :p',
+        ExpressionAttributeValues: { ':p': pinned },
+        ReturnValues: 'ALL_NEW',
+        ConditionExpression: 'attribute_exists(id)',
+      })
+      .promise();
+    return res.Attributes;
+  } catch (err) {
+    if (err.code === 'ConditionalCheckFailedException') return null;
+    throw err;
   }
-  return convo;
 }
 
-module.exports = { create, list, rename, remove, pin };
+function setDocClient(client) {
+  docClient = client;
+}
+
+module.exports = { create, list, rename, remove, pin, setDocClient };
+

@@ -1,23 +1,16 @@
+const { randomUUID } = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-const DATA_FILE = path.join(__dirname, '../data/messages.json');
+let docClient = require('../lib/dynamodbClient');
+
+const MESSAGE_TABLE_NAME = process.env.MESSAGE_TABLE_NAME || 'Messages';
 const UPLOAD_DIR = path.join(__dirname, '../uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-let messages = [];
-try {
-  messages = JSON.parse(fs.readFileSync(DATA_FILE));
-} catch (e) {
-  messages = [];
-}
 
-function save() {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(messages, null, 2));
-}
-
-function sendMessage(conversationId, from, to, content, type = 'text', file) {
+async function sendMessage(conversationId, from, to, content, type = 'text', file) {
   const msg = {
-    id: messages.length + 1,
+    id: randomUUID(),
     conversationId,
     from,
     to,
@@ -26,6 +19,7 @@ function sendMessage(conversationId, from, to, content, type = 'text', file) {
     type,
     timestamp: new Date().toISOString(),
   };
+
   if (file && file.data) {
     const filename = Date.now() + '_' + file.name;
     const filePath = path.join(UPLOAD_DIR, filename);
@@ -36,18 +30,36 @@ function sendMessage(conversationId, from, to, content, type = 'text', file) {
       mimetype: file.type,
     };
   }
-  messages.push(msg);
-  save();
+
+  await docClient.put({ TableName: MESSAGE_TABLE_NAME, Item: msg }).promise();
   return msg;
 }
 
-function listMessages(conversationId) {
-  return messages.filter((m) => m.conversationId === conversationId);
+async function listMessages(conversationId) {
+  const res = await docClient
+    .query({
+      TableName: MESSAGE_TABLE_NAME,
+      KeyConditionExpression: 'conversationId = :cid',
+      ExpressionAttributeValues: { ':cid': conversationId },
+    })
+    .promise();
+  return res.Items || [];
 }
 
-function removeByConversation(conversationId) {
-  messages = messages.filter((m) => m.conversationId !== conversationId);
-  save();
+async function removeByConversation(conversationId) {
+  const messages = await listMessages(conversationId);
+  if (!messages.length) return;
+  const deletes = messages.map((m) => ({
+    DeleteRequest: { Key: { conversationId: m.conversationId, id: m.id } },
+  }));
+  await docClient
+    .batchWrite({ RequestItems: { [MESSAGE_TABLE_NAME]: deletes } })
+    .promise();
 }
 
-module.exports = { sendMessage, listMessages, removeByConversation };
+function setDocClient(client) {
+  docClient = client;
+}
+
+module.exports = { sendMessage, listMessages, removeByConversation, setDocClient };
+
