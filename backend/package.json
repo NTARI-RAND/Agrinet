@@ -4,7 +4,7 @@
   "description": "Agrinet Platform",
   "main": "server.js",
   "scripts": {
-    "test": "node --test __tests__/messages.test.js"
+    "test": "node --test __tests__/messages.test.js __tests__/conversation.test.js"
   },
   "license": "ISC",
   "dependencies": {

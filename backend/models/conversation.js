@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const Message = require('./message');
 
 const DATA_FILE = path.join(__dirname, '../data/conversations.json');
 let conversations = [];
@@ -39,8 +40,10 @@ function rename(id, title) {
 }
 
 function remove(id) {
-  conversations = conversations.filter((c) => c.id !== parseInt(id));
+  const cid = parseInt(id);
+  conversations = conversations.filter((c) => c.id !== cid);
   save();
+  Message.removeByConversation(cid);
 }
 
 function pin(id, pinned) {

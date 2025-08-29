@@ -45,4 +45,9 @@ function listMessages(conversationId) {
   return messages.filter((m) => m.conversationId === conversationId);
 }
 
-module.exports = { sendMessage, listMessages };
+function removeByConversation(conversationId) {
+  messages = messages.filter((m) => m.conversationId !== conversationId);
+  save();
+}
+
+module.exports = { sendMessage, listMessages, removeByConversation };
