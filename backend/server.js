@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require("cors");
 const dotenv = require("dotenv");
+const path = require("path");
 const authMiddleware = require("./middleware/authMiddleware");
 const depositRoutes = require("./routes/depositRoutes");
 
@@ -54,6 +55,7 @@ io.on("connection", (socket) => {
 app.use(express.json());
 app.use(cors({ origin: "https://www.ntari.org", credentials: true }));
 app.use(authMiddleware);
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 const routes = require('./routes/api');
@@ -69,6 +71,7 @@ const smsRoutes = require('./routes/smsRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const subscriptionRoutes = require('./routes/subscriptionRoutes');
+const conversationRoutes = require('./routes/conversationRoutes');
 const communicationRoutes = require('./routes/communicationRoutes');
 const inventoryRoutes = require('./routes/inventoryRoutes');
 const locationRoutes = require('./routes/locationRoutes');
@@ -86,14 +89,10 @@ app.use('/sms', smsRoutes);
 app.use('/cart', cartRoutes);
 app.use('/orders', orderRoutes);
 app.use('/subscriptions', subscriptionRoutes);
+app.use('/conversations', conversationRoutes);
 app.use('/messages', communicationRoutes);
 app.use('/inventory', inventoryRoutes);
 app.use('/api/location', locationRoutes);
-
-// REMOVE MongoDB connection and instead ensure DynamoDB client is configured in your data access files
-
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 // Federation
 const federationRoutes = require('./federation/federationRoutes');
@@ -102,8 +101,13 @@ const trendsRoutes = require('./trends/trendsRoutes');
 app.use('/federation', federationRoutes);
 app.use('/trends', trendsRoutes);
 
-//Optionally run federationSyncJob.js on boot:
+// Optionally run federation sync job on boot
 const runFederationSync = require('./federation/federationSyncJob');
-runFederationSync(); // kicks off first run
 
-// No MongoDB-specific code remains. All DynamoDB access should be handled in controller/data files.
+const PORT = process.env.PORT || 5000;
+if (require.main === module) {
+  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  runFederationSync(); // kicks off first run
+}
+
+module.exports = { app, server };

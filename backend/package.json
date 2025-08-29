@@ -4,7 +4,7 @@
   "description": "Agrinet Platform",
   "main": "server.js",
   "scripts": {
-    "test": "jest"
+    "test": "node --test __tests__/messages.test.js __tests__/conversation.test.js __tests__/authMiddleware.test.js"
   },
   "license": "ISC",
   "dependencies": {
@@ -18,15 +18,8 @@
     "franc": "^6.1.0",
     "jsonwebtoken": "^9.0.2",
     "twilio": "^4.21.0"
-    "@aws-sdk/client-dynamodb": "^3.583.0"
   },
   "devDependencies": {
-    "aws-sdk": "^2.1534.0",
-    "jest": "^29.7.0",
-    "supertest": "^7.1.1",
     "aws-sdk": "^2.1534.0"
-  },
-  "jest": {
-    "testEnvironment": "node"
   }
 }
