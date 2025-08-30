@@ -3,11 +3,14 @@ frontend:
   phases:
     preBuild:
       commands:
+        - nvm install 20
+        - nvm use 20
         - cd frontend/chat-ui
         - if [ -f package-lock.json ]; then npm ci; else npm install; fi
         - npm ci
     build:
       commands:
+        - cd frontend/chat-ui
         - npm run build
   artifacts:
     baseDirectory: frontend/chat-ui/dist
