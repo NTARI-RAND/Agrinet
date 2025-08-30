@@ -1,0 +1,17 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - cd frontend/chat-ui
+        - npm ci
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: frontend/chat-ui/dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - frontend/chat-ui/node_modules/**/*
