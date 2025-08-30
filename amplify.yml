@@ -5,6 +5,7 @@ frontend:
       commands:
         - cd frontend/chat-ui
         - if [ -f package-lock.json ]; then npm ci; else npm install; fi
+        - npm ci
     build:
       commands:
         - npm run build
