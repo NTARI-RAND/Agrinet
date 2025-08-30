@@ -20,22 +20,25 @@ function createUserItem({
   reputationScore = 0,
   reputationWeight = 0
 }) {
-  return {
+  const item = {
     id, // Partition key for DynamoDB table
     username,
     email,
     phone,
     password,
     verified,
-    verificationCode,
     location,
-    coordinates,
-    locationType,
     locationPrivacy,
     role,
     reputationScore,
     reputationWeight
   };
+
+  if (verificationCode !== undefined) item.verificationCode = verificationCode;
+  if (coordinates !== undefined) item.coordinates = coordinates;
+  if (locationType !== undefined) item.locationType = locationType;
+
+  return item;
 }
 
 module.exports = {

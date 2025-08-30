@@ -1,3 +1,5 @@
+const { describe, it } = require('node:test');
+const assert = require('node:assert');
 const { createUserItem } = require('../models/user');
 
 describe('createUserItem', () => {
@@ -11,7 +13,7 @@ describe('createUserItem', () => {
       location: 'Earth'
     });
 
-    expect(item).toEqual({
+    assert.deepStrictEqual(item, {
       id: '1',
       username: 'testuser',
       email: 'test@example.com',
@@ -19,8 +21,10 @@ describe('createUserItem', () => {
       password: 'hashed',
       verified: false,
       location: 'Earth',
+      locationPrivacy: false,
       role: 'consumer',
-      reputationScore: 0
+      reputationScore: 0,
+      reputationWeight: 0
     });
   });
 });
