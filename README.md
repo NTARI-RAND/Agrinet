@@ -46,7 +46,7 @@ Agrinet is a decentralized agricultural trading and service platform built to en
 
 ## Technology Stack
 
-- Frontend: WIX (for web interface & UI logic)
+- Frontend: React with Next.js (responsive site structure)
 - Backend: Node.js (API handling)
 - Database: Amazon DynamoDB (for storing users, contracts, and transactions)
 - Security: OAuth 2.0 / McEliese Key Cryptography
@@ -68,7 +68,11 @@ node server.js
 ```
 
 3. Deploy the frontend
-- TBD
+```
+cd frontend
+npm install
+npm run dev
+```
 
 ### Environment Variables
 
