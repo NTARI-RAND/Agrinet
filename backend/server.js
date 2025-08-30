@@ -1,6 +1,5 @@
 const express = require("express");
 const http = require('http');
-const { Server } = require('socket.io');
 const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
@@ -36,24 +35,28 @@ app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
 
-// Server & Socket
+// Server & SSE event stream
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
-global.io = io; // Attach to global for access in other modules
 
-io.on("connection", (socket) => {
-  console.log(`🟢 User connected: ${socket.id}`);
-
-  socket.on("disconnect", () => {
-    console.log(`🔴 User disconnected: ${socket.id}`);
+// Simple Server-Sent Events implementation
+const sseClients = new Set();
+app.get('/events', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive'
   });
+  sseClients.add(res);
+  req.on('close', () => sseClients.delete(res));
 });
+
+function broadcast(event, data) {
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  sseClients.forEach(res => res.write(payload));
+}
+global.broadcast = broadcast;
 
 // Middleware
-app.use(express.json());
-app.use(cors({ origin: "https://www.ntari.org", credentials: true }));
 app.use(authMiddleware);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 

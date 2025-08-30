@@ -20,30 +20,19 @@ const worker = new Worker('ping-deadline', async job => {
     TableName: TRANSACTION_TABLE_NAME,
     Key: { buyerId, transactionId }
   };
-  
-  /*
-  result = await docClient.get({ TableName: TRANSACTION_TABLE_NAME, Key: { id: transactionId } }).promise();
-  //const transaction = result.Item;
-  };
-
-  const worker = new Worker('ping-deadline', async job => {
-  const { buyerId, transactionId } = job.data;
-  const params = {
-    TableName: TRANSACTION_TABLE_NAME,
-    Key: { buyerId, transactionId }
-  };
   const { Item: transaction } = await docClient.get(params).promise();
   if (!transaction) return;
-  */
 
   const now = new Date();
   const pingAge = now - new Date(transaction.lastPing);
 
   if (pingAge > 3 * 24 * 60 * 60 * 1000) {
-    global.io.emit('ping-overdue', {
-      transactionId,
-      message: '🚨 A transaction has not been updated in 3+ days',
-    });
+    if (global.broadcast) {
+      global.broadcast('ping-overdue', {
+        transactionId,
+        message: '🚨 A transaction has not been updated in 3+ days',
+      });
+    }
   }
 }, { connection });
 

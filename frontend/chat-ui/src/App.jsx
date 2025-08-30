@@ -5,7 +5,6 @@ import InputBox from './components/InputBox.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import TopBar from './components/TopBar.jsx';
-import { io } from 'socket.io-client';
 
 function AppInner() {
   const { state, dispatch } = useStore();
@@ -15,9 +14,16 @@ function AppInner() {
   }, [state.theme]);
 
   useEffect(() => {
-    const socket = io();
-    socket.on('message', (msg) => dispatch({ type: 'ADD_MESSAGE', message: msg }));
-    return () => socket.disconnect();
+    const events = new EventSource('/events');
+    const handleMessage = (e) => {
+      const data = JSON.parse(e.data);
+      dispatch({ type: 'ADD_MESSAGE', message: data });
+    };
+    events.addEventListener('message', handleMessage);
+    return () => {
+      events.removeEventListener('message', handleMessage);
+      events.close();
+    };
   }, [dispatch]);
 
   return (

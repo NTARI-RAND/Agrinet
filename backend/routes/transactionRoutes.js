@@ -12,10 +12,12 @@ router.post('/transactions', async (req, res) => {
     const item = createTransactionItem({ id, contractId, consumerId, producerId });
     await docClient.put({ TableName: TRANSACTION_TABLE_NAME, Item: item }).promise();
 
-    global.io.emit('new-transaction', {
-      transactionId: id,
-      buyerId: consumerId
-    });
+    if (global.broadcast) {
+      global.broadcast('new-transaction', {
+        transactionId: id,
+        buyerId: consumerId
+      });
+    }
 
     await logTransactionEvent({ transactionId: id, actorId: consumerId, action: 'create', note: 'Transaction initiated' });
 
