@@ -44,9 +44,9 @@ pm save
 # pm2 startup systemd && sudo env PATH=$PATH:/home/$USER/.nvm/versions/node/v18/bin pm2 startup systemd -u $USER --hp /home/$USER
 ```
 
-Add this to crontab if you want auto-sync federation:
+Add this to crontab if you want auto-sync federation (ensure `BACKEND_URL` is set to your backend's URL):
 ```bash
-*/30 * * * * curl -s http://localhost:5000/federation/sync
+*/30 * * * * curl -s $BACKEND_URL/federation/sync
 ```
 
 ---
@@ -61,7 +61,7 @@ Each new peer node should:
    - AWS_SECRET
    - STRIPE_KEYS (optional)
 3. Start the federation background job:
-   - Schedule federationSyncJob.js (via PM2 or cron)
+   - Set `BACKEND_URL` to your node's base URL and schedule `federationSyncJob.js` (via PM2 or cron)
 4. Register with other known nodes via:
    ```bash
    POST /federation/node/register

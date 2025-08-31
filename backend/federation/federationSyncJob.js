@@ -2,6 +2,8 @@ const axios = require("axios");
 const dynamodbClient = require("../lib/dynamodbClient");
 const { NODE_REGISTRY_TABLE_NAME } = require("./models/nodeRegistry");
 
+const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5000";
+
 const runFederationSync = async () => {
    // Scan all nodes from DynamoDB table
   const { Items: nodes } = await dynamodbClient
@@ -19,7 +21,7 @@ const runFederationSync = async () => {
       const { data } = await axios.get(`${node.url}/federation/export`);
       
       // Update lastSyncAt in DynamoDB for this node
-      await axios.post("http://localhost:5000/import", data);
+      await axios.post(`${BACKEND_URL}/import`, data);
 
       await dynamodbClient
         .update({
