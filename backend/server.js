@@ -56,6 +56,51 @@ function broadcast(event, data) {
 }
 global.broadcast = broadcast;
 
+// Conversation-scoped Server-Sent Events implementation
+const conversationStreams = new Map();
+
+app.get('/stream/:conversationId', (req, res) => {
+  const { conversationId } = req.params;
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    Connection: 'keep-alive'
+  });
+
+  if (!conversationStreams.has(conversationId)) {
+    conversationStreams.set(conversationId, new Set());
+  }
+
+  const clients = conversationStreams.get(conversationId);
+  clients.add(res);
+
+  req.on('close', () => {
+    clients.delete(res);
+    if (clients.size === 0) {
+      conversationStreams.delete(conversationId);
+    }
+  });
+});
+
+function sendConversationEvent(conversationId, event, data) {
+  const clients = conversationStreams.get(conversationId);
+  if (!clients) return;
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  clients.forEach(res => res.write(payload));
+}
+
+// Helpers to emit token and message events
+function emitToken(conversationId, id, token) {
+  sendConversationEvent(conversationId, 'token', { id, token });
+}
+
+function emitMessage(conversationId, message) {
+  sendConversationEvent(conversationId, 'message', { message });
+}
+
+global.emitToken = emitToken;
+global.emitMessage = emitMessage;
+
 // Middleware
 app.use(authMiddleware);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

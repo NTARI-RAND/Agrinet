@@ -6,6 +6,9 @@ exports.sendMessage = async (req, res) => {
   const msg = await Message.sendMessage(conversationId, { from, to, content, type, file });
   if (global.broadcast) {
     global.broadcast('message', msg);
+  const msg = await Message.sendMessage(conversationId, from, to, content, type, file);
+  if (global.emitMessage) {
+    global.emitMessage(conversationId, msg);
   }
   res.status(201).json(msg);
 };
