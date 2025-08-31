@@ -14,7 +14,8 @@ export default function InputBox() {
     setPending(true);
     try {
       const payload = {
-        role: 'user',
+        from: 'user',
+        to: 'assistant',
         content: text,
         type: file ? 'file' : 'text',
         timestamp: Date.now(),

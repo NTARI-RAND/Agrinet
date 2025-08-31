@@ -12,7 +12,7 @@ test('sendMessage stores and listMessages retrieves', async () => {
     batchWrite: () => ({ promise: async () => {} }),
   };
   Message.setDocClient(mockClient);
-  const msg = await Message.sendMessage('c1', 'u1', 'u2', 'hello');
+  const msg = await Message.sendMessage('c1', { from: 'u1', to: 'u2', content: 'hello' });
   assert.ok(msg.id);
   const list = await Message.listMessages('c1');
   assert.strictEqual(list[0].content, 'hello');

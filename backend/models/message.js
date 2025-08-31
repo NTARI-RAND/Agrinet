@@ -8,13 +8,12 @@ const MESSAGE_TABLE_NAME = process.env.MESSAGE_TABLE_NAME || 'Messages';
 const UPLOAD_DIR = path.join(__dirname, '../uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-async function sendMessage(conversationId, from, to, content, type = 'text', file) {
+async function sendMessage(conversationId, { from, to, content, type = 'text', file }) {
   const msg = {
     id: randomUUID(),
     conversationId,
     from,
     to,
-    sender: from,
     content,
     type,
     timestamp: new Date().toISOString(),
