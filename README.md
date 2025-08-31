@@ -44,6 +44,12 @@ Agrinet is a decentralized agricultural trading and service platform built to en
 - User Profiles & Logs: Maintains key issuance logs parallel to user profiles.
 - Geo-Filtering & Search Optimization: Enables market visibility based on location.
 
+#### Square Foot Gardening Calculator 🌿
+
+- Plant spacing recommendations for common crops.
+- Compatibility matrix to plan companion planting.
+- Growth projections and seasonal schedules with visual grid layouts.
+
 ## Technology Stack
 
 - Frontend: React with Next.js (responsive site structure)
@@ -93,6 +99,25 @@ The backend now uses Amazon DynamoDB. Set the following variables in your enviro
 - `TWILIO_AUTH_TOKEN`
 - `TWILIO_FROM_NUMBER`
 - `TWILIO_STATUS_CALLBACK_URL` *(optional for delivery confirmation)*
+
+## Square Foot Gardening Usage
+
+The backend includes a utility for planning square foot gardens.
+
+```javascript
+const { planSeason } = require('./backend/utils/squareFootGardening');
+
+const layout = [
+  ['tomato', 'basil'],
+  ['lettuce', null],
+];
+
+const plan = planSeason(layout, '2024-03-01', 'spring');
+console.log(plan.grid);
+console.log(plan.schedule);
+```
+
+The planner validates companion planting, projects growth timelines, and renders an ASCII grid of the garden.
 
 ## API Endpoints
 ### User Registration
