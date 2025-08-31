@@ -52,8 +52,8 @@ export default function Sidebar() {
 
   const togglePin = async (c) => {
     try {
-      await fetch(`/conversations/${c.id}`, {
-        method: 'PATCH',
+      await fetch(`/conversations/${c.id}/pin`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': import.meta.env.VITE_API_KEY,
