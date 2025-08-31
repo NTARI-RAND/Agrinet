@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 
-const BASE_URL = process.env.BACKEND_URL || "/api";
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "/api";
 
 export default function AuthPage() {
   const [form, setForm] = useState({ email: "", password: "" });

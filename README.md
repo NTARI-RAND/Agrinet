@@ -74,9 +74,9 @@ npm install
 npm run dev
 ```
 
-For local development, set the `BACKEND_URL` environment variable to your backend's URL before running the frontend, for example:
+For local development, set the `NEXT_PUBLIC_BACKEND_URL` environment variable to your backend's URL before running the frontend, for example:
 ```
-BACKEND_URL=http://localhost:5000 npm run dev
+NEXT_PUBLIC_BACKEND_URL=http://localhost:5000 npm run dev
 ```
 Alternatively, configure a proxy so that requests to `/api` are forwarded to the backend.
 
