@@ -1,32 +1,26 @@
-const axios = require("axios");
-const chalk = require("chalk");
-const Table = require("cli-table3");
-
 const BASE_URL = process.env.BACKEND_URL || "http://localhost:5000";
+
+const colorize = (status) =>
+  status === "ONLINE" ? "\x1b[32mONLINE\x1b[0m" : "\x1b[31mOFFLINE\x1b[0m";
 
 (async function () {
   try {
-    const { data } = await axios.get(`${BASE_URL}/federation/status`);
-    const table = new Table({
-      head: ["Node URL", "Status", "Listings", "Transactions", "Users", "Last Sync"],
-      colWidths: [35, 10, 12, 15, 10, 25],
-    });
+    const res = await fetch(`${BASE_URL}/federation/status`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
 
-    data.federationHealth.forEach((node) => {
-      const statusColor = node.status === "ONLINE" ? chalk.green : chalk.red;
-      table.push([
-        node.node,
-        statusColor(node.status),
-        node.listings || "-",
-        node.transactions || "-",
-        node.users || "-",
-        node.lastSync ? new Date(node.lastSync).toLocaleString() : "N/A",
-      ]);
-    });
+    const rows = data.federationHealth.map((node) => ({
+      "Node URL": node.node,
+      Status: colorize(node.status),
+      Listings: node.listings || "-",
+      Transactions: node.transactions || "-",
+      Users: node.users || "-",
+      "Last Sync": node.lastSync ? new Date(node.lastSync).toLocaleString() : "N/A",
+    }));
 
-    console.log(chalk.bold.cyan("\n🌍 Federation Node Status Report"));
-    console.log(table.toString());
+    console.log("\n🌍 Federation Node Status Report");
+    console.table(rows);
   } catch (error) {
-    console.error(chalk.red("Failed to fetch federation status:"), error.message);
+    console.error("Failed to fetch federation status:", error.message);
   }
 })();
