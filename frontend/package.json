@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "next build"
+    "test": "next build",
+    "federation-status": "node federationStatusCLI.js",
+    "federation-status:ci": "BACKEND_URL=$BACKEND_URL node federationStatusCLI.js"
   },
   "dependencies": {
     "next": "14.1.0",

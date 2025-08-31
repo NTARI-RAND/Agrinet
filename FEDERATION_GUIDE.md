@@ -147,7 +147,8 @@ Features:
 How to run:
 ```bash
 cd frontend
-node federationStatusCLI.js
+node federationStatusCLI.js                              # defaults to http://localhost:5000
+BACKEND_URL=https://api.example.com node federationStatusCLI.js
 ```
 
 You’ll see a report like:

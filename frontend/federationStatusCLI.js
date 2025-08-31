@@ -2,11 +2,11 @@ const axios = require("axios");
 const chalk = require("chalk");
 const Table = require("cli-table3");
 
-const BASE_URL = "http://localhost:5000/federation/status";
+const BASE_URL = process.env.BACKEND_URL || "http://localhost:5000";
 
 (async function () {
   try {
-    const { data } = await axios.get(BASE_URL);
+    const { data } = await axios.get(`${BASE_URL}/federation/status`);
     const table = new Table({
       head: ["Node URL", "Status", "Listings", "Transactions", "Users", "Last Sync"],
       colWidths: [35, 10, 12, 15, 10, 25],
