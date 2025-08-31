@@ -1,3 +1,5 @@
+const { randomUUID } = require('crypto');
+
 const PING_CONTRACT_TABLE_NAME = "PingContracts";
 
 /**
@@ -21,7 +23,7 @@ const PING_CONTRACT_TABLE_NAME = "PingContracts";
  * @param {string} [params.status]
  */
 function createPingContractItem({
-  id,
+  id = randomUUID(),
   contractType,
   producerId,
   consumerId = null,
@@ -38,6 +40,9 @@ function createPingContractItem({
   calendarEventId = null,
   status = 'open'
 }) {
+  if (!Array.isArray(attachments)) {
+    throw new Error('Attachments must be an array');
+  }
   if (attachments.length > 5) {
     throw new Error('Attachments limit exceeded (max 5)');
   }
@@ -62,6 +67,19 @@ function createPingContractItem({
   };
 }
 
+/** Convenience templates */
+function createConsumerPlan(params) {
+  return createPingContractItem({ ...params, contractType: 'consumer' });
+}
+
+function createProducerPlan(params) {
+  return createPingContractItem({ ...params, contractType: 'producer' });
+}
+
+function createOpenPingPost(params) {
+  return createPingContractItem({ ...params, contractType: 'open' });
+}
+
 /** Add a negotiation entry */
 function addNegotiation(contract, { partyId, message, timestamp = new Date().toISOString() }) {
   const negotiationHistory = [
@@ -82,6 +100,9 @@ function addSignature(contract, { partyId, signature, signedAt = new Date().toIS
 
 /** Add a performance update with optional attachments (max 5) */
 function addPerformanceUpdate(contract, { update, attachments = [], timestamp = new Date().toISOString() }) {
+  if (!Array.isArray(attachments)) {
+    throw new Error('Attachments must be an array');
+  }
   if (attachments.length > 5) {
     throw new Error('Attachments limit exceeded (max 5)');
   }
@@ -90,10 +111,30 @@ function addPerformanceUpdate(contract, { update, attachments = [], timestamp = 
   return { ...contract, performanceUpdates };
 }
 
+/** Update LBTAS rating */
+function updateLbtasRating(contract, rating) {
+  return { ...contract, lbtasRating: rating };
+}
+
+/** Renew contract and link to calendar event */
+function renewContract(contract, { renewalDate, calendarEventId = null }) {
+  return {
+    ...contract,
+    autoRenew: true,
+    renewalDate,
+    calendarEventId
+  };
+}
+
 module.exports = {
   PING_CONTRACT_TABLE_NAME,
   createPingContractItem,
+  createConsumerPlan,
+  createProducerPlan,
+  createOpenPingPost,
   addNegotiation,
   addSignature,
-  addPerformanceUpdate
+  addPerformanceUpdate,
+  updateLbtasRating,
+  renewContract
 };

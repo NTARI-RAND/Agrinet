@@ -20,6 +20,12 @@
     "twilio": "^4.21.0"
   },
   "devDependencies": {
+    "aws-sdk": "^2.1534.0",
+    "jest": "^29.7.0",
+    "supertest": "^7.1.1"
+  },
+  "jest": {
+    "testEnvironment": "node"
     "aws-sdk": "^2.1534.0"
   }
 }
