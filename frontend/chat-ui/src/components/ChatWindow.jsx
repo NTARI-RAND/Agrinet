@@ -13,19 +13,33 @@ export default function ChatWindow() {
   useEffect(() => {
     if (!state.currentConversation) return;
     const events = new EventSource(`/stream/${state.currentConversation.id}`);
-    events.onmessage = (e) => {
+
+    const handleToken = (e) => {
       try {
         const data = JSON.parse(e.data);
-        if (data.type === 'token') {
-          dispatch({ type: 'APPEND_MESSAGE_CONTENT', id: data.id, content: data.token });
-        } else if (data.type === 'message') {
-          dispatch({ type: 'UPSERT_MESSAGE', message: data.message });
-        }
+        dispatch({ type: 'APPEND_MESSAGE_CONTENT', id: data.id, content: data.token });
       } catch (err) {
         console.error(err);
       }
     };
-    return () => events.close();
+
+    const handleMessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        dispatch({ type: 'UPSERT_MESSAGE', message: data.message });
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    events.addEventListener('token', handleToken);
+    events.addEventListener('message', handleMessage);
+
+    return () => {
+      events.removeEventListener('token', handleToken);
+      events.removeEventListener('message', handleMessage);
+      events.close();
+    };
   }, [state.currentConversation, dispatch]);
 
   return (
