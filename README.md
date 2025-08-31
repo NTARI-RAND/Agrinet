@@ -78,6 +78,7 @@ For local development, set the `NEXT_PUBLIC_BACKEND_URL` environment variable to
 ```
 NEXT_PUBLIC_BACKEND_URL=http://localhost:5000 npm run dev
 ```
+Only environment variables prefixed with `NEXT_PUBLIC_` are exposed to the browser, so this prefix is required.
 Alternatively, configure a proxy so that requests to `/api` are forwarded to the backend.
 
 ### Environment Variables
