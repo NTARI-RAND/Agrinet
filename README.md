@@ -129,6 +129,17 @@ We welcome contributions from the community! 🚀
 2. Create a feature branch
 3. Submit a pull request
 
+### Checking for hardcoded URLs
+
+Run the following script to detect any hardcoded `localhost` references before committing code:
+
+```bash
+./scripts/list-hardcoded-urls.sh
+```
+
+The script lists offending lines and exits with a nonzero status if any are found.
+Existing references known to be safe are tracked in `scripts/hardcoded-url-allowlist.txt`.
+
 ## License
 MIT License – Feel free to modify and share. 📜
 

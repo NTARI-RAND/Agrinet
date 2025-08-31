@@ -1,0 +1,12 @@
+name: Check for hardcoded URLs
+
+on:
+  pull_request:
+
+jobs:
+  hardcoded-urls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: List hardcoded URLs
+        run: ./scripts/list-hardcoded-urls.sh
