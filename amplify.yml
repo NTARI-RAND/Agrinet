@@ -10,6 +10,7 @@ frontend:
     build:
       commands:
         - npm run build
+        - BACKEND_URL=$BACKEND_URL node ../federationStatusCLI.js
   artifacts:
     baseDirectory: frontend/chat-ui/dist
     files:
