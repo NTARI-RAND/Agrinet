@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "/api";
+
 export default function AuthPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [message, setMessage] = useState("");
@@ -25,7 +27,7 @@ export default function AuthPage() {
 
   const handleLogin = async () => {
     try {
-      const res = await axios.post("http://localhost:5000/auth/login", form);
+      const res = await axios.post(`${BASE_URL}/auth/login`, form);
       localStorage.setItem("token", res.data.token);
       setMessage("Login successful!");
       setAdminView(true);
@@ -38,7 +40,7 @@ export default function AuthPage() {
 
   const handleKeyValidation = async () => {
     try {
-      const res = await axios.post("http://localhost:5000/keys/validate-key", { key });
+      const res = await axios.post(`${BASE_URL}/keys/validate-key`, { key });
       setKeyMessage("Key validated successfully!");
     } catch (error) {
       setKeyMessage("Invalid or expired key.");
@@ -47,7 +49,7 @@ export default function AuthPage() {
 
   const fetchUsers = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/admin/users");
+      const res = await axios.get(`${BASE_URL}/admin/users`);
       setUsers(res.data);
     } catch (error) {
       console.error("Failed to fetch users");
@@ -56,7 +58,7 @@ export default function AuthPage() {
 
   const fetchKeys = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/admin/keys");
+      const res = await axios.get(`${BASE_URL}/admin/keys`);
       setKeys(res.data);
     } catch (error) {
       console.error("Failed to fetch keys");
