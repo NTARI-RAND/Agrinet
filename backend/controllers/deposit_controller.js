@@ -91,14 +91,11 @@ exports.withdrawAccount = async (req, res) => {
       TableName: DEPOSIT_ACCOUNT_TABLE_NAME,
       Key: { userId },
       UpdateExpression:
-        'SET balance = balance - :amount, transactionHistory = list_append(if_not_exists(transactionHistory, :empty_list), :entry)',
-      ConditionExpression: 'attribute_exists(userId) AND balance >= :amount',
-      ExpressionAttributeValues: {
+        'SET balance = if_not_exists(balance, :zero) - :amount, transactionHistory = list_append(if_not_exists(transactionHistory, :empty_list), :entry)',
       ConditionExpression: 'attribute_exists(userId) AND if_not_exists(balance, :zero) >= :amount',
       ExpressionAttributeValues: {
         ':amount': numericAmount,
         ':zero': 0,
-        ':amount': numericAmount,
         ':entry': [
           {
             type: 'withdraw',

@@ -1,5 +1,5 @@
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
+const bcrypt = require("../utils/bcrypt");
+const jwt = require("../utils/jwt");
 const { randomUUID } = require("crypto");
 const docClient = require("../lib/dynamodbClient");
 const { USER_TABLE_NAME, createUserItem } = require("../models/user");

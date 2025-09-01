@@ -1,4 +1,4 @@
-let jwt;
+const jwt = require('../utils/jwt');
 
 module.exports = (req, res, next) => {
   const apiKey = req.headers['x-api-key'];
@@ -10,7 +10,6 @@ module.exports = (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
-      jwt = jwt || require('jsonwebtoken');
       const token = authHeader.slice(7);
       const payload = jwt.verify(token, process.env.JWT_SECRET);
       req.user = payload;

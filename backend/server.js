@@ -39,9 +39,17 @@ app.use(cors({
 // -----------------------------------------
 
 app.use(express.json());
+const tryMount = (route, modPath) => {
+  try {
+    const mod = require(modPath);
+    app.use(route, mod);
+  } catch (err) {
+    console.warn(`Skipping ${modPath}: ${err.message}`);
+  }
+};
+
 if (!minimal) {
-  const depositRoutes = require("./routes/depositRoutes");
-  app.use("/deposit", depositRoutes);
+  tryMount("/deposit", "./routes/depositRoutes");
 }
 
 // Health Check Endpoint
@@ -127,51 +135,33 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // Routes
 let runFederationSync;
 if (!minimal) {
-  const routes = require('./routes/api');
-  const authRoutes = require("./routes/authRoutes");
-  const keyRoutes = require("./routes/keyRoutes");
-  const contractRoutes = require("./routes/contracts");
-  const adminRoutes = require("./routes/admin");
-  const marketplaceRoutes = require("./marketplace/marketplace_routes");
-  const userRoutes = require('./routes/userRoutes');
-  const productRoutes = require('./routes/products');
-  const broadcastRoutes = require('./routes/broadcastRoutes');
-  const smsRoutes = require('./routes/smsRoutes');
-  const cartRoutes = require('./routes/cartRoutes');
-  const orderRoutes = require('./routes/orderRoutes');
-  const subscriptionRoutes = require('./routes/subscriptionRoutes');
-  const conversationRoutes = require('./routes/conversationRoutes');
-  const communicationRoutes = require('./routes/communicationRoutes');
-  const inventoryRoutes = require('./routes/inventoryRoutes');
-  const locationRoutes = require('./routes/locationRoutes');
+  [
+    ['/', './routes/api'],
+    ['/api/auth', './routes/authRoutes'],
+    ['/api/keys', './routes/keyRoutes'],
+    ['/api/contracts', './routes/contracts'],
+    ['/api/admin', './routes/admin'],
+    ['/api/marketplace', './marketplace/marketplace_routes'],
+    ['/users', './routes/userRoutes'],
+    ['/products', './routes/products'],
+    ['/broadcast', './routes/broadcastRoutes'],
+    ['/sms', './routes/smsRoutes'],
+    ['/cart', './routes/cartRoutes'],
+    ['/orders', './routes/orderRoutes'],
+    ['/subscriptions', './routes/subscriptionRoutes'],
+    ['/conversations', './routes/conversationRoutes'],
+    ['/messages', './routes/communicationRoutes'],
+    ['/inventory', './routes/inventoryRoutes'],
+    ['/api/location', './routes/locationRoutes'],
+    ['/federation', './federation/federationRoutes'],
+    ['/trends', './trends/trendsRoutes'],
+  ].forEach(([route, mod]) => tryMount(route, mod));
 
-  app.use('/', routes);
-  app.use("/api/auth", authRoutes);
-  app.use("/api/keys", keyRoutes);
-  app.use("/api/contracts", contractRoutes);
-  app.use("/api/admin", adminRoutes);
-  app.use("/api/marketplace", marketplaceRoutes);
-  app.use('/users', userRoutes);
-  app.use('/products', productRoutes);
-  app.use('/broadcast', broadcastRoutes);
-  app.use('/sms', smsRoutes);
-  app.use('/cart', cartRoutes);
-  app.use('/orders', orderRoutes);
-  app.use('/subscriptions', subscriptionRoutes);
-  app.use('/conversations', conversationRoutes);
-  app.use('/messages', communicationRoutes);
-  app.use('/inventory', inventoryRoutes);
-  app.use('/api/location', locationRoutes);
-
-  // Federation
-  const federationRoutes = require('./federation/federationRoutes');
-  const trendsRoutes = require('./trends/trendsRoutes');
-
-  app.use('/federation', federationRoutes);
-  app.use('/trends', trendsRoutes);
-
-  // Optionally run federation sync job on boot
-  runFederationSync = require('./federation/federationSyncJob');
+  try {
+    runFederationSync = require('./federation/federationSyncJob');
+  } catch (err) {
+    console.warn(`Federation sync disabled: ${err.message}`);
+  }
 }
 
 const PORT = process.env.PORT || 5000;

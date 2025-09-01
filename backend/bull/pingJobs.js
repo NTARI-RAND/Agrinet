@@ -1,4 +1,10 @@
-const { Queue, Worker } = require('bullmq');
+let Queue, Worker;
+try {
+  ({ Queue, Worker } = require('bullmq'));
+} catch (e) {
+  Queue = class { async add() {} };
+  Worker = class {};
+}
 const docClient = require('../lib/dynamodbClient');
 const { TRANSACTION_TABLE_NAME } = require('../marketplace/models/transaction');
 

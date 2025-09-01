@@ -1,9 +1,11 @@
 const express = require("express");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+const bcrypt = require("../utils/bcrypt");
+const jwt = require("../utils/jwt");
 const User = require("../models/user");
 const router = express.Router();
-require("dotenv").config();
+try {
+  require("dotenv").config();
+} catch {}
 
 // Test Route to Verify authRoutes
 router.get("/test", (req, res) => {
