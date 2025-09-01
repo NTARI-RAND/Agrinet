@@ -2,6 +2,8 @@ let express, cors;
 try {
   express = require('express');
   cors = require('cors');
+} catch (err) {}
+
 } catch {}
 
 if (!express) {
@@ -22,6 +24,10 @@ if (!express) {
 } else {
   const http = require('http');
   try { require('dotenv').config(); } catch {}
+
+const path = require("path");
+const authMiddleware = require("./middleware/authMiddleware");
+const depositRoutes = require("./routes/depositRoutes");
 
   const path = require('path');
   const authMiddleware = require('./middleware/authMiddleware');
@@ -215,4 +221,3 @@ if (process.env.NODE_ENV !== 'production') {
 
   module.exports = { app, server };
 }
-
