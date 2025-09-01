@@ -37,7 +37,7 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   : ['https://www.ntari.org'];
 
 if (process.env.NODE_ENV !== 'production') {
-  allowedOrigins.push('http://localhost:3000');
+  allowedOrigins.push('http://127.0.0.1:3000');
 }
 
 app.use(cors({
