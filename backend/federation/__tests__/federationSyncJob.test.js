@@ -7,7 +7,7 @@ jest.mock('../../lib/dynamodbClient', () => ({
 
 const http = require('../../lib/httpClient');
 const dynamodbClient = require('../../lib/dynamodbClient');
-const { runFederationSync } = require('../federationSyncJob');
+const runFederationSync = require('../federationSyncJob');
 
 describe('runFederationSync', () => {
   beforeEach(() => {

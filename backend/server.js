@@ -2,7 +2,8 @@ let express, cors;
 try {
   express = require('express');
   cors = require('cors');
-} catch (err) {
+} catch (err) {}
+if (!express) {
   const http = require('http');
   try { require('dotenv').config(); } catch {}
   const server = http.createServer((req, res) => {
@@ -17,10 +18,9 @@ try {
   const PORT = process.env.PORT || 5000;
   server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   module.exports = { app: null, server };
-  return;
-}
-const http = require('http');
-try { require('dotenv').config(); } catch {}
+} else {
+  const http = require('http');
+  try { require('dotenv').config(); } catch {}
 
 const path = require("path");
 const authMiddleware = require("./middleware/authMiddleware");
@@ -210,3 +210,4 @@ if (require.main === module) {
 }
 
 module.exports = { app, server };
+}
