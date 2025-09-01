@@ -31,13 +31,15 @@ const app = express();
 
 // --- PRODUCTION-READY CORS RESTRICTION ---
 // Allowed origins are configured via the ALLOWED_ORIGINS environment variable.
-// In development, always allow the local frontend running on port 3000.
+// In development, allow a configurable local frontend (default: localhost:3000).
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
   : ['https://www.ntari.org'];
 
 if (process.env.NODE_ENV !== 'production') {
-  allowedOrigins.push('http://localhost:3000');
+  const localFrontendHost = process.env.LOCAL_FRONTEND_HOST || 'localhost';
+  const localFrontendPort = process.env.LOCAL_FRONTEND_PORT || '3000';
+  allowedOrigins.push(`http://${localFrontendHost}:${localFrontendPort}`);
 }
 
 app.use(cors({
