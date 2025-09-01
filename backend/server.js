@@ -4,8 +4,6 @@ try {
   cors = require('cors');
 } catch (err) {}
 
-} catch {}
-
 if (!express) {
   const http = require('http');
   try { require('dotenv').config(); } catch {}
@@ -24,14 +22,9 @@ if (!express) {
 } else {
   const http = require('http');
   try { require('dotenv').config(); } catch {}
-
-const path = require("path");
-const authMiddleware = require("./middleware/authMiddleware");
-const depositRoutes = require("./routes/depositRoutes");
-
-  const path = require('path');
-  const authMiddleware = require('./middleware/authMiddleware');
-  const depositRoutes = require('./routes/depositRoutes');
+  const path = require("path");
+  const authMiddleware = require("./middleware/authMiddleware");
+  const depositRoutes = require("./routes/depositRoutes");
 
   const app = express();
 
@@ -41,13 +34,8 @@ const depositRoutes = require("./routes/depositRoutes");
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',')
     : ['https://www.ntari.org'];
-
-if (process.env.NODE_ENV !== 'production') {
-  allowedOrigins.push('http://127.0.0.1:3000');
-}
-
   if (process.env.NODE_ENV !== 'production') {
-    allowedOrigins.push('http://localhost:3000');
+    allowedOrigins.push('http://127.0.0.1:3000');
   }
 
   app.use(cors({
