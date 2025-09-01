@@ -17,8 +17,8 @@ try {
   const PORT = process.env.PORT || 5000;
   server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   module.exports = { app: null, server };
-  return;
 }
+if (express) {
 const http = require('http');
 try { require('dotenv').config(); } catch {}
 
@@ -206,7 +206,8 @@ const runFederationSync = require('./federation/federationSyncJob');
 const PORT = process.env.PORT || 5000;
 if (require.main === module) {
   server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  runFederationSync(); // kicks off first run
+runFederationSync(); // kicks off first run
 }
 
 module.exports = { app, server };
+}
