@@ -37,7 +37,6 @@ if (!express || !cors) {
     : ['https://www.ntari.org'];
 
   if (process.env.NODE_ENV !== 'production') {
-    allowedOrigins.push('http://localhost:3000');
     allowedOrigins.push('http://127.0.0.1:3000');
   }
 
