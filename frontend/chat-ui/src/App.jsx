@@ -1,3 +1,8 @@
+import { Amplify } from 'aws-amplify';
+import outputs from './amplify_outputs.json';
+
+Amplify.configure(outputs);
+
 import React, { useEffect } from 'react';
 import { StoreProvider, useStore } from './store';
 import ChatWindow from './components/ChatWindow.jsx';
