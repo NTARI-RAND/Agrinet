@@ -18,7 +18,7 @@ try {
   server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   module.exports = { app: null, server };
 }
-if (express) {
+if (express && cors) {
 const http = require('http');
 try { require('dotenv').config(); } catch {}
 
