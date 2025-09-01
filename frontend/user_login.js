@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "/api";
+const API_KEY = process.env.NEXT_PUBLIC_API_KEY;
 
 export default function AuthPage() {
   const [form, setForm] = useState({ email: "", password: "" });
@@ -15,6 +16,10 @@ export default function AuthPage() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      if (API_KEY) {
+        axios.defaults.headers.common["x-api-key"] = API_KEY;
+      }
       setAdminView(true);
       fetchUsers();
       fetchKeys();
@@ -27,8 +32,16 @@ export default function AuthPage() {
 
   const handleLogin = async () => {
     try {
-      const res = await axios.post(`${BASE_URL}/auth/login`, form);
+      const res = await axios.post(
+        `${BASE_URL}/auth/login`,
+        form,
+        API_KEY ? { headers: { "x-api-key": API_KEY } } : undefined
+      );
       localStorage.setItem("token", res.data.token);
+      axios.defaults.headers.common["Authorization"] = `Bearer ${res.data.token}`;
+      if (API_KEY) {
+        axios.defaults.headers.common["x-api-key"] = API_KEY;
+      }
       setMessage("Login successful!");
       setAdminView(true);
       fetchUsers();
