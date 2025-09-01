@@ -47,4 +47,4 @@ const runFederationSync = async () => {
 // Run every 6 hours
 setInterval(runFederationSync, 6 * 60 * 60 * 1000); // 6 hours
 
-module.exports = { runFederationSync };
+module.exports = runFederationSync;
