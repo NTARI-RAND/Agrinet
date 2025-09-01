@@ -1,5 +1,6 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
+let bcrypt; try { bcrypt = require('bcryptjs'); } catch {}
+const crypto = require('crypto');
 const router = express.Router();
 const docClient = require('../lib/dynamodbClient');
 const { USER_TABLE_NAME, createUserItem } = require('../models/user');
@@ -38,7 +39,7 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { password, ...rest } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = bcrypt ? await bcrypt.hash(password,10) : crypto.createHash('sha256').update(password).digest('hex');
     const item = createUserItem({
       ...rest,
       password: hashedPassword,

@@ -4,10 +4,10 @@ const express = require('express');
 jest.mock('../../lib/dynamodbClient', () => ({
   scan: jest.fn()
 }));
-jest.mock('axios');
+jest.mock('../../lib/httpClient');
 
 const dynamodbClient = require('../../lib/dynamodbClient');
-const axios = require('axios');
+const http = require('../../lib/httpClient');
 const federationStatusRouter = require('../federationStatus');
 
 const app = express();
@@ -28,7 +28,7 @@ describe('GET /federation/status', () => {
       })
     });
 
-    axios.get.mockImplementation((url) => {
+    http.get.mockImplementation((url) => {
       if (url.includes('node1')) {
         return Promise.resolve({
           data: {

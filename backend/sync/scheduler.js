@@ -1,4 +1,4 @@
-const axios = require("axios");
+const http = require('../lib/httpClient');
 const dynamodbClient = require("../lib/dynamodbClient");
 const Listing = require("../marketplace/models/listings");
 const Transaction = require("../models/transaction");
@@ -28,7 +28,7 @@ const syncFromPeers = async () => {
 
     for (let node of nodes) {
       try {
-        const res = await axios.get(`${node.nodeUrl}/federation/export`);
+        const res = await http.get(`${node.nodeUrl}/federation/export`);
         const { listings, transactions, users } = res.data;
 
         if (listings) await upsertMany(Listing, listings);
@@ -52,9 +52,9 @@ const syncFromPeers = async () => {
       }
     const nodes = await getAllNodes();
     for (let node of nodes) {
-      //const res = await axios.get(`${node.nodeUrl}/federation/export`);
+      //const res = await http.get(`${node.nodeUrl}/federation/export`);
       //const { listings } = res.data;
-      const res = await axios.get(`${node.url}/federation/export`);
+      const res = await http.get(`${node.url}/federation/export`);
       const { listings, transactions, users } = res.data;
 
       if (listings) await upsertMany(Listing, listings);

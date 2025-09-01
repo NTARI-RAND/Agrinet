@@ -6,12 +6,12 @@ jest.mock('../../lib/dynamodbClient', () => ({
   update: mockUpdate
 }));
 
-jest.mock('axios');
+jest.mock('../../lib/httpClient');
 jest.mock('../importHelper', () => ({
   importFederatedData: jest.fn()
 }));
 
-const axios = require('axios');
+const http = require('../../lib/httpClient');
 const { importFederatedData } = require('../importHelper');
 const runFederationSync = require('../federationSyncJob');
 
@@ -27,7 +27,7 @@ describe('runFederationSync', () => {
     mockScan.mockReturnValue({
       promise: jest.fn().mockResolvedValue({ Items: nodes })
     });
-    axios.get.mockResolvedValue({ data: exportData });
+    http.get.mockResolvedValue({ data: exportData });
     importFederatedData.mockResolvedValue({ success: true });
     mockUpdate.mockReturnValue({ promise: jest.fn().mockResolvedValue({}) });
 
@@ -48,7 +48,7 @@ describe('runFederationSync', () => {
       promise: jest.fn().mockResolvedValue({ Items: nodes })
     });
 
-    axios.get.mockRejectedValue(new Error('Network error'));
+    http.get.mockRejectedValue(new Error('Network error'));
 
     const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 

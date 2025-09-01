@@ -1,6 +1,10 @@
 const request = require('supertest');
 const express = require('express');
-const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const bcrypt = {
+  hash: async (pw) => crypto.createHash('sha256').update(pw).digest('hex'),
+  compare: async (pw, hashed) => crypto.createHash('sha256').update(pw).digest('hex') === hashed
+};
 
 // Mock DynamoDB client methods
 jest.mock('../../lib/dynamodbClient', () => {

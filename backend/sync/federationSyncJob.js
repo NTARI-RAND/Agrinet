@@ -1,4 +1,4 @@
-const axios = require("axios");
+const http = require('../lib/httpClient');
 const { getAllNodes, saveNode } = require("../models/nodeRegistry");
 const { importFederatedData } = require("./importHelper");
 
@@ -6,7 +6,7 @@ async function runFederationSync() {
   const nodes = await getAllNodes();
   for (const node of nodes) {
     try {
-      const { data } = await axios.get(`${node.url}/federation/export`);
+      const { data } = await http.get(`${node.url}/federation/export`);
       await importFederatedData(data);
       node.lastSyncAt = new Date().toISOString();
       await saveNode(node);

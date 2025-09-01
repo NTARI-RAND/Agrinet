@@ -1,4 +1,4 @@
-const axios = require("axios");
+const http = require('../lib/httpClient');
 const dynamodbClient = require("../lib/dynamodbClient");
 const { NODE_REGISTRY_TABLE_NAME } = require("./models/nodeRegistry");
 
@@ -18,10 +18,10 @@ const runFederationSync = async () => {
   for (const node of nodes) {
     try {
       // Fetch federation/export data from the node
-      const { data } = await axios.get(`${node.url}/federation/export`);
+      const { data } = await http.get(`${node.url}/federation/export`);
       
       // Update lastSyncAt in DynamoDB for this node
-      await axios.post(`${BACKEND_URL}/import`, data);
+      await http.post(`${BACKEND_URL}/import`, data);
 
       await dynamodbClient
         .update({
@@ -47,4 +47,4 @@ const runFederationSync = async () => {
 // Run every 6 hours
 setInterval(runFederationSync, 6 * 60 * 60 * 1000); // 6 hours
 
-module.exports = runFederationSync;
+module.exports = { runFederationSync };

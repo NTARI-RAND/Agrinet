@@ -1,4 +1,4 @@
-jest.mock('axios');
+jest.mock('../../lib/httpClient');
 jest.mock('../../lib/dynamodbClient', () => ({
   scan: jest.fn(),
   update: jest.fn(),
@@ -40,8 +40,8 @@ describe('scheduler', () => {
     });
     dynamodbClient.update.mockReturnValue({ promise: () => Promise.resolve() });
 
-    const axios = require('axios');
-    axios.get.mockResolvedValue({
+    const http = require('../../lib/httpClient');
+    http.get.mockResolvedValue({
       data: {
         listings: [{ _id: 'l1', updatedAt: '2024-01-01T00:00:00.000Z' }],
         transactions: [{ _id: 't1', updatedAt: '2024-01-01T00:00:00.000Z' }],

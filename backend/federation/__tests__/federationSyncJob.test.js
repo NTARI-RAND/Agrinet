@@ -1,11 +1,11 @@
 jest.useFakeTimers();
-jest.mock('axios');
+jest.mock('../../lib/httpClient');
 jest.mock('../../lib/dynamodbClient', () => ({
   scan: jest.fn(),
   update: jest.fn()
 }));
 
-const axios = require('axios');
+const http = require('../../lib/httpClient');
 const dynamodbClient = require('../../lib/dynamodbClient');
 const { runFederationSync } = require('../federationSyncJob');
 
@@ -21,8 +21,8 @@ describe('runFederationSync', () => {
     dynamodbClient.update.mockReturnValue({
       promise: () => Promise.resolve()
     });
-    axios.get.mockResolvedValue({ data: { foo: 'bar' } });
-    axios.post.mockResolvedValue({});
+    http.get.mockResolvedValue({ data: { foo: 'bar' } });
+    http.post.mockResolvedValue({});
 
     await runFederationSync();
 
@@ -43,7 +43,7 @@ describe('runFederationSync', () => {
     dynamodbClient.scan.mockReturnValue({
       promise: () => Promise.resolve({ Items: [{ url: 'http://node1.com' }] })
     });
-    axios.get.mockRejectedValue(new Error('fail'));
+    http.get.mockRejectedValue(new Error('fail'));
 
     await runFederationSync();
 

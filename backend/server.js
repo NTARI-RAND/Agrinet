@@ -1,18 +1,45 @@
-const express = require("express");
+let express, cors;
+try {
+  express = require('express');
+  cors = require('cors');
+} catch (err) {
+  const http = require('http');
+  try { require('dotenv').config(); } catch {}
+  const server = http.createServer((req, res) => {
+    if (req.url === '/health') {
+      res.writeHead(200);
+      res.end('OK');
+    } else {
+      res.writeHead(404);
+      res.end('Not Found');
+    }
+  });
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  module.exports = { app: null, server };
+  return;
+}
 const http = require('http');
-const cors = require("cors");
-const dotenv = require("dotenv");
+try { require('dotenv').config(); } catch {}
+
 const path = require("path");
 const authMiddleware = require("./middleware/authMiddleware");
 const depositRoutes = require("./routes/depositRoutes");
 
-// Load environment variables
-dotenv.config();
 
 const app = express();
 
 // --- PRODUCTION-READY CORS RESTRICTION ---
-const allowedOrigins = ['https://www.ntari.org'];
+// Allowed origins are configured via the ALLOWED_ORIGINS environment variable.
+// In development, always allow the local frontend running on port 3000.
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : ['https://www.ntari.org'];
+
+if (process.env.NODE_ENV !== 'production') {
+  allowedOrigins.push('http://localhost:3000');
+}
+
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {

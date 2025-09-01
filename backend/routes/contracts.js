@@ -2,7 +2,7 @@ const express = require("express");
 const Contract = require("../models/contract");
 const router = express.Router();
 const cache = new Map();
-const axios = require("axios");
+const http = require('../lib/httpClient');
 
 // GET Contracts (with caching)
 router.get("/", async (req, res) => {
@@ -24,7 +24,7 @@ router.post("/", async (req, res) => {
     await newContract.save();
 
     // Notify Wix that a contract has been created
-    await axios.post("https://www.ntari.org/_functions/webhookUpdate", {
+    await http.post("https://www.ntari.org/_functions/webhookUpdate", {
       contractId: newContract._id,
       status: "created",
     });

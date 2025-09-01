@@ -7,13 +7,13 @@ jest.mock('../../lib/dynamodbClient', () => ({
   put: jest.fn(),
 }));
 
-// Mock axios webhook
-jest.mock('axios', () => ({
+// Mock httpClient webhook
+jest.mock('../../lib/httpClient', () => ({
   post: jest.fn(),
 }));
 
 const docClient = require('../../lib/dynamodbClient');
-const axios = require('axios');
+const http = require('../../lib/httpClient');
 
 function createApp() {
   // delete cached router to reset in-memory cache
@@ -54,7 +54,7 @@ describe('contracts routes', () => {
     const id = 'uuid-1234';
     jest.spyOn(require('crypto'), 'randomUUID').mockReturnValue(id);
     docClient.put.mockResolvedValue({});
-    axios.post.mockResolvedValue({});
+    http.post.mockResolvedValue({});
 
     const payload = { type: 'fruit', amountNeeded: 5 };
     const postRes = await request(app).post('/contracts').send(payload);
@@ -65,7 +65,7 @@ describe('contracts routes', () => {
     expect(docClient.put).toHaveBeenCalledWith(expect.objectContaining({
       Item: expect.objectContaining({ id })
     }));
-    expect(axios.post).toHaveBeenCalledWith(
+    expect(http.post).toHaveBeenCalledWith(
       'https://www.ntari.org/_functions/webhookUpdate',
       { contractId: id, status: 'created' }
     );

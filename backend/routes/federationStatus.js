@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const dynamodbClient = require("../lib/dynamodbClient");
 const { getAllNodes } = require("../models/nodeRegistry");
-const axios = require("axios");
+const http = require('../lib/httpClient');
 
 router.get("/federation/status", async (req, res) => {
   try {
@@ -14,7 +14,7 @@ router.get("/federation/status", async (req, res) => {
       Items.map(async (node) => {
         const url = node.nodeUrl;
         try {
-          const { data } = await axios.get(`${url}/federation/export`, {
+          const { data } = await http.get(`${url}/federation/export`, {
             timeout: 5000,
           });
           return {
@@ -42,7 +42,7 @@ router.get("/federation/status", async (req, res) => {
     const checks = await Promise.all(nodes.map(async (node) => {
       const url = node.url;
       try {
-        const { data } = await axios.get(`${url}/federation/export`, { timeout: 5000 });
+        const { data } = await http.get(`${url}/federation/export`, { timeout: 5000 });
         return {
           node: url,
           status: "ONLINE",

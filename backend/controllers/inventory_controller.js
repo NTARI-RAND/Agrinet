@@ -1,6 +1,6 @@
 const docClient = require('../lib/dynamodbClient');
 const { INVENTORY_TABLE_NAME, createInventoryItem } = require('../models/inventory');
-const axios = require('axios');
+const http = require('../lib/httpClient');
 
 // Fetch all inventory items
 exports.getInventory = async (req, res) => {
@@ -82,8 +82,8 @@ exports.syncExternal = async (req, res) => {
     if (!url) {
       return res.status(500).json({ error: 'EXTERNAL_INVENTORY_URL not configured' });
     }
-    const response = await axios.get(url);
-    const items = Array.isArray(response.data) ? response.data : [];
+    const { data } = await http.get(url);
+    const items = Array.isArray(data) ? data : [];
     let imported = 0;
     for (const ext of items) {
       const item = createInventoryItem(ext);
