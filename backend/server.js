@@ -14,10 +14,11 @@ try {
 }
 const path = require("path");
 const authMiddleware = require("./middleware/authMiddleware");
-const minimal = process.env.MINIMAL_SERVER === 'true';
 
 // Load environment variables
 dotenv.config();
+
+const minimal = process.env.MINIMAL_SERVER === 'true';
 
 const app = express();
 
