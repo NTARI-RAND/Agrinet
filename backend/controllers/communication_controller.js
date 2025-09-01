@@ -6,22 +6,23 @@ exports.sendMessage = async (req, res) => {
   
   // Create and persist the message
   const msg = await Message.sendMessage(conversationId, { from, to, content, type, file });
-  
+
   // Stream tokenized parts over SSE if a broadcast function is available
   if (global.broadcast) {
     const tokens = (msg.content || '').split(/\s+/);
     tokens.forEach((token) => {
       global.broadcast('message', { type: 'token', id: msg.id, token }, conversationId);
     });
-    
+
     // Send the final message object after streaming tokens
     global.broadcast('message', { type: 'message', message: msg }, conversationId);
-  
-  // Fallback / additional emitter used elsewhere in the codebase  
+  }
+
+  // Fallback / additional emitter used elsewhere in the codebase
   if (global.emitMessage) {
     global.emitMessage(conversationId, msg);
-    
   }
+
   res.status(201).json(msg);
 };
 
