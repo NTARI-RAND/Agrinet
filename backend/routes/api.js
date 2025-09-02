@@ -15,7 +15,6 @@ router.post('/transactions', async (req, res) => {
     //const id = crypto.randomUUID();
     const transactionId = randomUUID();
     const createdAt = new Date().toISOString();
-    const item = { id, ...transactionData };
     const transactionItem = {
     /*
     await docClient.put({ TableName: TRANSACTION_TABLE_NAME, Item: item }).promise();
