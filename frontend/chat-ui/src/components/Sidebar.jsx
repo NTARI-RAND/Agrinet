@@ -1,3 +1,13 @@
+/*
+ * API endpoints used:
+ *   GET /conversations                -> [{ id, title, pinned }]
+ *   POST /conversations               -> { id, title, pinned }
+ *   GET /messages/{conversationId}    -> [{ id, role, content }]
+ *   POST /conversations/{id}/pin      -> body: { pinned: boolean }
+ *
+ * All requests include an 'x-api-key' header and expect JSON responses.
+ * Errors are caught and logged to the console without user-facing feedback.
+ */
 import React, { useEffect } from 'react';
 import { useStore } from '../store';
 import { API_BASE_URL } from '../api';

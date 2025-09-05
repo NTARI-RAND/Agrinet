@@ -1,3 +1,13 @@
+/*
+ * SSE endpoint:
+ *   GET /stream/{conversationId}
+ * Events:
+ *   token   -> { "id": string, "token": string }
+ *   message -> { "message": { id, role, content } }
+ *
+ * Assumes server-side auth (no 'x-api-key' header sent).
+ * Errors while parsing events are logged to the console.
+ */
 import React, { useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import MessageBubble from './MessageBubble.jsx';
