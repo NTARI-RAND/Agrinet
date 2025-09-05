@@ -16,9 +16,6 @@ import { useStore } from '../store';
  * @typedef {import('../types').Message} Message
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-
-import { API_BASE_URL } from '../api';
 import { get, post } from '../api';
 
 /**
@@ -56,13 +53,6 @@ export default function Sidebar() {
    */
   const openConversation = async (c) => {
     try {
-        const res = await fetch(`${API_BASE_URL}/messages/${c.id}`, {
-          headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
-        });
-        const msgs = /** @type {Message[]} */ (await res.json());
-        dispatch({ type: 'SET_CURRENT_CONVERSATION', conversation: c });
-        dispatch({ type: 'SET_MESSAGES', messages: msgs });
-
       const msgs = await get(`/messages/${c.id}`);
       dispatch({ type: 'SET_CURRENT_CONVERSATION', conversation: c });
       dispatch({ type: 'SET_MESSAGES', messages: msgs });
