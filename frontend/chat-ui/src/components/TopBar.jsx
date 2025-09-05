@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
+import { API_BASE_URL } from '../api';
 
 export default function TopBar() {
   const { state, dispatch } = useStore();
@@ -15,7 +16,7 @@ export default function TopBar() {
     setTitle(t);
     if (!state.currentConversation) return;
     try {
-      await fetch(`/conversations/${state.currentConversation.id}`, {
+      await fetch(`${API_BASE_URL}/conversations/${state.currentConversation.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -37,7 +38,7 @@ export default function TopBar() {
   const remove = async () => {
     if (!state.currentConversation) return;
     try {
-      await fetch(`/conversations/${state.currentConversation.id}`, {
+      await fetch(`${API_BASE_URL}/conversations/${state.currentConversation.id}`, {
         method: 'DELETE',
         headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
       });

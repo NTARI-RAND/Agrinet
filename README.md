@@ -120,6 +120,11 @@ console.log(plan.schedule);
 The planner validates companion planting, projects growth timelines, and renders an ASCII grid of the garden.
 
 ## API Endpoints
+
+Additional chat interface endpoints (e.g., `/conversations`, `/messages/:id`, `/stream/:id`) and their expected JSON
+structures are documented inline in the frontend components
+[`Sidebar.jsx`](frontend/chat-ui/src/components/Sidebar.jsx) and
+[`ChatWindow.jsx`](frontend/chat-ui/src/components/ChatWindow.jsx).
 ### User Registration
 #### POST /userRegistration
 ```

@@ -1,3 +1,13 @@
+/*
+ * API endpoints used:
+ *   GET /conversations                -> [{ id, title, pinned }]
+ *   POST /conversations               -> { id, title, pinned }
+ *   GET /messages/{conversationId}    -> [{ id, role, content }]
+ *   POST /conversations/{id}/pin      -> body: { pinned: boolean }
+ *
+ * All requests include an 'x-api-key' header and expect JSON responses.
+ * Errors are caught and logged to the console without user-facing feedback.
+ */
 import React, { useEffect } from 'react';
 import { useStore } from '../store';
 
@@ -7,6 +17,9 @@ import { useStore } from '../store';
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+import { API_BASE_URL } from '../api';
+import { get, post } from '../api';
 
 /**
  * Sidebar containing conversation list and controls.
@@ -18,10 +31,7 @@ export default function Sidebar() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/conversations`, {
-          headers: { 'x-api-key': import.meta.env.VITE_API_KEY }
-        });
-        const data = await res.json();
+        const data = await get('/conversations');
         dispatch({ type: 'SET_CONVERSATIONS', conversations: data });
       } catch (e) {
         console.error(e);
@@ -32,15 +42,7 @@ export default function Sidebar() {
 
   const newChat = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/conversations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_API_KEY,
-        },
-        body: JSON.stringify({}),
-      });
-      const convo = await res.json();
+      const convo = await post('/conversations', {});
       dispatch({ type: 'SET_CURRENT_CONVERSATION', conversation: convo });
       dispatch({ type: 'SET_MESSAGES', messages: [] });
     } catch (e) {
@@ -60,6 +62,10 @@ export default function Sidebar() {
         const msgs = /** @type {Message[]} */ (await res.json());
         dispatch({ type: 'SET_CURRENT_CONVERSATION', conversation: c });
         dispatch({ type: 'SET_MESSAGES', messages: msgs });
+
+      const msgs = await get(`/messages/${c.id}`);
+      dispatch({ type: 'SET_CURRENT_CONVERSATION', conversation: c });
+      dispatch({ type: 'SET_MESSAGES', messages: msgs });
     } catch (e) {
       console.error(e);
     }
@@ -71,14 +77,7 @@ export default function Sidebar() {
    */
   const togglePin = async (c) => {
     try {
-      await fetch(`${API_BASE_URL}/conversations/${c.id}/pin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_API_KEY,
-        },
-        body: JSON.stringify({ pinned: !c.pinned }),
-      });
+      await post(`/conversations/${c.id}/pin`, { pinned: !c.pinned });
       const updated = { ...c, pinned: !c.pinned };
       dispatch({
         type: 'SET_CONVERSATIONS',
