@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import MessageBubble from './MessageBubble.jsx';
+import { API_BASE_URL } from '../api';
 
 export default function ChatWindow() {
   const { state, dispatch } = useStore();
@@ -12,7 +13,7 @@ export default function ChatWindow() {
 
   useEffect(() => {
     if (!state.currentConversation) return;
-    const events = new EventSource(`/stream/${state.currentConversation.id}`);
+    const events = new EventSource(`${API_BASE_URL}/stream/${state.currentConversation.id}`);
 
     const handleToken = (e) => {
       try {

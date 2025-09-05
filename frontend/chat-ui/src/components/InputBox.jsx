@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useStore } from '../store';
+import { API_BASE_URL } from '../api';
 import { post } from '../api';
 
 export default function InputBox() {

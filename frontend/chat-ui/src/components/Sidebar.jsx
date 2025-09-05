@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useStore } from '../store';
+import { API_BASE_URL } from '../api';
 import { get, post } from '../api';
 
 export default function Sidebar() {
