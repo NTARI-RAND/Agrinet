@@ -1,6 +1,12 @@
 import React from 'react';
 import MessageActions from './MessageActions.jsx';
 
+/** @typedef {import('../types').Message} Message */
+
+/**
+ * Displays a single chat message.
+ * @param {{message: Message}} props
+ */
 export default function MessageBubble({ message }) {
   const isUser = message.role === 'user' || message.sender === 'user' || message.from === 'user';
   const alignment = isUser ? 'items-end text-right' : 'items-start text-left';
