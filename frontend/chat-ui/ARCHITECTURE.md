@@ -4,6 +4,7 @@ This document describes the component-level architecture and user-experience flo
 
 ## 1. Conversation Window (Main Chat Area)
 - **Component**: `ChatWindow` – renders a scrollable feed of chat bubbles by mapping over a `messages` array.
+- **API notes**: See comments in [`src/components/ChatWindow.jsx`](src/components/ChatWindow.jsx) for streaming endpoint and event schemas.
 - **Message Model**: `{ id, role, content, timestamp, type }`.
 - **Rendering**:
   - `MessageBubble role="user"` – right-aligned with user styling.
@@ -29,6 +30,7 @@ This document describes the component-level architecture and user-experience flo
 
 ## 4. Sidebar (Left Panel)
 - **Component**: `Sidebar` with nested `ChatList` entries.
+- **API notes**: Comments in [`src/components/Sidebar.jsx`](src/components/Sidebar.jsx) outline conversation/message endpoints, expected JSON, and `x-api-key` usage.
 - **New Chat**: Clears `messages[]` and establishes a new conversation identifier.
 - **History**: Loaded from `/conversations` and displayed as `ConversationCard` items with lazy‑loaded pagination.
 - **Pinned Chats**: Items marked with `pinned: true` render in a dedicated section.

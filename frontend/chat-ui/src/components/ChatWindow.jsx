@@ -1,6 +1,17 @@
+/*
+ * SSE endpoint:
+ *   GET /stream/{conversationId}
+ * Events:
+ *   token   -> { "id": string, "token": string }
+ *   message -> { "message": { id, role, content } }
+ *
+ * Assumes server-side auth (no 'x-api-key' header sent).
+ * Errors while parsing events are logged to the console.
+ */
 import React, { useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import MessageBubble from './MessageBubble.jsx';
+import { API_BASE_URL } from '../api';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -20,6 +31,7 @@ export default function ChatWindow() {
       url.searchParams.set('api_key', apiKey);
     }
     const events = new EventSource(url.toString());
+    const events = new EventSource(`${API_BASE_URL}/stream/${state.currentConversation.id}`);
 
     const handleToken = (e) => {
       try {
