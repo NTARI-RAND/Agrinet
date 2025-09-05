@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
-import { API_BASE_URL } from '../api';
+import { put, del } from '../api';
 
 export default function TopBar() {
   const { state, dispatch } = useStore();
@@ -16,14 +16,7 @@ export default function TopBar() {
     setTitle(t);
     if (!state.currentConversation) return;
     try {
-      await fetch(`${API_BASE_URL}/conversations/${state.currentConversation.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': import.meta.env.VITE_API_KEY,
-        },
-        body: JSON.stringify({ title: t }),
-      });
+      await put(`/conversations/${state.currentConversation.id}`, { title: t });
       const updated = { ...state.currentConversation, title: t };
       dispatch({ type: 'SET_CURRENT_CONVERSATION', conversation: updated });
       dispatch({
@@ -38,10 +31,7 @@ export default function TopBar() {
   const remove = async () => {
     if (!state.currentConversation) return;
     try {
-      await fetch(`${API_BASE_URL}/conversations/${state.currentConversation.id}`, {
-        method: 'DELETE',
-        headers: { 'x-api-key': import.meta.env.VITE_API_KEY },
-      });
+      await del(`/conversations/${state.currentConversation.id}`);
       dispatch({
         type: 'SET_CONVERSATIONS',
         conversations: state.conversations.filter((c) => c.id !== state.currentConversation.id),
