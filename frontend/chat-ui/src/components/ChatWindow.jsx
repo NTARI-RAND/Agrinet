@@ -13,6 +13,8 @@ import { useStore } from '../store';
 import MessageBubble from './MessageBubble.jsx';
 import { API_BASE_URL } from '../api';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 export default function ChatWindow() {
   const { state, dispatch } = useStore();
   const bottomRef = useRef();
@@ -23,6 +25,12 @@ export default function ChatWindow() {
 
   useEffect(() => {
     if (!state.currentConversation) return;
+    const url = new URL(`${API_BASE_URL}/stream/${state.currentConversation.id}`);
+    const apiKey = import.meta.env.VITE_API_KEY;
+    if (apiKey) {
+      url.searchParams.set('api_key', apiKey);
+    }
+    const events = new EventSource(url.toString());
     const events = new EventSource(`${API_BASE_URL}/stream/${state.currentConversation.id}`);
 
     const handleToken = (e) => {
