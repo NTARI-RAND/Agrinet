@@ -14,7 +14,8 @@ export default function ChatWindow() {
 
   useEffect(() => {
     if (!state.currentConversation) return;
-    const url = new URL(`${API_BASE_URL}/stream/${state.currentConversation.id}`);
+    const base = API_BASE_URL || window.location.origin;
+    const url = new URL(`/stream/${state.currentConversation.id}`, base);
     const apiKey = import.meta.env.VITE_API_KEY;
     if (apiKey) {
       url.searchParams.set('api_key', apiKey);
