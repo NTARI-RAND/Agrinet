@@ -3,3 +3,4 @@ backend/federation/federationSyncJob.js
 frontend/user_login.js
 frontend/federationStatusCLI.js
 README.md
+frontend/chat-ui/.env.local
