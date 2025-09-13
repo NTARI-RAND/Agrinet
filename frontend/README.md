@@ -15,6 +15,8 @@ Both sub-apps rely on environment variables to communicate with backend services
 
 - `NEXT_PUBLIC_BACKEND_URL` – Base URL for backend API requests.
 - `NEXT_PUBLIC_API_KEY` – API key used to authorize requests from the Next.js site.
+- `NEXT_PUBLIC_APPSYNC_GRAPHQL_ENDPOINT` – AppSync GraphQL endpoint URL.
+- `NEXT_PUBLIC_APPSYNC_API_KEY` – API key for AppSync requests.
 
 ### Chat UI (`chat-ui/`)
 
