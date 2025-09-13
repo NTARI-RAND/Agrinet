@@ -9,7 +9,8 @@
     "lint": "next lint",
     "test": "next build",
     "federation-status": "node federationStatusCLI.js",
-    "federation-status:ci": "BACKEND_URL=$BACKEND_URL node federationStatusCLI.js"
+    "federation-status:ci": "BACKEND_URL=$BACKEND_URL node federationStatusCLI.js",
+    "test-connection": "node test-connection.js"
   },
   "dependencies": {
     "next": "14.1.0",

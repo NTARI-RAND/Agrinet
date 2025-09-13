@@ -5,14 +5,12 @@ frontend:
       commands:
         - nvm install 20
         - nvm use 20
-        - cd frontend/chat-ui
-        - npm ci
+        - npm ci --prefix frontend/chat-ui
     build:
       commands:
         - nvm use 20
-        - cd frontend/chat-ui
-        - npm run build
-        - BACKEND_URL=$BACKEND_URL node ../federationStatusCLI.js
+        - npm run build --prefix frontend/chat-ui
+        - BACKEND_URL=$BACKEND_URL node frontend/federationStatusCLI.js
   artifacts:
     baseDirectory: frontend/chat-ui/dist
     files:
