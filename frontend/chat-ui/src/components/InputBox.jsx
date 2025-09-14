@@ -74,15 +74,27 @@ export default function InputBox() {
         className="hidden"
         onChange={(e) => handleFile(e.target.files[0])}
       />
-      <button onClick={() => fileInputRef.current?.click()} className="p-2" title="Attach" disabled={pending}>
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        className="p-2 flex-shrink-0"
+        title="Attach"
+        disabled={pending}
+      >
         📎
       </button>
       {file && (
         <span className="text-sm" title={file.name}>{file.name}</span>
       )}
-      <button onClick={voice} className="p-2" title="Voice input" disabled={pending}>🎤</button>
+      <button
+        onClick={voice}
+        className="p-2 flex-shrink-0"
+        title="Voice input"
+        disabled={pending}
+      >
+        🎤
+      </button>
       <textarea
-        className="flex-1 border rounded p-2"
+        className="flex-1 min-w-0 border rounded p-2"
         rows={1}
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -95,7 +107,12 @@ export default function InputBox() {
         aria-label="Chat input"
         disabled={pending}
       />
-      <button onClick={send} className="p-2" title="Send" disabled={pending}>
+      <button
+        onClick={send}
+        className="p-2 flex-shrink-0"
+        title="Send"
+        disabled={pending}
+      >
         📨
       </button>
     </div>
