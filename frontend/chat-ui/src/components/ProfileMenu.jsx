@@ -10,6 +10,7 @@ export default function ProfileMenu() {
 
   return (
     <div
+      className="fixed bottom-2 right-4 z-10"
       className="fixed bottom-2 transition-all"
       style={{ left: state.sidebarOpen ? '15.5rem' : '0.5rem' }}
     >
