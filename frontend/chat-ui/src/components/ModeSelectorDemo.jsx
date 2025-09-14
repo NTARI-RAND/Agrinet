@@ -585,11 +585,24 @@ function ChatComposer() {
         dispatch({ type: "SET_RESULTS", results: { text: `You said: ${q}\n\n(Connect your backend to replace this mock.)` } });
       } else if (state.mode === "deep") {
         dispatch({ type: "DEEP_START" });
-        const res = await deepResearch(q, (stage, log) => {
-          dispatch({ type: "DEEP_SET_STAGE", stage, log });
-        });
-        dispatch({ type: "SET_RESULTS", results: { text: res.text, citations: res.citations } });
-        dispatch({ type: "DEEP_STOP" });
+        try {
+          const res = await deepResearch(q, (stage, log) => {
+            dispatch({ type: "DEEP_SET_STAGE", stage, log });
+          });
+          dispatch({ type: "SET_RESULTS", results: { text: res.text, citations: res.citations } });
+        } catch (err) {
+          dispatch({
+            type: "ADD_TOAST",
+            toast: {
+              id: uid("toast"),
+              title: "Research failed",
+              desc: err.message ?? String(err),
+              kind: "error",
+            },
+          });
+        } finally {
+          dispatch({ type: "DEEP_STOP" });
+        }
       } else if (state.mode === "image") {
         const images = await imageGen(q, state.files);
         dispatch({ type: "SET_RESULTS", results: { images } });
