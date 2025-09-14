@@ -585,7 +585,7 @@ function ChatComposer() {
         dispatch({ type: "SET_RESULTS", results: { text: `You said: ${q}\n\n(Connect your backend to replace this mock.)` } });
       } else if (state.mode === "deep") {
         dispatch({ type: "DEEP_START" });
-        try {
+    try {
           const res = await deepResearch(q, (stage, log) => {
             dispatch({ type: "DEEP_SET_STAGE", stage, log });
           });

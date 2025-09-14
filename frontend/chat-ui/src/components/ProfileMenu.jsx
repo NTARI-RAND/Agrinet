@@ -12,12 +12,23 @@ export default function ProfileMenu() {
     <div
       className={`fixed bottom-2 z-10 transition-all ${state.sidebarOpen ? 'left-64' : 'left-2'}`}
     >
-      <button className="p-2 rounded-full" onClick={() => setOpen((o) => !o)} title="Profile">
+      <button 
+      className="p-2 rounded-full" 
+      onClick={() => setOpen((o) => !o)}
+      title="Profile"
+      aria-expanded={open}
+      aria-controls="profile-menu"
+      >
         ⚙️
       </button>
       {open && (
-        <div className="mt-2 p-2 border rounded bg-white dark:bg-gray-800 shadow space-y-2">
-          <button className="block w-full text-left" onClick={toggleTheme}>Toggle Theme</button>
+        <div
+          id="profile-menu"
+          className="mt-2 p-2 border rounded bg-white dark:bg-gray-800 shadow space-y-2"
+        >
+          <button className="block w-full text-left" onClick={toggleTheme}>
+            Toggle Theme
+          </button>
           <button className="block w-full text-left" onClick={toggleMemory}>
             Memory: {state.memory ? 'On' : 'Off'}
           </button>
