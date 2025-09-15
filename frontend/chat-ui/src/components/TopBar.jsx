@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
 import { put, del } from '../api';
+import ProfileMenu from './ProfileMenu.jsx';
 
 export default function TopBar() {
   const { state, dispatch } = useStore();
@@ -44,33 +45,50 @@ export default function TopBar() {
   };
 
   return (
-    <div className="relative flex items-center justify-between p-2 border-b">
+    <div className="flex items-center gap-2 border-b p-2">
       <input
-        className="text-lg font-semibold flex-1 mr-2 bg-transparent"
+        className="flex-1 min-w-0 bg-transparent text-lg font-semibold focus:outline-none"
         value={title}
         onChange={(e) => rename(e.target.value)}
+        placeholder="Untitled conversation"
       />
-      <select value={model} onChange={(e) => setModel(e.target.value)} className="border rounded p-1">
+      <select value={model} onChange={(e) => setModel(e.target.value)} className="rounded border px-2 py-1">
         <option>Agrinet</option>
         <option>Agrinet-2</option>
         <option>Agrinet-3</option>
       </select>
-      <button className="ml-2 p-2" onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}>
+      <button
+        type="button"
+        className="rounded border px-2 py-1 hover:bg-gray-100"
+        onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}
+        title="Toggle sidebar"
+      >
         ☰
       </button>
-      <button className="ml-2 p-2" onClick={() => setMenuOpen((o) => !o)}>
-        ⋮
-      </button>
-      {menuOpen && (
-        <div className="absolute right-0 top-full mt-1 border rounded bg-white shadow">
-          <button
-            className="block px-4 py-2 text-left w-full hover:bg-gray-100"
-            onClick={remove}
-          >
-            Delete conversation
-          </button>
-        </div>
-      )}
+      <div className="relative">
+        <button
+          type="button"
+          className="rounded border px-2 py-1 hover:bg-gray-100"
+          onClick={() => setMenuOpen((o) => !o)}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          title="Conversation options"
+        >
+          ⋮
+        </button>
+        {menuOpen && (
+          <div className="absolute right-0 top-full z-10 mt-1 w-48 rounded border bg-white shadow-lg">
+            <button
+              type="button"
+              className="block w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+              onClick={remove}
+            >
+              Delete conversation
+            </button>
+          </div>
+        )}
+      </div>
+      <ProfileMenu className="ml-1" />
     </div>
   );
 }

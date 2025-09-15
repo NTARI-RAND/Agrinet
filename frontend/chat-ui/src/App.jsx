@@ -5,7 +5,6 @@ import InputBox from './components/InputBox.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import TopBar from './components/TopBar.jsx';
 import TestApi from './components/TestApi.jsx';
-import ProfileMenu from './components/ProfileMenu.jsx';
 
 function AppInner() {
   const { state } = useStore();
@@ -25,7 +24,6 @@ function AppInner() {
         <ChatWindow />
         <InputBox />
       </div>
-      <ProfileMenu />
     </div>
   );
 }
