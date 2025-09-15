@@ -1,186 +1,70 @@
-# Agrinet - Decentralized Agricultural Marketplace 🌱
+# Getting Started with Create React App
 
-## Overview
+This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
-Agrinet is a decentralized agricultural trading and service platform built to enhance transparency, trust, and efficiency in agricultural markets. It connects producers, consumers, and service providers while ensuring secure transactions, reputation-based ratings, and localized economic sustainability.
+## Available Scripts
 
-## Features
+In the project directory, you can run:
 
-#### Marketplace System 🏪 
+### `npm start`
 
-- Direct Market Access: Producers list goods, services, and contracts.
-- Agrotourism Integration: Farmers can offer farm tours, events, and educational workshops.
-- Service Marketplace: Users can provide or request agricultural services (e.g., logistics, maintenance).
+Runs the app in the development mode.\
+Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 
-#### Secure Transactions 🔒
+The page will reload when you make changes.\
+You may also see any lint errors in the console.
 
-- LBTAS (Leveson-Based Trade Assessment Scale): Ensures a trust-based rating system.
-- Dialog Recorder: Logs key transaction details for security and auditing.
-- Machine Scrub Module: Filters and verifies transaction data.
+### `npm test`
 
-#### Key & Authentication System 🔑
+Launches the test runner in the interactive watch mode.\
+See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
 
-- McEliese Key Generation: Ensures secure user identification.
-- Key Transmission Limits: Auto-retirement after 3, 6, 9, 12, or 365 transmissions.
-- Multi-Factor Verification: Email/phone validation with retry & lockout security.
+### `npm run build`
 
-#### PING System 📡
+Builds the app for production to the `build` folder.\
+It correctly bundles React in production mode and optimizes the build for the best performance.
 
-- Production Progress Reporting: Allows contract buyers to track order status.
-- Real-Time Notifications: Updates on market trends, contract changes, and service requests.
+The build is minified and the filenames include the hashes.\
+Your app is ready to be deployed!
 
-#### SMS Access 📱
+See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
 
-- Query market and weather data through SMS using simple text commands.
-- Supports local languages and queues messages offline with delivery confirmation.
+### `npm run eject`
 
-#### Financial Transactions 🏦
+**Note: this is a one-way operation. Once you `eject`, you can't go back!**
 
-- Deposit & Donations to NTARI Account: Supports decentralized funding.
-- Automated Payouts: Ensures secure fund disbursements upon transaction completion.
+If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
 
-#### Decentralized Data Management 🌍
+Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
 
-- User Profiles & Logs: Maintains key issuance logs parallel to user profiles.
-- Geo-Filtering & Search Optimization: Enables market visibility based on location.
+You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
 
-#### Square Foot Gardening Calculator 🌿
+## Learn More
 
-- Plant spacing recommendations for common crops.
-- Compatibility matrix to plan companion planting.
-- Growth projections and seasonal schedules with visual grid layouts.
+You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
 
-## Technology Stack
+To learn React, check out the [React documentation](https://reactjs.org/).
 
-- Frontend: React with Next.js (responsive site structure)
-- Backend: Node.js (API handling)
-- Database: Amazon DynamoDB (for storing users, contracts, and transactions)
-- Security: OAuth 2.0 / McEliese Key Cryptography
-- Real-Time Processing: Webhooks & PING System
+### Code Splitting
 
-## Installation & Setup
+This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
 
-1. Clone the repository
-```
-git clone https://github.com/YOUR_USERNAME/Fruitful.git
-cd Agrinet
-```
+### Analyzing the Bundle Size
 
-2. Setup the backend
-```
-cd backend
-npm install
-node server.js
-```
+This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
 
-3. Deploy the frontend
-```
-cd frontend
-npm install
-npm run dev
-```
+### Making a Progressive Web App
 
-For local development, set the `NEXT_PUBLIC_BACKEND_URL` environment variable to your backend's URL before running the frontend, for example:
-```
-NEXT_PUBLIC_BACKEND_URL=http://localhost:5000 npm run dev
-```
-Only environment variables prefixed with `NEXT_PUBLIC_` are exposed to the browser, so this prefix is required.
-Alternatively, configure a proxy so that requests to `/api` are forwarded to the backend.
+This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
 
-### Environment Variables
+### Advanced Configuration
 
-The backend now uses Amazon DynamoDB. Set the following variables in your environment or `.env` file:
+This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
 
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `AWS_REGION`
-- `DYNAMODB_ENDPOINT` *(optional, for DynamoDB Local e.g. `http://localhost:8000`)*
-- `TWILIO_SID`
-- `TWILIO_AUTH_TOKEN`
-- `TWILIO_FROM_NUMBER`
-- `TWILIO_STATUS_CALLBACK_URL` *(optional for delivery confirmation)*
+### Deployment
 
-## Square Foot Gardening Usage
+This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
 
-The backend includes a utility for planning square foot gardens.
+### `npm run build` fails to minify
 
-```javascript
-const { planSeason } = require('./backend/utils/squareFootGardening');
-
-const layout = [
-  ['tomato', 'basil'],
-  ['lettuce', null],
-];
-
-const plan = planSeason(layout, '2024-03-01', 'spring');
-console.log(plan.grid);
-console.log(plan.schedule);
-```
-
-The planner validates companion planting, projects growth timelines, and renders an ASCII grid of the garden.
-
-## API Endpoints
-
-Additional chat interface endpoints (e.g., `/conversations`, `/messages/:id`, `/stream/:id`) and their expected JSON
-structures are documented inline in the frontend components
-[`Sidebar.jsx`](frontend/chat-ui/src/components/Sidebar.jsx) and
-[`ChatWindow.jsx`](frontend/chat-ui/src/components/ChatWindow.jsx).
-### User Registration
-#### POST /userRegistration
-```
-{
-  "name": "John Doe",
-  "email": "johndoe@example.com",
-  "location": "Kentucky, USA",
-  "role": "producer"
-}
-```
-
-### Create Contract
-#### POST /createContract
-```
-{
-  "producerId": "user123",
-  "type": "Tomato",
-  "variety": "Roma",
-  "category": "food",
-  "amountNeeded": "500 lbs",
-  "dateNeeded": "2025-03-15",
-  "pingRate": "weekly"
-}
-```
-
-### Submit LBTAS Rating
-#### POST /submitRating
-```
-{
-  "transactionId": "tx987",
-  "rating": 4
-}
-```
-
-## Contributing
-We welcome contributions from the community! 🚀
-
-1. Fork the repo
-2. Create a feature branch
-3. Submit a pull request
-
-### Checking for hardcoded URLs
-
-Run the following script to detect any hardcoded `localhost` references before committing code:
-
-```bash
-./scripts/list-hardcoded-urls.sh
-```
-
-The script lists offending lines and exits with a nonzero status if any are found.
-Existing references known to be safe are tracked in `scripts/hardcoded-url-allowlist.txt`.
-
-## License
-MIT License – Feel free to modify and share. 📜
-
-## Contact & Support
-- NTARI https://www.ntari.org/ 
-- Email - tech@ntari.org
-- Slack - [Join our community for discussions!](https://ntari.slack.com) 
+This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
