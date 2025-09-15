@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { useStore } from '../store';
 
 /**
@@ -10,6 +10,7 @@ export default function ProfileMenu({ className = '' }) {
   const { state, dispatch } = useStore();
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
+  const menuId = useId();
 
   useEffect(() => {
     if (!open) return undefined;
@@ -44,12 +45,15 @@ export default function ProfileMenu({ className = '' }) {
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls={menuId}
+        aria-label="Profile and settings"
         title="Profile and settings"
       >
         ⚙️
       </button>
       {open && (
         <div
+          id={menuId}
           role="menu"
           className="absolute right-0 top-full z-20 mt-2 w-56 rounded-xl border border-gray-200 bg-white p-2 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800"
         >
