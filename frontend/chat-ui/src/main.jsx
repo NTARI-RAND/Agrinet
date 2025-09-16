@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-// Local stub replacing external aws-amplify dependency
-import { Amplify } from './aws-amplify.js'
+// Amplify resolves to the real library when installed, otherwise a local stub via Vite aliasing.
+import { Amplify } from 'aws-amplify'
 import App from './App.jsx'
 import './index.css'
 
