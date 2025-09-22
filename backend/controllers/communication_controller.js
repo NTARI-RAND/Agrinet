@@ -1,3 +1,4 @@
+const { randomUUID } = require('crypto');
 const Message = require('../models/message');
 const agrinetResponder = require('../services/agrinetResponder');
 const openAIResponder = require('../services/openAIResponder');
@@ -13,7 +14,6 @@ function broadcastMessage(conversationId, msg) {
 
     global.broadcast('message', { type: 'message', message: msg }, conversationId);
   }
-
   if (global.emitMessage) {
     global.emitMessage(conversationId, msg);
   }
