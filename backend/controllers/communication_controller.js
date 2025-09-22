@@ -1,30 +1,44 @@
 const { randomUUID } = require('crypto');
 const Message = require('../models/message');
-const { streamChatCompletion } = require('../lib/openaiClient');
+const agrinetResponder = require('../services/agrinetResponder');
+const openAIResponder = require('../services/openAIResponder');
 
-function buildPrompt(content) {
-  const systemPrompt =
-    process.env.OPENAI_SYSTEM_PROMPT ||
-    'You are Fruitful, a helpful assistant that provides concise, friendly answers for farmers and growers.';
-  return [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: content || '' },
-  ];
+function broadcastMessage(conversationId, msg) {
+  if (!msg) return;
+
+  if (global.broadcast) {
+    const tokens = (msg.content || '').split(/\s+/);
+    tokens.forEach((token) => {
+      global.broadcast('message', { type: 'token', id: msg.id, token }, conversationId);
+    });
+
+    global.broadcast('message', { type: 'message', message: msg }, conversationId);
+  }
+  if (global.emitMessage) {
+    global.emitMessage(conversationId, msg);
+  }
 }
 
-async function emitTokens(conversationId, messageId, iterator) {
-  let full = '';
-  for await (const token of iterator) {
-    if (!token) continue;
-    full += token;
-    if (global.emitToken) {
-      global.emitToken(conversationId, messageId, token);
-    }
-    if (global.broadcast) {
-      global.broadcast('token', { id: messageId, token }, conversationId);
-    }
-  }
-  return full;
+async function persistAssistantMessage(conversationId, reply) {
+  if (!reply || !reply.content) return null;
+
+  const assistantMsg = await Message.sendMessage(conversationId, {
+    from: reply.from || 'assistant',
+    to: reply.to,
+    content: reply.content,
+    type: reply.type || 'text',
+    file: reply.file,
+  });
+
+  broadcastMessage(conversationId, assistantMsg);
+  return assistantMsg;
+}
+
+function shouldAutoRespond({ from, type }) {
+  if (type && type !== 'text') return false;
+  if (!from) return true;
+  const normalized = String(from).toLowerCase();
+  return ['user', 'client', 'farmer'].includes(normalized);
 }
 
 exports.sendMessage = async (req, res) => {
@@ -32,47 +46,46 @@ exports.sendMessage = async (req, res) => {
   const { from, to, content, type, file } = req.body;
 
   // Create and persist the message
-  const userMessage = await Message.sendMessage(conversationId, { from, to, content, type, file });
+  const msg = await Message.sendMessage(conversationId, { from, to, content, type, file });
 
-  if (global.broadcast) {
-    global.broadcast('message', { type: 'message', message: userMessage }, conversationId);
-  }
-  if (global.emitMessage) {
-    global.emitMessage(conversationId, userMessage);
-  }
+  broadcastMessage(conversationId, msg);
 
-  let aiMessage = null;
-  if (typeof content === 'string' && content.trim()) {
-    try {
-      const aiMessageId = randomUUID();
-      const iterator = streamChatCompletion({ messages: buildPrompt(content) });
-      const aiContent = await emitTokens(conversationId, aiMessageId, iterator);
+  let assistantReply = null;
 
-      if (aiContent) {
-        aiMessage = await Message.sendMessage(conversationId, {
-          id: aiMessageId,
-          from: 'ai',
-          to: from || to,
-          content: aiContent,
-          type: 'ai',
-        });
+  if (shouldAutoRespond({ from, type })) {
+    const latestContent = msg.content || '';
 
-        if (global.broadcast) {
-          global.broadcast('message', { type: 'message', message: aiMessage }, conversationId);
-        }
-        if (global.emitMessage) {
-          global.emitMessage(conversationId, aiMessage);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to generate AI response', error);
-      if (global.broadcast) {
-        global.broadcast('message', { type: 'error', error: 'AI response failed' }, conversationId);
-      }
+    if (agrinetResponder.shouldHandle(latestContent)) {
+      const reply = await agrinetResponder.generateResponse({
+        conversationId,
+        message: msg,
+      });
+      assistantReply = await persistAssistantMessage(conversationId, reply);
+    } else {
+      const historyMessages = await Message.listMessages(conversationId);
+      const MAX_HISTORY_MESSAGES = 20;
+      const recentMessages = historyMessages.slice(-MAX_HISTORY_MESSAGES);
+      const chatHistory = recentMessages.map((m) => ({
+        role: String(m.from || '').toLowerCase() === 'assistant' ? 'assistant' : 'user',
+        content: m.content || '',
+      }));
+
+      const reply = await openAIResponder.generateResponse({
+        conversationId,
+        message: msg,
+        chatHistory,
+      });
+
+      assistantReply = await persistAssistantMessage(conversationId, reply);
     }
   }
 
-  res.status(201).json({ message: userMessage, ai: aiMessage });
+  const responsePayload = msg && typeof msg.toObject === 'function' ? msg.toObject() : { ...msg };
+  if (responsePayload && typeof responsePayload === 'object') {
+    responsePayload.reply = assistantReply;
+  }
+
+  res.status(201).json(responsePayload);
 };
 
 exports.listMessages = async (req, res) => {
