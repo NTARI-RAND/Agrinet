@@ -4,7 +4,7 @@
   "description": "Agrinet Platform",
   "main": "server.js",
   "scripts": {
-    "test": "node --test __tests__/messages.test.js __tests__/conversation.test.js __tests__/authMiddleware.test.js __tests__/routes/listings.test.js"
+    "test": "node --test __tests__/messages.test.js __tests__/conversation.test.js __tests__/authMiddleware.test.js __tests__/routes/listings.test.js __tests__/communication_controller.test.js"
   },
   "license": "ISC",
   "dependencies": {
