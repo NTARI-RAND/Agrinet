@@ -125,13 +125,15 @@ exports.sendMessage = async (req, res) => {
     });
   }
 
-  const conversationHistory = (await Message.listMessages(conversationId)).sort((a, b) => {
-    const aTimeRaw = a?.timestamp ? new Date(a.timestamp).getTime() : 0;
-    const bTimeRaw = b?.timestamp ? new Date(b.timestamp).getTime() : 0;
-    const aTime = Number.isNaN(aTimeRaw) ? 0 : aTimeRaw;
-    const bTime = Number.isNaN(bTimeRaw) ? 0 : bTimeRaw;
-    return aTime - bTime;
-  });
+  const rawMessages = await Message.listMessages(conversationId);
+  const conversationHistory = rawMessages
+    .map((msg) => {
+      const sortTimeRaw = msg?.timestamp ? new Date(msg.timestamp).getTime() : 0;
+      const sortTime = Number.isNaN(sortTimeRaw) ? 0 : sortTimeRaw;
+      return { ...msg, sortTime };
+    })
+    .sort((a, b) => a.sortTime - b.sortTime)
+    .map(({ sortTime, ...msg }) => msg);
   const chatHistory = convertMessagesToChatHistory(conversationHistory);
 
   const targetModel = model || OPENAI_MODEL;
