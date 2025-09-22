@@ -63,7 +63,9 @@ exports.sendMessage = async (req, res) => {
       assistantReply = await persistAssistantMessage(conversationId, reply);
     } else {
       const historyMessages = await Message.listMessages(conversationId);
-      const chatHistory = historyMessages.map((m) => ({
+      const MAX_HISTORY_MESSAGES = 20;
+      const recentMessages = historyMessages.slice(-MAX_HISTORY_MESSAGES);
+      const chatHistory = recentMessages.map((m) => ({
         role: String(m.from || '').toLowerCase() === 'assistant' ? 'assistant' : 'user',
         content: m.content || '',
       }));
@@ -78,7 +80,12 @@ exports.sendMessage = async (req, res) => {
     }
   }
 
-  res.status(201).json({ message: msg, reply: assistantReply });
+  const responsePayload = msg && typeof msg.toObject === 'function' ? msg.toObject() : { ...msg };
+  if (responsePayload && typeof responsePayload === 'object') {
+    responsePayload.reply = assistantReply;
+  }
+
+  res.status(201).json(responsePayload);
 };
 
 exports.listMessages = async (req, res) => {
