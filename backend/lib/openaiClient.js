@@ -29,7 +29,7 @@ function resetClient() {
   client = undefined;
 }
 
-function normaliseDeltaContent(deltaContent) {
+function normalizeDeltaContent(deltaContent) {
   if (typeof deltaContent === 'string') {
     return [deltaContent];
   }
@@ -63,7 +63,7 @@ async function* streamChatCompletion({ messages, model = process.env.OPENAI_MODE
     const choice = part?.choices?.[0];
     if (!choice) continue;
     const delta = choice.delta || {};
-    const tokens = normaliseDeltaContent(delta.content);
+    const tokens = normalizeDeltaContent(delta.content);
     for (const token of tokens) {
       if (token) {
         yield token;
