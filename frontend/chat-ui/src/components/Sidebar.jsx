@@ -45,6 +45,10 @@ export default function Sidebar() {
       const convo = await post('/conversations', {});
       dispatch({ type: 'SET_CURRENT_CONVERSATION', conversation: convo });
       dispatch({ type: 'SET_MESSAGES', messages: [] });
+      dispatch({
+        type: 'SET_CONVERSATIONS',
+        conversations: [convo, ...state.conversations.filter((c) => c.id !== convo.id)],
+      });
     } catch (e) {
       console.error(e);
     }
