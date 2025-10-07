@@ -7,9 +7,9 @@ import { post } from '../api';
 
 /**
  * Action buttons associated with a message.
- * @param {{message: Message}} props
+ * @param {{message: Message, className?: string}} props
  */
-export default function MessageActions({ message }) {
+export default function MessageActions({ message, className = '' }) {
   const { state } = useStore();
 
   const copy = async () => {
@@ -40,11 +40,19 @@ export default function MessageActions({ message }) {
   };
 
   return (
-    <div className="absolute top-0 right-0 m-1 space-x-1 hidden group-hover:flex">
-      <button onClick={copy} title="Copy">📋</button>
-      <button onClick={regenerate} title="Regenerate">⟳</button>
-      <button onClick={() => feedback('like')} title="Like">👍</button>
-      <button onClick={() => feedback('dislike')} title="Dislike">👎</button>
+    <div className={`message-actions absolute top-0 right-0 m-1 hidden space-x-1 group-hover:flex ${className}`}>
+      <button className="message-action-button" onClick={copy} title="Copy">
+        📋
+      </button>
+      <button className="message-action-button" onClick={regenerate} title="Regenerate">
+        ⟳
+      </button>
+      <button className="message-action-button" onClick={() => feedback('like')} title="Like">
+        👍
+      </button>
+      <button className="message-action-button" onClick={() => feedback('dislike')} title="Dislike">
+        👎
+      </button>
     </div>
   );
 }

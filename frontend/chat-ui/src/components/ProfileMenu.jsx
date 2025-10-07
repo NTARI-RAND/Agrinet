@@ -41,7 +41,7 @@ export default function ProfileMenu({ className = '' }) {
     <div ref={containerRef} className={`relative ${className}`}>
       <button
         type="button"
-        className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-lg shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:bg-gray-800"
+        className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] text-lg shadow-sm transition hover:shadow-lg hover:border-[var(--color-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -55,34 +55,34 @@ export default function ProfileMenu({ className = '' }) {
         <div
           id={menuId}
           role="menu"
-          className="absolute right-0 top-full z-20 mt-2 w-56 rounded-xl border border-gray-200 bg-white p-2 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800"
+          className="absolute right-0 top-full z-20 mt-2 w-60 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-sm shadow-lg"
         >
           <button
             type="button"
-            className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-[var(--color-accent-soft)]"
             onClick={toggleTheme}
           >
             <span>Theme</span>
-            <span className="text-xs text-gray-500 dark:text-gray-300">{state.theme === 'light' ? 'Light' : 'Dark'}</span>
+            <span className="text-xs text-[var(--color-muted)]">{state.theme === 'light' ? 'Light' : 'Dark'}</span>
           </button>
           <button
             type="button"
-            className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left transition hover:bg-[var(--color-accent-soft)]"
             onClick={toggleMemory}
           >
             <span>Memory</span>
-            <span className="text-xs text-gray-500 dark:text-gray-300">{state.memory ? 'On' : 'Off'}</span>
+            <span className="text-xs text-[var(--color-muted)]">{state.memory ? 'On' : 'Off'}</span>
           </button>
-          <hr className="my-1 border-gray-200 dark:border-gray-700" />
+          <hr className="farm-divider my-2" />
           <button
             type="button"
-            className="block w-full rounded-lg px-3 py-2 text-left transition hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="block w-full rounded-lg px-3 py-2 text-left transition hover:bg-[var(--color-accent-soft)]"
           >
             Custom instructions
           </button>
           <button
             type="button"
-            className="block w-full rounded-lg px-3 py-2 text-left transition hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="block w-full rounded-lg px-3 py-2 text-left transition hover:bg-[var(--color-accent-soft)]"
           >
             Account
           </button>

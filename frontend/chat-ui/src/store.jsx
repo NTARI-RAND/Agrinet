@@ -13,6 +13,7 @@ import React, { createContext, useContext, useReducer } from 'react';
  * @property {boolean} sidebarOpen
  * @property {string} theme
  * @property {boolean} memory
+ * @property {boolean} aiThinking
  */
 
 /**
@@ -26,6 +27,7 @@ import React, { createContext, useContext, useReducer } from 'react';
  *   | { type: 'TOGGLE_SIDEBAR' }
  *   | { type: 'SET_THEME', theme: string }
  *   | { type: 'TOGGLE_MEMORY' }
+ *   | { type: 'SET_AI_THINKING', value: boolean }
  * )} Action
  */
 
@@ -37,6 +39,7 @@ const initialState = {
   sidebarOpen: true,
   theme: 'light',
   memory: true,
+  aiThinking: false,
 };
 
 /**
@@ -77,6 +80,8 @@ function reducer(state, action) {
       return { ...state, theme: action.theme };
     case 'TOGGLE_MEMORY':
       return { ...state, memory: !state.memory };
+    case 'SET_AI_THINKING':
+      return { ...state, aiThinking: action.value };
     default:
       return state;
   }

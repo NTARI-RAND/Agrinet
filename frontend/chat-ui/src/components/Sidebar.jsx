@@ -8,7 +8,7 @@
  * All requests include an 'x-api-key' header and expect JSON responses.
  * Errors are caught and logged to the console without user-facing feedback.
  */
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStore } from '../store';
 
 /**
@@ -24,6 +24,7 @@ import { get, post } from '../api';
  */
 export default function Sidebar() {
   const { state, dispatch } = useStore();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
@@ -32,6 +33,8 @@ export default function Sidebar() {
         dispatch({ type: 'SET_CONVERSATIONS', conversations: data });
       } catch (e) {
         console.error(e);
+      } finally {
+        setLoading(false);
       }
     };
     load();
@@ -84,43 +87,85 @@ export default function Sidebar() {
   const others = state.conversations.filter((c) => !c.pinned);
 
   return (
-    <div className="w-60 border-r p-2 flex flex-col">
-      <button className="mb-2 p-2 border rounded" onClick={newChat}>
-        New Chat
-      </button>
-      <div className="flex-1 overflow-y-auto space-y-2">
-        {pinned.length > 0 && (
-          <div>
-            <h3 className="text-xs text-gray-500 mb-1">Pinned</h3>
-            {pinned.map((c) => (
+    <aside
+      className="farm-pane max-w-full flex flex-col overflow-hidden"
+      style={{ width: '320px' }}
+    >
+      <div className="sidebar-header">
+        <h2 className="text-lg font-semibold">Field Notes</h2>
+        <p className="text-sm text-[var(--color-muted)]">
+          Revisit crop scouting sessions, agronomic planning, and harvest retrospectives.
+        </p>
+        <button className="farm-button" onClick={newChat}>
+          ➕ Sow new chat
+        </button>
+      </div>
+      <div className="sidebar-list" role="list">
+        {loading && (
+          <div className="skeleton-field" style={{ height: 120 }} aria-hidden="true" />
+        )}
+        {pinned.length > 0 && !loading && (
+          <section aria-label="Pinned conversations" className="space-y-3">
+            <h3 className="text-xs uppercase tracking-[0.22em] text-[var(--color-muted)]">Pinned rows</h3>
+            {pinned.map((c, index) => (
               <div
+                role="listitem"
                 key={c.id}
-                className="p-2 border-b cursor-pointer flex justify-between"
+                className="farm-card sidebar-item"
+                data-pinned="true"
+                style={{ animationDelay: `${index * 80}ms` }}
                 onClick={() => openConversation(c)}
               >
-                <span>{c.title}</span>
-                <button onClick={(e) => { e.stopPropagation(); togglePin(c); }}>📌</button>
+                <span className="truncate text-sm font-medium">{c.title}</span>
+                <button
+                  type="button"
+                  className="message-action-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    togglePin(c);
+                  }}
+                  title="Unpin conversation"
+                >
+                  📌
+                </button>
               </div>
             ))}
-          </div>
+          </section>
         )}
-        {others.map((c) => (
+        {others.map((c, index) => (
           <div
+            role="listitem"
             key={c.id}
-            className="p-2 border-b cursor-pointer flex justify-between"
+            className="farm-card sidebar-item"
+            style={{ animationDelay: `${(index + pinned.length) * 60}ms` }}
             onClick={() => openConversation(c)}
           >
-            <span>{c.title}</span>
-            <button onClick={(e) => { e.stopPropagation(); togglePin(c); }}>📍</button>
+            <span className="truncate text-sm font-medium">{c.title}</span>
+            <button
+              type="button"
+              className="message-action-button"
+              onClick={(e) => {
+                e.stopPropagation();
+                togglePin(c);
+              }}
+              title="Pin conversation"
+            >
+              📍
+            </button>
           </div>
         ))}
+        {!loading && pinned.length === 0 && others.length === 0 && (
+          <p className="text-sm text-[var(--color-muted)]">
+            You have not planted any chats yet. Start a new conversation to cultivate insights.
+          </p>
+        )}
       </div>
-      <button
-        className="mt-2 p-2 border rounded"
-        onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}
-      >
-        Close
-      </button>
-    </div>
+      <div className="sidebar-footer flex items-center justify-between">
+        <button className="farm-button" onClick={() => dispatch({ type: 'TOGGLE_SIDEBAR' })}>
+          Close barn doors
+        </button>
+        <span className="text-xs text-[var(--color-muted)]">{state.conversations.length} plots</span>
+      </div>
+    </aside>
   );
 }

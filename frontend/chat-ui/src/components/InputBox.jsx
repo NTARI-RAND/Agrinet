@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { post } from '../api';
 
@@ -9,6 +9,41 @@ export default function InputBox() {
   const [fileData, setFileData] = useState('');
   const [pending, setPending] = useState(false);
   const fileInputRef = useRef();
+  const physicsRef = useRef({ current: 1, velocity: 0, target: 1 });
+  const frameRef = useRef();
+  const [sendScale, setSendScale] = useState(1);
+  const timeoutRef = useRef();
+
+  useEffect(() => {
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const animateTo = (target) => {
+    physicsRef.current.target = target;
+    if (frameRef.current) return;
+
+    const step = () => {
+      const physics = physicsRef.current;
+      const displacement = physics.target - physics.current;
+      physics.velocity += displacement * 0.18;
+      physics.velocity *= 0.72;
+      physics.current += physics.velocity;
+      if (Math.abs(physics.velocity) < 0.001 && Math.abs(displacement) < 0.001) {
+        physics.current = physics.target;
+        physics.velocity = 0;
+        frameRef.current = undefined;
+        setSendScale(physics.current);
+        return;
+      }
+      setSendScale(physics.current);
+      frameRef.current = requestAnimationFrame(step);
+    };
+
+    frameRef.current = requestAnimationFrame(step);
+  };
 
   const send = async () => {
     if (!state.currentConversation || (!text && !file) || pending) return;
@@ -36,6 +71,7 @@ export default function InputBox() {
       setFile(null);
       setFileData('');
       if (fileInputRef.current) fileInputRef.current.value = '';
+      dispatch({ type: 'SET_AI_THINKING', value: true });
     } catch (e) {
       console.error(e);
     } finally {
@@ -67,7 +103,7 @@ export default function InputBox() {
   };
 
   return (
-    <div className="p-2 border-t flex flex-wrap items-center gap-2 w-full">
+    <div className="input-row">
       <input
         ref={fileInputRef}
         type="file"
@@ -76,25 +112,27 @@ export default function InputBox() {
       />
       <button
         onClick={() => fileInputRef.current?.click()}
-        className="p-2 flex-shrink-0"
+        className="micro-icon"
         title="Attach"
         disabled={pending}
       >
         📎
       </button>
       {file && (
-        <span className="text-sm" title={file.name}>{file.name}</span>
+        <span className="text-sm text-[var(--color-muted)]" title={file.name}>
+          {file.name}
+        </span>
       )}
       <button
         onClick={voice}
-        className="p-2 flex-shrink-0"
+        className="micro-icon"
         title="Voice input"
         disabled={pending}
       >
         🗣
       </button>
       <textarea
-        className="flex-1 min-w-0 border rounded p-2"
+        className=""
         rows={1}
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -109,11 +147,19 @@ export default function InputBox() {
       />
       <button
         onClick={send}
-        className="p-2 flex-shrink-0"
+        className="farm-button"
         title="Send"
         disabled={pending}
+        style={{ transform: `scale(${sendScale.toFixed(3)})` }}
+        onPointerDown={() => animateTo(0.9)}
+        onPointerUp={() => {
+          animateTo(1.05);
+          if (timeoutRef.current) clearTimeout(timeoutRef.current);
+          timeoutRef.current = setTimeout(() => animateTo(1), 140);
+        }}
+        onPointerLeave={() => animateTo(1)}
       >
-        📨
+        🚜 Send
       </button>
     </div>
   );

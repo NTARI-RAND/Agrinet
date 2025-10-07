@@ -7,10 +7,13 @@ import MessageActions from './MessageActions.jsx';
  * Displays a single chat message.
  * @param {{message: Message}} props
  */
-export default function MessageBubble({ message }) {
+export default function MessageBubble({ message, index = 0 }) {
   const isUser = message.role === 'user' || message.sender === 'user' || message.from === 'user';
   const alignment = isUser ? 'items-end text-right' : 'items-start text-left';
-  const bg = isUser ? 'bg-blue-500 text-white' : 'bg-gray-200';
+  const bubbleClass = `message-bubble ${isUser ? 'user' : 'assistant'}`;
+  const style = {
+    animationDelay: `${Math.min(index, 12) * 70}ms`,
+  };
 
   let content;
   if (message.type === 'file' && message.file) {
@@ -25,9 +28,9 @@ export default function MessageBubble({ message }) {
   }
 
   return (
-    <div className={`relative flex ${alignment} group`}>
-      {!isUser && <MessageActions message={message} />}
-      <div className={`max-w-xl p-2 rounded shadow ${bg}`}>
+    <div className={`message-row relative flex ${alignment} group`} style={style}>
+      {!isUser && <MessageActions message={message} className="message-actions" />}
+      <div className={bubbleClass}>
         {content}
       </div>
     </div>
