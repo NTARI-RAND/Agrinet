@@ -132,7 +132,7 @@ export default function InputBox() {
         🗣
       </button>
       <textarea
-        className=""
+        className="farm-textarea"
         rows={1}
         value={text}
         onChange={(e) => setText(e.target.value)}
