@@ -6,7 +6,7 @@ function broadcastMessage(conversationId, msg, options = {}) {
   if (!msg) return;
 
   const { emitTokens = true } = options;
-  const tokens = emitTokens ? (msg.content || '').match(/\s+|\S+/g) || [] : [];
+  const tokens = emitTokens ? (msg.content || '').match(/\S+/g) || [] : [];
 
   if (emitTokens && global.broadcast) {
     tokens.forEach((token) => {
