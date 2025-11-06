@@ -1,173 +1,104 @@
-const express = require("express");
+// server.js — Minimal Registry Node (in-memory)
+const express = require('express');
 const http = require('http');
-let cors;
-try {
-  cors = require("cors");
-} catch {
-  cors = () => (_req, _res, next) => next();
-}
-let dotenv;
-try {
-  dotenv = require("dotenv");
-} catch {
-  dotenv = { config: () => {} };
-}
-const path = require("path");
-const authMiddleware = require("./middleware/authMiddleware");
+const cors = require('cors');
 
-// Load environment variables
-dotenv.config();
+const PORT = Number(process.env.PORT || 3000);
+const NODE_ENV = process.env.NODE_ENV || 'production';
+const NODE_ID = process.env.NODE_ID || 'registry-node';
+const NODE_TYPE = process.env.NODE_TYPE || 'registry';
+const REGISTRY_URI = process.env.REGISTRY_URI || '';
+const REGISTRY_API_KEY = process.env.REGISTRY_API_KEY || '';
+const MINIMAL_SERVER = String(process.env.MINIMAL_SERVER || 'true') === 'true';
 
-const minimal = process.env.MINIMAL_SERVER === 'true';
-
+// --- CORS: allow your domains only (adjust as needed)
+const allowedOrigins = ['https://www.ntari.org', 'https://registry.ntari.org', 'https://api.ntari.org'];
 const app = express();
-
-// --- PRODUCTION-READY CORS RESTRICTION ---
-const allowedOrigins = ['https://www.ntari.org'];
 app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('CORS not allowed for this origin'));
-    }
+  origin(origin, cb) {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error('CORS not allowed for this origin'));
   },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET','POST','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization']
 }));
-// -----------------------------------------
-
 app.use(express.json());
-const tryMount = (route, modPath) => {
-  try {
-    const mod = require(modPath);
-    app.use(route, mod);
-  } catch (err) {
-    console.warn(`Skipping ${modPath}: ${err.message}`);
-  }
-};
 
-if (!minimal) {
-  tryMount("/deposit", "./routes/depositRoutes");
-}
-
-// Health Check Endpoint
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
+// --- health (no auth)
+app.get('/health', (_req, res) => {
+  res.status(200).json({
+    ok: true,
+    uptime: process.uptime(),
+    pid: process.pid,
+    ts: Date.now(),
+    env: NODE_ENV,
+    nodeId: NODE_ID,
+    nodeType: NODE_TYPE,
+    mode: MINIMAL_SERVER ? 'memory' : 'unknown'
+  });
 });
 
-// Server & SSE event stream
+// --- simple API key auth for registry mutations
+function requireRegistryKey(req, res, next) {
+  if (!REGISTRY_API_KEY) return next(); // no key configured -> open (not recommended)
+  const hdr = req.headers['x-registry-key'] || req.headers['authorization'] || '';
+  const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : hdr;
+  if (token === REGISTRY_API_KEY) return next();
+  return res.status(401).json({ error: 'invalid registry key' });
+}
+
+// --- In-memory peers store
+// shape: { [peerId]: { peerId, host, updatedAt, meta? } }
+const peers = Object.create(null);
+
+// Register or refresh a peer
+app.post('/federation/register', requireRegistryKey, (req, res) => {
+  const { peerId, host, meta } = req.body || {};
+  if (!peerId || !host) {
+    return res.status(400).json({ error: 'peerId and host are required' });
+  }
+  peers[peerId] = {
+    peerId,
+    host,
+    meta: meta || {},
+    updatedAt: Date.now()
+  };
+  return res.status(200).json({
+    ok: true,
+    registry: REGISTRY_URI,
+    peer: peers[peerId],
+    count: Object.keys(peers).length
+  });
+});
+
+// List peers (optional filter by updated window)
+app.get('/federation/peers', (_req, res) => {
+  const list = Object.values(peers).sort((a,b) => b.updatedAt - a.updatedAt);
+  return res.status(200).json({
+    ok: true,
+    registry: REGISTRY_URI,
+    count: list.length,
+    peers: list
+  });
+});
+
+// Global error handler
+app.use((err, _req, res, _next) => {
+  console.error('Uncaught Error:', err?.stack || err);
+  res.status(500).json({ error: 'Internal Server Error' });
+});
+
+// Start HTTP server
 const server = http.createServer(app);
-
-// Simple Server-Sent Events implementation
-const sseClients = new Set();
-// Map of conversationId -> Set of response objects
-const conversationStreams = new Map();
-
-app.get('/events', (req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive'
-  });
-  sseClients.add(res);
-  req.on('close', () => sseClients.delete(res));
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Starting in MINIMAL registry mode (in-memory)`);
+  if (REGISTRY_URI) console.log(`Registry listening at ${REGISTRY_URI}`);
 });
 
-// Unified conversation-scoped Server-Sent Events endpoint
-app.get('/stream/:conversationId', (req, res) => {
-  const { conversationId } = req.params;
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive'
-  });
-
-  if (!conversationStreams.has(conversationId)) {
-    conversationStreams.set(conversationId, new Set());
-  }
-
-  const clients = conversationStreams.get(conversationId);
-  clients.add(res);
-
-  req.on('close', () => {
-    clients.delete(res);
-    if (clients.size === 0) {
-      conversationStreams.delete(conversationId);
-    }
-  });
+// Optional: graceful shutdown logging
+process.on('SIGINT', () => {
+  console.log('Received SIGINT, shutting down...');
+  server.close(() => process.exit(0));
 });
-
-function sendConversationEvent(conversationId, event, data) {
-  const clients = conversationStreams.get(conversationId);
-  if (!clients) return;
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  clients.forEach(res => res.write(payload));
-}
-
-function broadcast(event, data, conversationId) {
-  if (conversationId) {
-    sendConversationEvent(conversationId, event, data);
-    return;
-  }
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  sseClients.forEach(res => res.write(payload));
-}
-global.broadcast = broadcast;
-
-// Helpers to emit token and message events
-function emitToken(conversationId, id, token) {
-  sendConversationEvent(conversationId, 'token', { id, token });
-}
-
-function emitMessage(conversationId, message) {
-  sendConversationEvent(conversationId, 'message', { message });
-}
-
-global.emitToken = emitToken;
-global.emitMessage = emitMessage;
-
-// Middleware
-app.use(authMiddleware);
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Routes
-let runFederationSync;
-if (!minimal) {
-  [
-    ['/', './routes/api'],
-    ['/api/auth', './routes/authRoutes'],
-    ['/api/keys', './routes/keyRoutes'],
-    ['/api/contracts', './routes/contracts'],
-    ['/api/admin', './routes/admin'],
-    ['/api/marketplace', './marketplace/marketplace_routes'],
-    ['/users', './routes/userRoutes'],
-    ['/products', './routes/products'],
-    ['/broadcast', './routes/broadcastRoutes'],
-    ['/sms', './routes/smsRoutes'],
-    ['/cart', './routes/cartRoutes'],
-    ['/orders', './routes/orderRoutes'],
-    ['/subscriptions', './routes/subscriptionRoutes'],
-    ['/conversations', './routes/conversationRoutes'],
-    ['/messages', './routes/communicationRoutes'],
-    ['/inventory', './routes/inventoryRoutes'],
-    ['/api/location', './routes/locationRoutes'],
-    ['/federation', './federation/federationRoutes'],
-    ['/trends', './trends/trendsRoutes'],
-  ].forEach(([route, mod]) => tryMount(route, mod));
-
-  try {
-    runFederationSync = require('./federation/federationSyncJob');
-  } catch (err) {
-    console.warn(`Federation sync disabled: ${err.message}`);
-  }
-}
-
-const PORT = process.env.PORT || 5000;
-if (require.main === module) {
-  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-  if (runFederationSync) runFederationSync(); // kicks off first run when available
-}
-
-module.exports = { app, server };
