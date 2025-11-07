@@ -1,0 +1,70 @@
+name: Version and Tag
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/package.json'
+      - 'backend/package.json'
+      - 'frontend/chat-ui/package.json'
+
+jobs:
+  tag:
+    name: Ensure git tag matches package version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - id: version
+        name: Determine version number
+        run: |
+          VERSION=$(jq -r '.version' frontend/package.json)
+          if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
+            echo "Unable to read version from frontend/package.json" >&2
+            exit 1
+          fi
+
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Version $VERSION is not a valid semantic version (x.y.z[-prerelease][+build])." >&2
+            exit 1
+          fi
+
+          for FILE in backend/package.json frontend/chat-ui/package.json; do
+            if [[ -f "$FILE" ]]; then
+              OTHER=$(jq -r '.version' "$FILE")
+              if [[ "$OTHER" != "$VERSION" ]]; then
+                echo "Version mismatch between frontend/package.json ($VERSION) and $FILE ($OTHER)" >&2
+                exit 1
+              fi
+            fi
+          done
+
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "Git tag v$VERSION already exists. Skipping creation." >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Ready to create git tag v$VERSION" >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        if: steps.version.outputs.skip == 'false'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "Release v$VERSION"
+          git push origin "v$VERSION"
+          echo "Created git tag v$VERSION" >> "$GITHUB_STEP_SUMMARY"
