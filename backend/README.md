@@ -34,6 +34,26 @@ Required (or set via `.env`):
 - TWILIO_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER (for SMS; optional TWILIO_STATUS_CALLBACK_URL)
 - STRIPE_KEY (if deposits enabled)
 
+## Redis Configuration
+
+To run Redis, ensure it’s included in your `docker-compose.yml` file:
+
+```yml
+redis:
+  image: redis:latest
+  command: redis-server
+  ports:
+    - "6379:6379"
+  networks:
+    - backend
+```
+
+Set the following environment variables in `.env`:
+- `REDIS_HOST=redis`
+- `REDIS_PORT=6379`
+
+These settings allow the backend services to connect to Redis for queue management and other tasks.
+
 ## Routing
 
 Main mounts (see `server.js`):
@@ -102,7 +122,7 @@ Server emitters (global):
 
 - CORS: restricted to `https://www.ntari.org`
 - JWT: middleware enforces authorization on protected routes
-- API Key for SSE: the Chat UI passes an API key as `x-api-key` query parameter for SSE requests; the server accepts `x-api-key` (and also `api_key` for backward compatibility) on `/events` and `/stream/:conversationId`.
+- API Key for SSE: the Chat UI passes an API key as `x-api-key` query parameter for SSE requests; the server accepts `x-api-key` (and also `api_key` for backward compatibility) on `/events` and `[...]`
 
 ## Jobs & SMS
 
