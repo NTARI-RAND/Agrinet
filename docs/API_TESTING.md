@@ -6,12 +6,16 @@ This guide will help you test the backend API for the Chat-UI components using `
 
 ## 1. Service Ports & Endpoints
 
-| Service   | Port   | Usage                |
-|-----------|--------|---------------------|
-| Backend   | 5000   | API requests        |
-| Frontend  | 3000   | Next.js UI (HTML)   |
+| Service   | Port (default) | Usage                |
+|-----------|----------------|----------------------|
+| Backend   | 5000           | API requests         |
+| Frontend  | 3000           | Next.js UI (HTML)    |
 
-**Always use port `5000` for API testing unless otherwise configured.**
+Set `API_BASE_URL` to your backend URL before running commands. Use a local fallback only when needed:
+
+```bash
+export API_BASE_URL="${API_BASE_URL:-http://api-host:5000}"  # replace api-host for local/CI
+```
 
 ---
 
@@ -22,11 +26,13 @@ Most API endpoints require a valid API key:
 
 Example:
 ```bash
-curl -X POST http://localhost:5000/conversations \
+curl -X POST "${API_BASE_URL}/conversations" \
   -H "Content-Type: application/json" \
   -H "x-api-key: da2-5z3fzvunwvhwtbyudvutf6x6by" \
   -d '{"title": "Chat QA Demo"}'
 ```
+
+If your environment does not set `API_BASE_URL`, export it once as shown above.
 
 If you see:  
 `{"error":"Unauthorized: Invalid API Key"}`  
@@ -38,7 +44,7 @@ If you see:
 
 ### Health Check
 ```bash
-curl -X GET http://localhost:5000/health
+curl -X GET "${API_BASE_URL}/health"
 ```
 **Expected Output:**  
 - `{"status":"ok"}` (if implemented)
@@ -48,7 +54,7 @@ curl -X GET http://localhost:5000/health
 
 ### Create Conversation
 ```bash
-curl -X POST http://localhost:5000/conversations \
+curl -X POST "${API_BASE_URL}/conversations" \
   -H "Content-Type: application/json" \
   -H "x-api-key: <your-key>" \
   -d '{"title": "Chat QA Demo"}'
@@ -68,7 +74,7 @@ curl -X POST http://localhost:5000/conversations \
 
 ### Send Message
 ```bash
-curl -X POST http://localhost:5000/messages/<conversationId> \
+curl -X POST "${API_BASE_URL}/messages/<conversationId>" \
   -H "Content-Type: application/json" \
   -H "x-api-key: <your-key>" \
   -d '{"from":"user","to":"assistant","type":"text","content":"Hello Agrinet!"}'
@@ -87,7 +93,7 @@ Replace `<conversationId>` with your actual conversation ID.
 
 ### Get Messages
 ```bash
-curl -X GET http://localhost:5000/messages/<conversationId> \
+curl -X GET "${API_BASE_URL}/messages/<conversationId>" \
   -H "x-api-key: <your-key>"
 ```
 **Expected Output:**  
@@ -103,7 +109,7 @@ curl -X GET http://localhost:5000/messages/<conversationId> \
 
 ### Streaming (SSE)
 ```bash
-curl -N http://localhost:5000/stream/<conversationId> \
+curl -N "${API_BASE_URL}/stream/<conversationId>" \
   -H "Accept: text/event-stream" \
   -H "x-api-key: <your-key>"
 ```
@@ -127,7 +133,7 @@ curl -N http://localhost:5000/stream/<conversationId> \
 
 ## 5. Troubleshooting Checklist
 
-- **Port**: Use backend API port (default `5000`).
+- **Port**: Confirm `API_BASE_URL` points to the backend API (default local port is `5000`).
 - **API Key**: Confirm the backend is properly configured and the key is active.
 - **Endpoint**: Double-check the exact path and HTTP verb.
 - **Variables**: Substitute placeholders (like `<conversationId>`) with actual IDs.
@@ -143,7 +149,7 @@ curl -N http://localhost:5000/stream/<conversationId> \
 ```bash
 #!/usr/bin/env bash
 
-API="http://localhost:5000"
+API="${API_BASE_URL:-http://api-host:5000}"
 KEY="da2-5z3fzvunwvhwtbyudvutf6x6by"
 
 echo "Health check..."
@@ -170,8 +176,8 @@ curl -sS "$API/messages/$CONV_ID" \
 
 ## 7. Backend vs Frontend
 
-- **Frontend** (`localhost:3000`): For browser access; will always return HTML.
-- **Backend** (`localhost:5000`): For API; will return JSON (if working).
+- **Frontend** (example: `http://frontend-host:3000`): For browser access; will always return HTML.
+- **Backend** (`API_BASE_URL`, example: `http://api-host:5000`): For API; will return JSON (if working).
 
 ---
 
