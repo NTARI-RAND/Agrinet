@@ -1,24 +1,24 @@
 {
-    "name": "agrinet-frontend",
-    "version": "1.0.0",
-    "private": true,
-    "scripts": {
-          "dev": "next dev",
-          "build": "next build",
-          "start": "next start",
-          "lint": "next lint",
-          "test": "next build",
-          "federation-status": "node federationStatusCLI.js",
-          "federation-status:ci": "BACKEND_URL=$BACKEND_URL node federationStatusCLI.js",
-          "test-connection": "node test-connection.js"
-    },
-    "dependencies": {
-          "next": "14.2.35",
-          "react": "18.2.0",
-          "react-dom": "18.2.0"
-    },
-    "devDependencies": {
-          "eslint": "8.56.0",
-          "eslint-config-next": "14.2.35"
-    }
+  "name": "agrinet-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "next build",
+    "federation-status": "node federationStatusCLI.js",
+    "federation-status:ci": "BACKEND_URL=$BACKEND_URL node federationStatusCLI.js",
+    "test-connection": "node test-connection.js"
+  },
+  "dependencies": {
+    "next": "14.2.35",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "eslint": "8.56.0",
+    "eslint-config-next": "14.2.35"
+  }
 }
