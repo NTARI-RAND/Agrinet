@@ -176,7 +176,7 @@ curl -sS "$API/messages/$CONV_ID" \
 
 ## 7. Backend vs Frontend
 
-- **Frontend** (`FRONTEND_BASE_URL`, example: `http://frontend-host:3000`): For browser access; will always return HTML.
+- **Frontend** (example: `http://frontend-host:3000`): For browser access; will always return HTML.
 - **Backend** (`API_BASE_URL`, example: `http://api-host:5000`): For API; will return JSON (if working).
 
 ---
