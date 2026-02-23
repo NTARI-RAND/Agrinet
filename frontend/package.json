@@ -20,5 +20,8 @@
   "devDependencies": {
     "eslint": "8.56.0",
     "eslint-config-next": "14.2.35"
-  }
+  },
+    "overrides": {
+          "glob": "^11.1.0"
+    }
 }
