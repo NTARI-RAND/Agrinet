@@ -9,7 +9,7 @@
     "license": "ISC",
     "dependencies": {
           "@aws-sdk/client-dynamodb": "^3.583.0",
-          "axios": "^1.13.5",
+          "axios": "^1.7.9",
           "bcryptjs": "^3.0.2",
           "bullmq": "^5.12.0",
           "cors": "^2.8.5",
