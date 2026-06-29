@@ -1,0 +1,5 @@
+# Force LF for files that are mounted into / executed inside Linux containers.
+# On Windows (core.autocrlf=true) these would otherwise get CRLF endings and
+# break (e.g. `sh: bad interpreter` for backup.sh, or odd parsing of schema.sql).
+*.sh  text eol=lf
+*.sql text eol=lf

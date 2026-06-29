@@ -1,0 +1,142 @@
+# Local hosting on NTARIHQ.
+#
+# Builds all app images FROM THIS REPO (so our security patches are included) instead
+# of pulling caza6367/* from Docker Hub. HTTP only, single origin at http://localhost.
+#
+# Run from infra/docker/:
+#   docker compose --env-file ../../.env -f docker-compose.local.yml up -d --build
+# Tear down (keep data):   docker compose -f docker-compose.local.yml down
+# Tear down (wipe data):   docker compose -f docker-compose.local.yml down -v
+name: agrinet-local
+
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: agrinet_mariadb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: agrinet
+      MYSQL_USER: agrinet
+      MYSQL_PASSWORD: agrinet
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ../../schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7
+    container_name: agrinet_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --appendfsync everysec
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    image: agrinet-api:local
+    container_name: agrinet_api
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../../.env
+    environment:
+      DB_HOST: mariadb
+      DB_USER: agrinet
+      DB_PASSWORD: agrinet
+      DB_NAME: agrinet
+      REDIS_HOST: redis
+      PORT: 5000
+    ports:
+      - "5000:5000"   # direct access for debugging; nginx is the real entrypoint
+    volumes:
+      - uploads_data:/app/uploads   # local on-disk storage for uploaded images (persists across rebuilds)
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+      args:
+        # NEXT_PUBLIC_* is baked at BUILD time. All fetches are client-side ('use client'),
+        # so a RELATIVE /api resolves against the browser's page origin — portable across
+        # any host/port locally AND the public hostname later (no rebuild needed).
+        NEXT_PUBLIC_API_URL: /api
+        NEXT_PUBLIC_API_KEY: ${API_KEY}
+    image: agrinet-frontend:local
+    container_name: agrinet_frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+
+  federation-sync:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile.worker
+    image: agrinet-federation-sync:local
+    container_name: agrinet_federation_sync
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../../.env
+    environment:
+      DB_HOST: mariadb
+      DB_USER: agrinet
+      DB_PASSWORD: agrinet
+      DB_NAME: agrinet
+      REDIS_HOST: redis
+
+  job-worker:
+    image: agrinet-api:local   # reuses the image built by the `api` service
+    container_name: agrinet_job_worker
+    restart: unless-stopped
+    command: ["node", "workers/jobWorker.js"]
+    depends_on:
+      - api
+    env_file:
+      - ../../.env
+    environment:
+      DB_HOST: mariadb
+      DB_USER: agrinet
+      DB_PASSWORD: agrinet
+      DB_NAME: agrinet
+      REDIS_HOST: redis
+
+  nginx:
+    image: nginx:alpine
+    container_name: agrinet_nginx
+    restart: unless-stopped
+    depends_on:
+      - api
+      - frontend
+    ports:
+      # Host :80 is used by another stack on NTARIHQ (googleadsapi-nginx), so map a free port.
+      - "8090:80"
+    volumes:
+      - ./nginx/nginx.local.conf:/etc/nginx/nginx.conf:ro
+
+volumes:
+  mariadb_data:
+  redis_data:
+  uploads_data:
