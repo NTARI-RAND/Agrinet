@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { getUser, getToken } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useI18n } from '@/lib/i18n';
 
 function Bubble({ msg, isOwn }) {
   return (
@@ -47,6 +48,7 @@ export default function ChatRoom() {
   const inputRef                = useRef(null);
   const pollRef                 = useRef(null);
   const socketRef               = useRef(null);
+  const { t }                   = useI18n();
 
   useEffect(() => {
     const u = getUser();
@@ -135,7 +137,7 @@ export default function ChatRoom() {
   }
 
   const otherName = conv
-    ? (user?.id === conv.buyer_id ? conv.seller_name : conv.buyer_name) || 'Usuário'
+    ? (user?.id === conv.buyer_id ? conv.seller_name : conv.buyer_name) || t('Usuário')
     : '…';
 
   return (
@@ -161,7 +163,7 @@ export default function ChatRoom() {
           <button
             onClick={() => router.push('/marketplace')}
             className="btn btn-ghost btn-sm text-xs hidden sm:flex">
-            Ver anúncio
+            {t('Ver anúncio')}
           </button>
         )}
       </div>
@@ -179,8 +181,8 @@ export default function ChatRoom() {
         ) : msgs.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-center px-8">
             <span className="text-5xl">👋</span>
-            <p className="font-semibold text-soil">Nenhuma mensagem ainda</p>
-            <p className="text-sm text-text3">Diga olá e comece a negociar!</p>
+            <p className="font-semibold text-soil">{t('Nenhuma mensagem ainda')}</p>
+            <p className="text-sm text-text3">{t('Diga olá e comece a negociar!')}</p>
           </div>
         ) : (
           msgs.map((msg) => (
@@ -219,7 +221,7 @@ export default function ChatRoom() {
         <input
           ref={inputRef}
           type="text"
-          placeholder="Escrever mensagem..."
+          placeholder={t('Escrever mensagem...')}
           value={input}
           onChange={e => { setInput(e.target.value); emitTyping(); }}
           onKeyDown={e => e.key === 'Enter' && !e.shiftKey && send()}

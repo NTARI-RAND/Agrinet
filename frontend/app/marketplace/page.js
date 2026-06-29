@@ -7,6 +7,7 @@ import { getToken } from '@/lib/auth';
 import ListingCard, { ListingCardSkeleton } from '@/components/listings/ListingCard';
 import ListingDetail from '@/components/listings/ListingDetail';
 import NewListingModal from '@/components/listings/NewListingModal';
+import { useI18n } from '@/lib/i18n';
 
 const CATEGORIES = [
   { value: '',          label: 'Todos',      emoji: '🌿' },
@@ -42,6 +43,7 @@ function MarketplaceInner() {
   const [maxP, setMaxP] = useState('');
   const [sort, setSort] = useState('recent');
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const { t } = useI18n();
 
   async function load() {
     setListings(null);
@@ -66,7 +68,7 @@ function MarketplaceInner() {
   useEffect(() => { load(); }, [cat, stateF, sort]);
 
   function openNew() {
-    if (!getToken()) return alert('Faça login para anunciar');
+    if (!getToken()) return alert(t('Faça login para anunciar'));
     setNewListing(true);
   }
 
@@ -81,8 +83,8 @@ function MarketplaceInner() {
       {/* ── HERO HEADER ── */}
       <div className="bg-cream2 border-b border-[var(--border-c)]" style={{ padding: 'clamp(24px,4vw,48px) var(--page-pad) clamp(20px,3vw,36px)' }}>
         <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .4 }}>
-          <h1 className="font-serif text-3xl md:text-4xl font-black text-soil mb-1">Marketplace</h1>
-          <p className="text-sm text-text3">Produtos agrícolas de produtores de todo o Brasil</p>
+          <h1 className="font-serif text-3xl md:text-4xl font-black text-soil mb-1">{t('Marketplace')}</h1>
+          <p className="text-sm text-text3">{t('Produtos agrícolas de produtores de todo o Brasil')}</p>
         </motion.div>
 
         {/* SEARCH BAR */}
@@ -93,19 +95,19 @@ function MarketplaceInner() {
             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text3 text-sm">🔍</span>
             <input
               type="text"
-              placeholder="Buscar produto ou cidade..."
+              placeholder={t('Buscar produto ou cidade...')}
               value={search}
               onChange={e => setSearch(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && load()}
               className="form-input pl-9 w-full"
             />
           </div>
-          <button className="btn btn-primary" onClick={load}>Buscar</button>
-          <button className="btn btn-outline" onClick={openNew}>+ Anunciar</button>
+          <button className="btn btn-primary" onClick={load}>{t('Buscar')}</button>
+          <button className="btn btn-outline" onClick={openNew}>+ {t('Anunciar')}</button>
           <button
             className="btn btn-ghost md:hidden"
             onClick={() => setFiltersOpen(v => !v)}>
-            ⚙ Filtros
+            ⚙ {t('Filtros')}
           </button>
         </motion.div>
 
@@ -118,7 +120,7 @@ function MarketplaceInner() {
               key={c.value}
               onClick={() => setCat(c.value)}
               className={`cat-pill ${cat === c.value ? 'active' : ''}`}>
-              <span>{c.emoji}</span> {c.label}
+              <span>{c.emoji}</span> {t(c.label)}
             </button>
           ))}
         </motion.div>
@@ -137,30 +139,30 @@ function MarketplaceInner() {
             transition={{ duration: .35 }}
             className={`card-agro p-5 sticky top-20 max-md:static ${filtersOpen ? 'block' : 'max-md:hidden'}`}>
 
-            <div className="text-xs font-semibold uppercase tracking-widest text-text3 mb-3">Estado</div>
+            <div className="text-xs font-semibold uppercase tracking-widest text-text3 mb-3">{t('Estado')}</div>
             <select className="form-input text-sm mb-5 w-full" value={stateF} onChange={e => { setStateF(e.target.value); }}>
-              <option value="">Todos</option>
+              <option value="">{t('Todos')}</option>
               {STATES.map(s => <option key={s}>{s}</option>)}
             </select>
 
-            <div className="text-xs font-semibold uppercase tracking-widest text-text3 mb-3">Preço (R$)</div>
+            <div className="text-xs font-semibold uppercase tracking-widest text-text3 mb-3">{t('Preço (R$)')}</div>
             <div className="flex gap-2 items-center mb-1">
-              <input type="number" placeholder="Mín" value={minP} onChange={e => setMinP(e.target.value)}
+              <input type="number" placeholder={t('Mín')} value={minP} onChange={e => setMinP(e.target.value)}
                 className="form-input text-sm flex-1" />
               <span className="text-text3 text-sm">—</span>
-              <input type="number" placeholder="Máx" value={maxP} onChange={e => setMaxP(e.target.value)}
+              <input type="number" placeholder={t('Máx')} value={maxP} onChange={e => setMaxP(e.target.value)}
                 className="form-input text-sm flex-1" />
             </div>
-            <button className="btn btn-ghost btn-sm w-full mt-2" onClick={load}>Aplicar filtros</button>
+            <button className="btn btn-ghost btn-sm w-full mt-2" onClick={load}>{t('Aplicar filtros')}</button>
 
             <div className="divider my-4" />
 
-            <div className="text-xs font-semibold uppercase tracking-widest text-text3 mb-3">Ordenar por</div>
+            <div className="text-xs font-semibold uppercase tracking-widest text-text3 mb-3">{t('Ordenar por')}</div>
             {[['recent','Mais recentes'],['price_asc','Menor preço'],['price_desc','Maior preço']].map(([v,l]) => (
               <label key={v} className={`filter-option ${sort === v ? 'active' : ''}`}>
                 <input type="radio" className="sr-only" checked={sort === v} onChange={() => setSort(v)} />
                 <span className={`w-3 h-3 rounded-full border-2 flex-shrink-0 transition-colors ${sort === v ? 'bg-moss border-moss' : 'border-[var(--border-c2)]'}`} />
-                {l}
+                {t(l)}
               </label>
             ))}
           </motion.aside>
@@ -171,8 +173,8 @@ function MarketplaceInner() {
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm text-text3">
               {listings === null
-                ? 'Buscando...'
-                : `${filtered?.length || 0} produto${(filtered?.length || 0) !== 1 ? 's' : ''} encontrado${(filtered?.length || 0) !== 1 ? 's' : ''}`}
+                ? t('Buscando...')
+                : `${filtered?.length || 0} ${(filtered?.length || 0) !== 1 ? t('produtos encontrados') : t('produto encontrado')}`}
             </span>
           </div>
 
@@ -199,8 +201,8 @@ function MarketplaceInner() {
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                 className="flex flex-col items-center py-20 gap-3">
                 <span className="text-5xl">🌾</span>
-                <p className="text-text3 text-sm">Nenhum produto encontrado</p>
-                <button className="btn btn-ghost btn-sm" onClick={() => { setCat(''); setSearch(''); setStateF(''); load(); }}>Limpar filtros</button>
+                <p className="text-text3 text-sm">{t('Nenhum produto encontrado')}</p>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setCat(''); setSearch(''); setStateF(''); load(); }}>{t('Limpar filtros')}</button>
               </motion.div>
             )}
           </AnimatePresence>

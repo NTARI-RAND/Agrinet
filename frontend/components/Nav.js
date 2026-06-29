@@ -7,6 +7,8 @@ import { getUser, clearAuth, isAdmin } from '@/lib/auth';
 import { useNotifications } from '@/lib/notifications';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { useI18n } from '@/lib/i18n';
 
 const NAV_LINKS = [
   { href: '/',            label: 'Início',      icon: '🌾' },
@@ -33,6 +35,7 @@ export function DesktopNav({ onOpenAuth }) {
   const pathname = usePathname();
   const router = useRouter();
   const { unread, markRead } = useNotifications();
+  const { t } = useI18n();
 
   useEffect(() => {
     const sync = () => setUser(getUser());
@@ -62,16 +65,17 @@ export function DesktopNav({ onOpenAuth }) {
         {links.map(l => (
           <Link key={l.href} href={l.href}
             className={`nav-link ${pathname === l.href || (l.href !== '/' && pathname.startsWith(l.href)) ? 'active' : ''}`}>
-            {l.label}
+            {t(l.label)}
           </Link>
         ))}
       </div>
 
       <div className="flex items-center gap-2.5 shrink-0">
+        <LanguageSwitcher />
         {!user ? (
           <div className="flex gap-2">
-            <button className="btn btn-ghost btn-sm" onClick={() => onOpenAuth?.('login')}>Entrar</button>
-            <button className="btn btn-primary btn-sm" onClick={() => onOpenAuth?.('register')}>Cadastrar</button>
+            <button className="btn btn-ghost btn-sm" onClick={() => onOpenAuth?.('login')}>{t('Entrar')}</button>
+            <button className="btn btn-primary btn-sm" onClick={() => onOpenAuth?.('register')}>{t('Cadastrar')}</button>
           </div>
         ) : (
           <div className="flex items-center gap-2">
@@ -102,6 +106,7 @@ export function MobileTopBar({ onOpenAuth }) {
   const pathname = usePathname();
   const router = useRouter();
   const { unread } = useNotifications();
+  const { t } = useI18n();
 
   useEffect(() => {
     const sync = () => setUser(getUser());
@@ -117,6 +122,7 @@ export function MobileTopBar({ onOpenAuth }) {
       <Link href="/" className="font-serif text-lg font-black text-moss no-underline">Agrinet</Link>
 
       <div className="flex items-center gap-2">
+        <LanguageSwitcher />
         {user && (
           <button className="relative p-2" onClick={() => router.push('/perfil')}>
             <span className="text-xl">🔔</span>
@@ -151,8 +157,8 @@ export function MobileTopBar({ onOpenAuth }) {
                 </div>
               ) : (
                 <div className="flex gap-2 mt-3">
-                  <button className="btn btn-ghost btn-sm flex-1" onClick={() => onOpenAuth?.('login')}>Entrar</button>
-                  <button className="btn btn-primary btn-sm flex-1" onClick={() => onOpenAuth?.('register')}>Cadastrar</button>
+                  <button className="btn btn-ghost btn-sm flex-1" onClick={() => onOpenAuth?.('login')}>{t('Entrar')}</button>
+                  <button className="btn btn-primary btn-sm flex-1" onClick={() => onOpenAuth?.('register')}>{t('Cadastrar')}</button>
                 </div>
               )}
             </div>
@@ -160,14 +166,14 @@ export function MobileTopBar({ onOpenAuth }) {
               {links.map(l => (
                 <Link key={l.href} href={l.href}
                   className={`flex items-center gap-3 px-4 py-3 rounded-sm text-sm font-medium no-underline transition-colors ${pathname === l.href ? 'bg-moss-light text-moss' : 'text-text2 hover:bg-cream2'}`}>
-                  <span className="text-lg">{l.icon}</span>{l.label}
+                  <span className="text-lg">{l.icon}</span>{t(l.label)}
                 </Link>
               ))}
             </nav>
             {user && (
               <div className="p-3 border-t border-[var(--border-c)] mx-3 mt-auto">
                 <button className="btn btn-ghost btn-sm w-full" onClick={() => { clearAuth(); setUser(null); router.push('/'); }}>
-                  Sair da conta
+                  {t('Sair da conta')}
                 </button>
               </div>
             )}
@@ -191,6 +197,8 @@ export function BottomTabBar() {
     return () => window.removeEventListener('auth-change', sync);
   }, [pathname]);
 
+  const { t } = useI18n();
+
   const tabs = [
     { href: '/',            label: 'Início',  icon: '🌾' },
     { href: '/marketplace', label: 'Mercado', icon: '🛒' },
@@ -200,18 +208,18 @@ export function BottomTabBar() {
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass border-t border-[var(--border-c)] flex items-center justify-around safe-area-pb">
-      {tabs.map(t => {
-        const active = pathname === t.href || (t.href !== '/' && pathname.startsWith(t.href));
+      {tabs.map(tab => {
+        const active = pathname === tab.href || (tab.href !== '/' && pathname.startsWith(tab.href));
         return (
-          <button key={t.href} onClick={() => router.push(t.href)}
+          <button key={tab.href} onClick={() => router.push(tab.href)}
             className={`bottom-tab ${active ? 'active' : ''}`}>
             <motion.span
               className="text-2xl"
               animate={active ? { scale: 1.15 } : { scale: 1 }}
               transition={{ type: 'spring', stiffness: 400, damping: 20 }}>
-              {t.icon}
+              {tab.icon}
             </motion.span>
-            <span className={`text-[10px] font-medium ${active ? 'text-moss' : 'text-text3'}`}>{t.label}</span>
+            <span className={`text-[10px] font-medium ${active ? 'text-moss' : 'text-text3'}`}>{t(tab.label)}</span>
             {active && (
               <motion.div layoutId="tab-indicator"
                 className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 bg-moss rounded-full"

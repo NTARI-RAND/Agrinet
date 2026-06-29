@@ -6,8 +6,10 @@ import { api } from '@/lib/api';
 import { getUser } from '@/lib/auth';
 import { formatDate } from '@/lib/format';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useI18n } from '@/lib/i18n';
 
 function ConversationItem({ conv, user, onClick }) {
+  const { t } = useI18n();
   const other = conv.buyer_id === user?.id ? conv.seller_name : conv.buyer_name;
   const otherInitials = (other || 'U').substring(0, 2).toUpperCase();
   const last = conv.last_message;
@@ -33,12 +35,12 @@ function ConversationItem({ conv, user, onClick }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className={`text-sm truncate ${unread ? 'font-semibold text-soil' : 'font-medium text-soil'}`}>{other || 'Usuário'}</span>
+          <span className={`text-sm truncate ${unread ? 'font-semibold text-soil' : 'font-medium text-soil'}`}>{other || t('Usuário')}</span>
           {conv.last_message_at && (
             <span className="text-[10px] text-text3 flex-shrink-0">{formatDate(conv.last_message_at)}</span>
           )}
         </div>
-        <div className="text-xs text-text3 truncate mt-0.5">{conv.listing_title && <span className="text-moss font-medium">🌾 {conv.listing_title} · </span>}{last || 'Nenhuma mensagem'}</div>
+        <div className="text-xs text-text3 truncate mt-0.5">{conv.listing_title && <span className="text-moss font-medium">🌾 {conv.listing_title} · </span>}{last || t('Nenhuma mensagem')}</div>
       </div>
     </motion.div>
   );
@@ -49,6 +51,7 @@ export default function ChatList() {
   const [user, setUser]       = useState(null);
   const [convs, setConvs]     = useState(null);
   const [search, setSearch]   = useState('');
+  const { t } = useI18n();
 
   useEffect(() => {
     const u = getUser();
@@ -83,13 +86,13 @@ export default function ChatList() {
         <motion.h1
           initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
           className="font-serif text-2xl font-black text-soil mb-3">
-          Mensagens
+          {t('Mensagens')}
         </motion.h1>
         <div className="relative max-w-md">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text3 text-sm">🔍</span>
           <input
             type="text"
-            placeholder="Buscar conversa..."
+            placeholder={t('Buscar conversa...')}
             className="form-input pl-9 w-full"
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -117,11 +120,11 @@ export default function ChatList() {
             className="flex flex-col items-center py-24 gap-4">
             <span className="text-6xl">💬</span>
             <div className="text-center">
-              <p className="font-semibold text-soil mb-1">Nenhuma conversa</p>
-              <p className="text-sm text-text3">Inicie uma negociação pelo marketplace para começar a trocar mensagens.</p>
+              <p className="font-semibold text-soil mb-1">{t('Nenhuma conversa')}</p>
+              <p className="text-sm text-text3">{t('Inicie uma negociação pelo marketplace para começar a trocar mensagens.')}</p>
             </div>
             <button className="btn btn-primary btn-sm" onClick={() => router.push('/marketplace')}>
-              Explorar marketplace
+              {t('Explorar marketplace')}
             </button>
           </motion.div>
         ) : (

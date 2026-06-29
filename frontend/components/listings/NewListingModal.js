@@ -6,11 +6,13 @@ import { Modal, ModalHeader } from '@/components/ui/Modal';
 import { api } from '@/lib/api';
 import { getToken } from '@/lib/auth';
 import { useToast } from '@/components/ui/Toast';
+import { useI18n } from '@/lib/i18n';
 
 const STEPS = ['Informações', 'Fotos', 'Revisão'];
 
 function ImageDropzone({ images, setImages }) {
   const [uploading, setUploading] = useState(false);
+  const { t } = useI18n();
 
   const onDrop = useCallback(async (accepted) => {
     if (!accepted.length) return;
@@ -51,9 +53,9 @@ function ImageDropzone({ images, setImages }) {
         <input {...getInputProps()} />
         <div className="text-4xl mb-3">{uploading ? '⏳' : isDragActive ? '📂' : '📷'}</div>
         <p className="text-sm font-medium text-soil">
-          {uploading ? 'Enviando...' : isDragActive ? 'Solte as fotos aqui' : 'Arraste fotos ou clique para selecionar'}
+          {uploading ? t('Enviando...') : isDragActive ? t('Solte as fotos aqui') : t('Arraste fotos ou clique para selecionar')}
         </p>
-        <p className="text-xs text-text3 mt-1">Até 5 fotos · JPG, PNG, WebP · Máx 8 MB cada</p>
+        <p className="text-xs text-text3 mt-1">{t('Até 5 fotos · JPG, PNG, WebP · Máx 8 MB cada')}</p>
       </div>
 
       {images.length > 0 && (
@@ -73,7 +75,7 @@ function ImageDropzone({ images, setImages }) {
                   ✕
                 </button>
                 {i === 0 && (
-                  <span className="absolute bottom-1 left-1 text-[9px] bg-moss text-white px-1 rounded font-semibold">Capa</span>
+                  <span className="absolute bottom-1 left-1 text-[9px] bg-moss text-white px-1 rounded font-semibold">{t('Capa')}</span>
                 )}
               </motion.div>
             ))}
@@ -86,6 +88,7 @@ function ImageDropzone({ images, setImages }) {
 
 export default function NewListingModal({ onClose, onCreated }) {
   const toast = useToast();
+  const { t } = useI18n();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState([]);
@@ -99,7 +102,7 @@ export default function NewListingModal({ onClose, onCreated }) {
   function nextStep() {
     if (step === 0) {
       if (!form.title || !form.price || !form.city || !form.state)
-        return toast('Preencha os campos obrigatórios', 'error');
+        return toast(t('Preencha os campos obrigatórios'), 'error');
     }
     setStep(s => Math.min(s + 1, 2));
   }
@@ -114,7 +117,7 @@ export default function NewListingModal({ onClose, onCreated }) {
         state:              form.state.toUpperCase().slice(0, 2),
         images,
       });
-      toast('Anúncio publicado com sucesso!');
+      toast(t('Anúncio publicado com sucesso!'));
       onClose();
       onCreated?.();
     } catch (e) {
@@ -126,7 +129,7 @@ export default function NewListingModal({ onClose, onCreated }) {
 
   return (
     <Modal onClose={onClose} maxWidth="560px">
-      <ModalHeader title="Publicar anúncio" onClose={onClose} />
+      <ModalHeader title={t('Publicar anúncio')} onClose={onClose} />
 
       {/* STEP INDICATOR */}
       <div className="flex items-center gap-0 mb-6">
@@ -138,7 +141,7 @@ export default function NewListingModal({ onClose, onCreated }) {
               }`}>
                 {i < step ? '✓' : i + 1}
               </div>
-              <span className="hidden sm:block">{s}</span>
+              <span className="hidden sm:block">{t(s)}</span>
             </div>
             {i < STEPS.length - 1 && (
               <div className={`flex-1 h-px mx-2 ${i < step ? 'bg-moss' : 'bg-[var(--border-c)]'}`} />
@@ -159,43 +162,43 @@ export default function NewListingModal({ onClose, onCreated }) {
           {step === 0 && (
             <div>
               <div className="form-group">
-                <label className="form-label">Título *</label>
-                <input type="text" className="form-input" placeholder="Ex: Soja Safra 2025 — Tipo 1"
+                <label className="form-label">{t('Título *')}</label>
+                <input type="text" className="form-input" placeholder={t('Ex: Soja Safra 2025 — Tipo 1')}
                   value={form.title} onChange={e => set('title', e.target.value)} autoFocus />
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Categoria</label>
+                  <label className="form-label">{t('Categoria')}</label>
                   <select className="form-input" value={form.category} onChange={e => set('category', e.target.value)}>
-                    <option value="graos">Grãos & Cereais</option>
-                    <option value="frutas">Frutas & Hortaliças</option>
-                    <option value="gado">Pecuária</option>
-                    <option value="maquinas">Máquinas</option>
-                    <option value="outros">Outros</option>
+                    <option value="graos">{t('Grãos & Cereais')}</option>
+                    <option value="frutas">{t('Frutas & Hortaliças')}</option>
+                    <option value="gado">{t('Pecuária')}</option>
+                    <option value="maquinas">{t('Máquinas')}</option>
+                    <option value="outros">{t('Outros')}</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Unidade</label>
+                  <label className="form-label">{t('Unidade')}</label>
                   <select className="form-input" value={form.unit} onChange={e => set('unit', e.target.value)}>
-                    <option value="saca">Saca (60kg)</option>
-                    <option value="kg">Quilograma (kg)</option>
-                    <option value="tonelada">Tonelada</option>
-                    <option value="cabeca">Cabeça</option>
-                    <option value="unidade">Unidade</option>
-                    <option value="caixa">Caixa</option>
+                    <option value="saca">{t('Saca (60kg)')}</option>
+                    <option value="kg">{t('Quilograma (kg)')}</option>
+                    <option value="tonelada">{t('Tonelada')}</option>
+                    <option value="cabeca">{t('Cabeça')}</option>
+                    <option value="unidade">{t('Unidade')}</option>
+                    <option value="caixa">{t('Caixa')}</option>
                   </select>
                 </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Preço (R$) *</label>
+                  <label className="form-label">{t('Preço (R$) *')}</label>
                   <input type="number" className="form-input" placeholder="0,00" step="0.01" min="0"
                     value={form.price} onChange={e => set('price', e.target.value)} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Quantidade disponível</label>
+                  <label className="form-label">{t('Quantidade disponível')}</label>
                   <input type="number" className="form-input" placeholder="0"
                     value={form.quantity_available} onChange={e => set('quantity_available', e.target.value)} />
                 </div>
@@ -203,20 +206,20 @@ export default function NewListingModal({ onClose, onCreated }) {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Cidade *</label>
-                  <input type="text" className="form-input" placeholder="Ex: Ribeirão Preto"
+                  <label className="form-label">{t('Cidade *')}</label>
+                  <input type="text" className="form-input" placeholder={t('Ex: Ribeirão Preto')}
                     value={form.city} onChange={e => set('city', e.target.value)} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Estado (UF) *</label>
+                  <label className="form-label">{t('Estado (UF) *')}</label>
                   <input type="text" className="form-input" placeholder="SP" maxLength={2}
                     value={form.state} onChange={e => set('state', e.target.value.toUpperCase())} />
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Descrição</label>
-                <textarea className="form-input min-h-[80px] resize-y" placeholder="Descreva a qualidade, variedade, condições de entrega..."
+                <label className="form-label">{t('Descrição')}</label>
+                <textarea className="form-input min-h-[80px] resize-y" placeholder={t('Descreva a qualidade, variedade, condições de entrega...')}
                   value={form.description} onChange={e => set('description', e.target.value)} />
               </div>
             </div>
@@ -225,7 +228,7 @@ export default function NewListingModal({ onClose, onCreated }) {
           {/* STEP 1: PHOTOS */}
           {step === 1 && (
             <div>
-              <p className="text-sm text-text3 mb-4">Adicione fotos do produto. Boas imagens aumentam as chances de venda.</p>
+              <p className="text-sm text-text3 mb-4">{t('Adicione fotos do produto. Boas imagens aumentam as chances de venda.')}</p>
               <ImageDropzone images={images} setImages={setImages} />
             </div>
           )}
@@ -243,7 +246,7 @@ export default function NewListingModal({ onClose, onCreated }) {
                     ['Localização', `${form.city}/${form.state}`],
                   ].map(([l, v]) => (
                     <div key={l}>
-                      <span className="text-text3">{l}: </span>
+                      <span className="text-text3">{t(l)}: </span>
                       <span className="font-medium text-soil">{v}</span>
                     </div>
                   ))}
@@ -260,7 +263,7 @@ export default function NewListingModal({ onClose, onCreated }) {
                 )}
               </div>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
-                ⚠️ Ao publicar, seu anúncio passará por moderação automática.
+                ⚠️ {t('Ao publicar, seu anúncio passará por moderação automática.')}
               </div>
             </div>
           )}
@@ -271,16 +274,16 @@ export default function NewListingModal({ onClose, onCreated }) {
       <div className="flex gap-3 mt-6">
         {step > 0 && (
           <button className="btn btn-ghost flex-1" onClick={() => setStep(s => s - 1)}>
-            ← Voltar
+            ← {t('Voltar')}
           </button>
         )}
         {step < 2 ? (
           <button className="btn btn-primary flex-1" onClick={nextStep}>
-            Próximo →
+            {t('Próximo')} →
           </button>
         ) : (
           <button className="btn btn-primary flex-1" onClick={submit} disabled={loading}>
-            {loading ? 'Publicando...' : '🌾 Publicar anúncio'}
+            {loading ? t('Publicando...') : `🌾 ${t('Publicar anúncio')}`}
           </button>
         )}
       </div>

@@ -1,6 +1,7 @@
 'use client';
 import { motion } from 'framer-motion';
 import { catLabel, CAT_EMOJI, formatCurrency } from '@/lib/format';
+import { useI18n } from '@/lib/i18n';
 
 const CAT_BG = {
   graos:    'from-amber-50 to-yellow-100',
@@ -11,6 +12,7 @@ const CAT_BG = {
 };
 
 export default function ListingCard({ listing, onClick }) {
+  const { t } = useI18n();
   const l = listing;
   const bg = CAT_BG[l.category] || CAT_BG.outros;
 
@@ -28,11 +30,11 @@ export default function ListingCard({ listing, onClick }) {
           : <span className="text-5xl select-none">{CAT_EMOJI[l.category] || '📦'}</span>
         }
         <div className="absolute top-2.5 left-2.5">
-          <span className="badge-agro badge-green text-[10px]">{catLabel(l.category)}</span>
+          <span className="badge-agro badge-green text-[10px]">{t(catLabel(l.category))}</span>
         </div>
         {l.quantity_available <= 10 && (
           <div className="absolute top-2.5 right-2.5">
-            <span className="badge-agro badge-rust text-[10px]">Últimas unidades</span>
+            <span className="badge-agro badge-rust text-[10px]">{t('Últimas unidades')}</span>
           </div>
         )}
       </div>
@@ -48,7 +50,7 @@ export default function ListingCard({ listing, onClick }) {
           <span className="listing-unit">/{l.unit}</span>
         </div>
         <div className="listing-qty">
-          {Number(l.quantity_available).toLocaleString('pt-BR')} disponível
+          {Number(l.quantity_available).toLocaleString('pt-BR')} {t('disponível')}
         </div>
       </div>
     </motion.div>

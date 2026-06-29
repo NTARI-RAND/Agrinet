@@ -6,6 +6,7 @@ import ScrollReveal, { ScrollRevealGrid, ScrollRevealItem } from '@/components/m
 import AnimatedStat from '@/components/motion/AnimatedStat';
 import ListingCard, { ListingCardSkeleton } from '@/components/listings/ListingCard';
 import ListingDetail from '@/components/listings/ListingDetail';
+import { useI18n } from '@/lib/i18n';
 
 const DEMO = [
   { id: 'd1', title: 'Soja Safra 2025 — Tipo 1', category: 'graos', city: 'Rondonópolis', state: 'MT', price: 145.50, unit: 'saca', quantity_available: 500, description: 'Excelente qualidade, teor de proteína acima de 36%.' },
@@ -36,6 +37,7 @@ export default function Landing() {
   const [listings, setListings] = useState(null);
   const [selected, setSelected] = useState(null);
   const router = useRouter();
+  const { t } = useI18n();
 
   useEffect(() => {
     fetch((process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000') + '/listings?limit=6&status=active')
@@ -74,7 +76,7 @@ export default function Landing() {
               ))}
             </div>
             <span className="text-xs font-semibold tracking-[.12em] uppercase text-moss">
-              Marketplace Agrícola Descentralizado
+              {t('Marketplace Agrícola Descentralizado')}
             </span>
           </motion.div>
 
@@ -83,15 +85,15 @@ export default function Landing() {
             transition={{ duration: .6, delay: .1, ease: [.22,1,.36,1] }}
             className="font-serif font-black leading-[1.04] text-soil mb-5"
             style={{ fontSize: 'clamp(38px,5.5vw,72px)', letterSpacing: '-1.5px' }}>
-            O campo{' '}
+            {t('O campo')}{' '}
             <span className="relative">
-              <em className="not-italic text-moss">conectado</em>
+              <em className="not-italic text-moss">{t('conectado')}</em>
               <motion.span
                 className="absolute -bottom-1 left-0 h-[3px] bg-moss3 rounded-full"
                 initial={{ width: 0 }} animate={{ width: '100%' }}
                 transition={{ duration: .8, delay: .7, ease: [.22,1,.36,1] }} />
             </span>
-            {' '}ao mercado
+            {' '}{t('ao mercado')}
           </motion.h1>
 
           <motion.p
@@ -99,7 +101,7 @@ export default function Landing() {
             transition={{ duration: .5, delay: .25, ease: [.22,1,.36,1] }}
             className="text-text2 leading-relaxed mb-10 font-light max-w-[44ch]"
             style={{ fontSize: 'clamp(15px,1.2vw,18px)' }}>
-            Compre e venda commodities agrícolas com segurança. Escrow garantido, pagamento protegido. Da roça ao comprador, sem intermediários.
+            {t('Compre e venda commodities agrícolas com segurança. Escrow garantido, pagamento protegido. Da roça ao comprador, sem intermediários.')}
           </motion.p>
 
           <motion.div
@@ -107,10 +109,10 @@ export default function Landing() {
             transition={{ duration: .4, delay: .35 }}
             className="flex gap-3 flex-wrap">
             <button className="btn btn-primary btn-lg" onClick={() => router.push('/marketplace')}>
-              Explorar produtos
+              {t('Explorar produtos')}
             </button>
             <button className="btn btn-outline btn-lg" onClick={() => router.push('/marketplace')}>
-              Vender no Agrinet
+              {t('Vender no Agrinet')}
             </button>
           </motion.div>
 
@@ -129,7 +131,7 @@ export default function Landing() {
                   style={{ fontSize: 'clamp(24px,2.5vw,30px)' }}>
                   {s.fmt || <AnimatedStat target={s.n} suffix={s.suffix || ''} />}
                 </div>
-                <div className="text-xs text-text3 mt-1.5 font-medium">{s.label}</div>
+                <div className="text-xs text-text3 mt-1.5 font-medium">{t(s.label)}</div>
               </div>
             ))}
           </motion.div>
@@ -208,11 +210,11 @@ export default function Landing() {
             className="absolute bottom-6 left-5 right-5 glass border border-[var(--border-c)] rounded-lg2 p-4 flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-moss-light flex items-center justify-center text-xl shrink-0">🔒</div>
             <div>
-              <div className="text-sm font-semibold text-soil">Pagamento com Escrow</div>
-              <div className="text-xs text-text3 mt-0.5">Seu dinheiro só é liberado após confirmação da entrega</div>
+              <div className="text-sm font-semibold text-soil">{t('Pagamento com Escrow')}</div>
+              <div className="text-xs text-text3 mt-0.5">{t('Seu dinheiro só é liberado após confirmação da entrega')}</div>
             </div>
             <div className="ml-auto shrink-0 flex flex-col items-end gap-1">
-              <span className="badge-agro badge-green">Seguro</span>
+              <span className="badge-agro badge-green">{t('Seguro')}</span>
               <span className="text-[10px] text-text4">Stripe + Escrow</span>
             </div>
           </motion.div>
@@ -227,7 +229,7 @@ export default function Landing() {
             <button key={c.slug} className="cat-pill"
               onClick={() => router.push('/marketplace' + (c.slug ? '?cat=' + c.slug : ''))}>
               <span className="text-base">{c.emoji}</span>
-              {c.label}
+              {t(c.label)}
             </button>
           ))}
         </div>
@@ -239,13 +241,13 @@ export default function Landing() {
           <ScrollReveal>
             <div className="flex items-end justify-between mb-9 flex-wrap gap-3">
               <div>
-                <div className="text-xs font-semibold tracking-[.12em] uppercase text-moss mb-2">Destaques</div>
+                <div className="text-xs font-semibold tracking-[.12em] uppercase text-moss mb-2">{t('Destaques')}</div>
                 <div className="font-serif font-bold text-soil" style={{ fontSize: 'clamp(22px,3vw,34px)', letterSpacing: '-.5px' }}>
-                  Produtos em destaque
+                  {t('Produtos em destaque')}
                 </div>
               </div>
               <button className="btn btn-ghost" onClick={() => router.push('/marketplace')}>
-                Ver todos →
+                {t('Ver todos')} →
               </button>
             </div>
           </ScrollReveal>
@@ -269,9 +271,9 @@ export default function Landing() {
       <section className="bg-cream2" style={{ padding: 'var(--space-lg) var(--page-pad)' }}>
         <div className="max-w-6xl mx-auto">
           <ScrollReveal>
-            <div className="text-xs font-semibold tracking-[.12em] uppercase text-moss mb-2">Como funciona</div>
+            <div className="text-xs font-semibold tracking-[.12em] uppercase text-moss mb-2">{t('Como funciona')}</div>
             <div className="font-serif font-bold text-soil mb-12" style={{ fontSize: 'clamp(22px,3vw,34px)', letterSpacing: '-.5px' }}>
-              Simples, seguro e transparente
+              {t('Simples, seguro e transparente')}
             </div>
           </ScrollReveal>
 
@@ -289,8 +291,8 @@ export default function Landing() {
                   <div className="font-serif font-black text-moss-light leading-none mb-4"
                     style={{ fontSize: 'clamp(36px,4.5vw,52px)' }}>{s.n}</div>
                   <div style={{ fontSize: 'clamp(22px,2.5vw,28px)', marginBottom: 12 }}>{s.icon}</div>
-                  <div className="text-base font-semibold text-soil mb-2">{s.title}</div>
-                  <div className="text-sm text-text3 leading-relaxed">{s.desc}</div>
+                  <div className="text-base font-semibold text-soil mb-2">{t(s.title)}</div>
+                  <div className="text-sm text-text3 leading-relaxed">{t(s.desc)}</div>
                   {i < 3 && (
                     <div className="hidden lg:flex absolute -right-3.5 top-1/2 -translate-y-1/2 w-7 h-7 bg-cream2 border border-[var(--border-c)] rounded-full items-center justify-center text-xs text-text3 z-10">
                       →
@@ -313,13 +315,13 @@ export default function Landing() {
               { n: 1240, suffix: '+', label: 'Produtores cadastrados' },
               { val: '18 estados', label: 'Cobertura nacional' },
               { n: 98, suffix: '%', label: 'Resolução de disputas' },
-            ].map((t, i) => (
+            ].map((item, i) => (
               <div key={i} className="text-center md:text-left">
                 <div className="font-serif font-bold text-white leading-none"
                   style={{ fontSize: 'clamp(22px,2.5vw,32px)' }}>
-                  {t.val || <AnimatedStat target={t.n} suffix={t.suffix || ''} />}
+                  {item.val ? t(item.val) : <AnimatedStat target={item.n} suffix={item.suffix || ''} />}
                 </div>
-                <div className="text-xs mt-1.5 font-medium" style={{ color: 'rgba(255,255,255,.65)' }}>{t.label}</div>
+                <div className="text-xs mt-1.5 font-medium" style={{ color: 'rgba(255,255,255,.65)' }}>{t(item.label)}</div>
               </div>
             ))}
           </div>
@@ -340,26 +342,26 @@ export default function Landing() {
             style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px,100%), 1fr))' }}>
             <div>
               <div className="text-xs font-semibold tracking-[.12em] uppercase mb-3"
-                style={{ color: 'rgba(255,255,255,.45)' }}>Comece agora</div>
+                style={{ color: 'rgba(255,255,255,.45)' }}>{t('Comece agora')}</div>
               <div className="font-serif font-bold text-cream leading-tight mb-3"
                 style={{ fontSize: 'clamp(26px,3.5vw,42px)', letterSpacing: '-.5px' }}>
-                Pronto para vender sua produção?
+                {t('Pronto para vender sua produção?')}
               </div>
               <div className="text-cream2 opacity-70" style={{ fontSize: 'clamp(13px,1vw,15px)' }}>
-                Crie sua conta grátis e publique seu primeiro anúncio em minutos.
+                {t('Crie sua conta grátis e publique seu primeiro anúncio em minutos.')}
               </div>
             </div>
             <div className="flex gap-3 flex-wrap md:justify-end">
               <motion.button className="btn btn-primary btn-lg"
                 onClick={() => router.push('/marketplace')}
                 whileHover={{ scale: 1.03 }} whileTap={{ scale: .97 }}>
-                Criar conta grátis
+                {t('Criar conta grátis')}
               </motion.button>
               <motion.button className="btn btn-lg"
                 style={{ border: '1.5px solid rgba(255,255,255,.25)', color: '#fff', background: 'transparent' }}
                 onClick={() => router.push('/marketplace')}
                 whileHover={{ background: 'rgba(255,255,255,.08)' }} whileTap={{ scale: .97 }}>
-                Ver marketplace
+                {t('Ver marketplace')}
               </motion.button>
             </div>
           </div>

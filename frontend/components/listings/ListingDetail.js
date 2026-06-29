@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/Toast';
 import { useRouter } from 'next/navigation';
+import { useI18n } from '@/lib/i18n';
 
 const CAT_BG = {
   graos:    'from-amber-50 to-yellow-100',
@@ -21,15 +22,16 @@ export default function ListingDetail({ listing, onClose }) {
   const [loading, setLoading] = useState(false);
   const toast  = useToast();
   const router = useRouter();
+  const { t } = useI18n();
   const l = listing;
 
   async function buy() {
     const q = parseFloat(qty);
-    if (!q || q <= 0) return toast('Informe a quantidade', 'error');
+    if (!q || q <= 0) return toast(t('Informe a quantidade'), 'error');
     setLoading(true);
     try {
       await api('/transactions/from-listing', 'POST', { listingId: l.id, quantity: q });
-      toast('Compra iniciada! Acesse seu perfil para pagar.');
+      toast(t('Compra iniciada! Acesse seu perfil para pagar.'));
       onClose();
       router.push('/perfil?tab=transacoes');
     } catch (e) {
@@ -57,16 +59,16 @@ export default function ListingDetail({ listing, onClose }) {
       <div className="flex items-end justify-between mb-5">
         <div>
           <div className="flex gap-2 mb-2">
-            <Badge variant="green">{catLabel(l.category)}</Badge>
+            <Badge variant="green">{t(catLabel(l.category))}</Badge>
             <Badge variant="gray">{l.unit}</Badge>
           </div>
           <div className="font-serif text-4xl font-black text-moss leading-none">
             {formatCurrency(l.price)}
           </div>
-          <div className="text-sm text-text3 mt-1">por {l.unit}</div>
+          <div className="text-sm text-text3 mt-1">{t('por')} {l.unit}</div>
         </div>
         <div className="text-right">
-          <div className="text-xs font-semibold uppercase tracking-widest text-text3 mb-1">Disponível</div>
+          <div className="text-xs font-semibold uppercase tracking-widest text-text3 mb-1">{t('Disponível')}</div>
           <div className="font-serif text-2xl font-bold text-soil">
             {Number(l.quantity_available).toLocaleString('pt-BR')}
           </div>
@@ -89,11 +91,11 @@ export default function ListingDetail({ listing, onClose }) {
 
       {/* BUY FORM */}
       <div className="form-group">
-        <label className="form-label">Quantidade ({l.unit})</label>
+        <label className="form-label">{t('Quantidade')} ({l.unit})</label>
         <input
           type="number"
           className="form-input"
-          placeholder={`Ex: 10 ${l.unit}`}
+          placeholder={`${t('Ex:')} 10 ${l.unit}`}
           min="1"
           max={l.quantity_available}
           value={qty}
@@ -104,7 +106,7 @@ export default function ListingDetail({ listing, onClose }) {
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             className="mt-2 text-sm font-semibold text-moss">
-            Total estimado: {formatCurrency(parseFloat(qty) * l.price)}
+            {t('Total estimado')}: {formatCurrency(parseFloat(qty) * l.price)}
           </motion.div>
         )}
       </div>
@@ -114,9 +116,9 @@ export default function ListingDetail({ listing, onClose }) {
           className="btn btn-primary flex-1"
           onClick={buy}
           disabled={loading}>
-          {loading ? 'Aguarde...' : '🛒 Comprar agora'}
+          {loading ? t('Aguarde...') : `🛒 ${t('Comprar agora')}`}
         </button>
-        <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-ghost" onClick={onClose}>{t('Cancelar')}</button>
       </div>
     </Modal>
   );

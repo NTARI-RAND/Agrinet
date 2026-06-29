@@ -8,6 +8,7 @@ import { formatCurrency, formatDate } from '@/lib/format';
 import { StatusBadge, Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import AnimatedStat from '@/components/motion/AnimatedStat';
+import { useI18n } from '@/lib/i18n';
 
 const STAT_CONFIG = [
   { key: 'users_total',        fallback: 'totalUsers',  label: 'Usuários',         icon: '👥', cls: 'from-moss/10 to-moss-light border-moss/20' },
@@ -27,6 +28,7 @@ const ADMIN_TABS = [
 export default function Admin() {
   const router = useRouter();
   const toast  = useToast();
+  const { t } = useI18n();
   const [stats, setStats] = useState({});
   const [tab, setTab]     = useState('users');
   const [data, setData]   = useState(null);
@@ -61,7 +63,7 @@ export default function Admin() {
   async function action(path, method, body, label) {
     try {
       await api(path, method, body);
-      toast(label + ' com sucesso');
+      toast(t(label) + ' ' + t('com sucesso'));
       loadTab(tab);
       loadStats();
     } catch(e) { toast(e.message, 'error'); }
@@ -75,9 +77,9 @@ export default function Admin() {
         <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .4 }} className="mb-8">
           <div className="flex items-center gap-3 mb-1">
             <span className="text-2xl">⚙️</span>
-            <h1 className="font-serif text-3xl font-black text-soil">Painel Administrativo</h1>
+            <h1 className="font-serif text-3xl font-black text-soil">{t('Painel Administrativo')}</h1>
           </div>
-          <p className="text-sm text-text3 ml-11">Gestão de usuários, anúncios, disputas e fraudes</p>
+          <p className="text-sm text-text3 ml-11">{t('Gestão de usuários, anúncios, disputas e fraudes')}</p>
         </motion.div>
 
         {/* STAT CARDS */}
@@ -92,7 +94,7 @@ export default function Admin() {
                 transition={{ delay: i * .08, duration: .35 }}
                 className={`card-agro p-5 bg-gradient-to-br ${s.cls} border`}>
                 <div className="text-2xl mb-2">{s.icon}</div>
-                <div className="text-xs font-semibold uppercase tracking-widest text-text3 mb-1">{s.label}</div>
+                <div className="text-xs font-semibold uppercase tracking-widest text-text3 mb-1">{t(s.label)}</div>
                 <div className="font-serif text-3xl font-black text-soil">
                   {val != null ? <AnimatedStat target={Number(val) || 0} /> : '—'}
                 </div>
@@ -103,12 +105,12 @@ export default function Admin() {
 
         {/* TABS */}
         <div className="flex gap-1.5 mb-6 flex-wrap border-b border-[var(--border-c)] pb-0">
-          {ADMIN_TABS.map(t => (
+          {ADMIN_TABS.map(tabItem => (
             <button
-              key={t.key}
-              onClick={() => loadTab(t.key)}
-              className={`admin-tab ${tab === t.key ? 'active' : ''}`}>
-              <span className="hidden sm:inline">{t.icon} </span>{t.label}
+              key={tabItem.key}
+              onClick={() => loadTab(tabItem.key)}
+              className={`admin-tab ${tab === tabItem.key ? 'active' : ''}`}>
+              <span className="hidden sm:inline">{tabItem.icon} </span>{t(tabItem.label)}
             </button>
           ))}
         </div>
@@ -130,14 +132,14 @@ export default function Admin() {
             ) : data.length === 0 ? (
               <div className="flex flex-col items-center py-16 gap-2">
                 <span className="text-3xl">📭</span>
-                <p className="text-sm text-text3">Nenhum item encontrado</p>
+                <p className="text-sm text-text3">{t('Nenhum item encontrado')}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="table-agro">
                   {tab === 'users' && (
                     <>
-                      <thead><tr><th>Email</th><th>Role</th><th>Trust</th><th>Fraude</th><th>Status</th><th>Ações</th></tr></thead>
+                      <thead><tr><th>Email</th><th>Role</th><th>Trust</th><th>{t('Fraude')}</th><th>Status</th><th>{t('Ações')}</th></tr></thead>
                       <tbody>
                         {data.map(u => (
                           <tr key={u.id}>
@@ -149,11 +151,11 @@ export default function Admin() {
                                 {u.fraud_score ?? '—'}
                               </span>
                             </td>
-                            <td>{u.is_blocked ? <Badge variant="rust">Bloqueado</Badge> : <Badge variant="green">Ativo</Badge>}</td>
+                            <td>{u.is_blocked ? <Badge variant="rust">{t('Bloqueado')}</Badge> : <Badge variant="green">{t('Ativo')}</Badge>}</td>
                             <td>
                               {u.is_blocked
-                                ? <button className="btn btn-ghost btn-sm" onClick={() => action(`/admin/users/${u.id}/unblock`,'POST',null,'Desbloqueado')}>Desbloquear</button>
-                                : <button className="btn btn-danger btn-sm" onClick={() => action(`/admin/users/${u.id}/block`,'POST',{duration:60},'Bloqueado')}>Bloquear</button>
+                                ? <button className="btn btn-ghost btn-sm" onClick={() => action(`/admin/users/${u.id}/unblock`,'POST',null,'Desbloqueado')}>{t('Desbloquear')}</button>
+                                : <button className="btn btn-danger btn-sm" onClick={() => action(`/admin/users/${u.id}/block`,'POST',{duration:60},'Bloqueado')}>{t('Bloquear')}</button>
                               }
                             </td>
                           </tr>
@@ -163,7 +165,7 @@ export default function Admin() {
                   )}
                   {tab === 'listings' && (
                     <>
-                      <thead><tr><th>Produto</th><th>Cat.</th><th>Preço</th><th>Status</th><th>Moderação</th><th>Ações</th></tr></thead>
+                      <thead><tr><th>{t('Produto')}</th><th>Cat.</th><th>{t('Preço')}</th><th>Status</th><th>{t('Moderação')}</th><th>{t('Ações')}</th></tr></thead>
                       <tbody>
                         {data.map(l => (
                           <tr key={l.id}>
@@ -172,7 +174,7 @@ export default function Admin() {
                             <td className="font-semibold">{formatCurrency(l.price)}</td>
                             <td><StatusBadge status={l.status} /></td>
                             <td><Badge variant={l.moderation_status === 'approved' ? 'green' : 'rust'}>{l.moderation_status || '—'}</Badge></td>
-                            <td><button className="btn btn-danger btn-sm" onClick={() => action(`/admin/listings/${l.id}/remove`,'POST',null,'Removido')}>Remover</button></td>
+                            <td><button className="btn btn-danger btn-sm" onClick={() => action(`/admin/listings/${l.id}/remove`,'POST',null,'Removido')}>{t('Remover')}</button></td>
                           </tr>
                         ))}
                       </tbody>
@@ -180,7 +182,7 @@ export default function Admin() {
                   )}
                   {tab === 'disputes' && (
                     <>
-                      <thead><tr><th>ID</th><th>Motivo</th><th>Status</th><th>Ações</th></tr></thead>
+                      <thead><tr><th>ID</th><th>{t('Motivo')}</th><th>Status</th><th>{t('Ações')}</th></tr></thead>
                       <tbody>
                         {data.map(d => (
                           <tr key={d.id}>
@@ -190,8 +192,8 @@ export default function Admin() {
                             <td>
                               {d.status === 'open' && (
                                 <div className="flex gap-1.5">
-                                  <button className="btn btn-primary btn-sm" onClick={() => action(`/admin/disputes/${d.id}/resolve`,'POST',{resolution:'release'},'Liberado')}>Liberar</button>
-                                  <button className="btn btn-danger btn-sm" onClick={() => action(`/admin/disputes/${d.id}/resolve`,'POST',{resolution:'refund'},'Reembolsado')}>Reembolsar</button>
+                                  <button className="btn btn-primary btn-sm" onClick={() => action(`/admin/disputes/${d.id}/resolve`,'POST',{resolution:'release'},'Liberado')}>{t('Liberar')}</button>
+                                  <button className="btn btn-danger btn-sm" onClick={() => action(`/admin/disputes/${d.id}/resolve`,'POST',{resolution:'refund'},'Reembolsado')}>{t('Reembolsar')}</button>
                                 </div>
                               )}
                             </td>
@@ -202,7 +204,7 @@ export default function Admin() {
                   )}
                   {tab === 'fraud' && (
                     <>
-                      <thead><tr><th>Usuário</th><th>Motivo</th><th>Score</th><th>Status</th><th>Ações</th></tr></thead>
+                      <thead><tr><th>{t('Usuário')}</th><th>{t('Motivo')}</th><th>Score</th><th>Status</th><th>{t('Ações')}</th></tr></thead>
                       <tbody>
                         {data.map(f => (
                           <tr key={f.id}>
@@ -216,8 +218,8 @@ export default function Admin() {
                             <td><Badge variant="wheat">{f.status}</Badge></td>
                             <td>
                               <div className="flex gap-1.5">
-                                <button className="btn btn-ghost btn-sm" onClick={() => action(`/admin/fraud-queue/${f.id}/approve`,'POST',null,'Aprovado')}>Aprovar</button>
-                                <button className="btn btn-danger btn-sm" onClick={() => action(`/admin/fraud-queue/${f.id}/block`,'POST',null,'Bloqueado')}>Bloquear</button>
+                                <button className="btn btn-ghost btn-sm" onClick={() => action(`/admin/fraud-queue/${f.id}/approve`,'POST',null,'Aprovado')}>{t('Aprovar')}</button>
+                                <button className="btn btn-danger btn-sm" onClick={() => action(`/admin/fraud-queue/${f.id}/block`,'POST',null,'Bloqueado')}>{t('Bloquear')}</button>
                               </div>
                             </td>
                           </tr>
@@ -227,7 +229,7 @@ export default function Admin() {
                   )}
                   {tab === 'payments' && (
                     <>
-                      <thead><tr><th>ID</th><th>Valor</th><th>Status</th><th>Data</th></tr></thead>
+                      <thead><tr><th>ID</th><th>{t('Valor')}</th><th>Status</th><th>{t('Data')}</th></tr></thead>
                       <tbody>
                         {data.map(p => (
                           <tr key={p.id}>
