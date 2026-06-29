@@ -328,6 +328,7 @@ app.use('/transactions', require('./routes/transactionRoutes'));
 app.use('/admin', require('./routes/adminRoutes'));
 
 app.use('/listings', require('./routes/listingRoutes'));
+app.use('/posts', require('./routes/postRoutes'));
 app.use('/wallet',   require('./routes/walletRoutes'));
 app.use("/conversations", require("./routes/conversationRoutes"));
 app.use("/messages", require("./routes/messageRoutes"));
