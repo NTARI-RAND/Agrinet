@@ -67,6 +67,11 @@ app.use(cors({
 app.use(express.json());
 /* ----------------------------------------------- */
 
+/* ----------- static uploads (local file storage) ----------- */
+// Serves files written by lib/storage.js. Reachable via nginx at /api/uploads/...
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+/* ------------------------------------------------------------ */
+
 const tryMount = (route, modPath) => {
   try {
     const mod = require(modPath);
