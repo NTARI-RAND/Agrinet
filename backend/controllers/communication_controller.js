@@ -1,6 +1,6 @@
 const Message = require('../models/message');
 const agrinetResponder = require('../services/agrinetResponder');
-const openAIResponder = require('../services/openAIResponder');
+const aiResponder = require('../services/aiResponder');
 
 function broadcastMessage(conversationId, msg, options = {}) {
   if (!msg) return;
@@ -86,7 +86,7 @@ exports.sendMessage = async (req, res) => {
         content: m.content || '',
       }));
 
-      const reply = await openAIResponder.generateResponse({
+      const reply = await aiResponder.generateResponse({
         conversationId,
         message: msg,
         chatHistory,

@@ -1,5 +1,5 @@
 const { randomUUID } = require('crypto');
-const { streamChatCompletion } = require('../lib/openaiClient');
+const { streamChatCompletion } = require('../lib/claudeClient');
 
 async function generateResponse({ conversationId, message, chatHistory }) {
   const history = Array.isArray(chatHistory) ? [...chatHistory] : [];
@@ -25,12 +25,12 @@ async function generateResponse({ conversationId, message, chatHistory }) {
     }
   } catch (error) {
     if (process.env.NODE_ENV !== 'test') {
-      console.error('OpenAI streaming failed', error);
+      console.error('Claude streaming failed', error);
     }
   }
 
   if (!content) {
-    content = `OpenAI response placeholder: ${userMessage}`.trim();
+    content = `AI assistant is unavailable right now. You said: ${userMessage}`.trim();
   }
 
   return {

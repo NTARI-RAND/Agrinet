@@ -50,8 +50,8 @@ jobs:
             NODE_ID=backend-node-01
             NODE_TYPE=backend
             ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
-            OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
-            OPENAI_MODEL=${{ secrets.OPENAI_MODEL }}
+            ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+            ANTHROPIC_MODEL=${{ secrets.ANTHROPIC_MODEL }}
             TWILIO_SID=${{ secrets.TWILIO_SID }}
             TWILIO_AUTH_TOKEN=${{ secrets.TWILIO_AUTH_TOKEN }}
             TWILIO_FROM_NUMBER=${{ secrets.TWILIO_FROM_NUMBER }}
