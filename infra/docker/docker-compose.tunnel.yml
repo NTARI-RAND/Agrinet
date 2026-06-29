@@ -1,0 +1,24 @@
+# Cloudflare Tunnel — serves the Agrinet stack publicly (e.g. at theagri.net)
+# WITHOUT port-forwarding. Layer it on top of the local stack:
+#
+#   docker compose --env-file ../../.env -f docker-compose.local.yml -f docker-compose.tunnel.yml up -d
+#
+# Prerequisites (one-time, in your Cloudflare account):
+#   1. theagri.net's DNS is on Cloudflare (nameservers switched from Wix).
+#   2. Create a tunnel: Zero Trust -> Networks -> Tunnels -> Create a tunnel (cloudflared).
+#      Copy its token into CF_TUNNEL_TOKEN in ../../.env  (gitignored).
+#   3. In that tunnel's "Public Hostnames", add:
+#        theagri.net   ->   Service: HTTP   ->   URL: nginx:80
+#      (cloudflared shares this compose project's network, so it resolves "nginx".)
+#
+# The name must match the local compose project so this joins the same network.
+name: agrinet-local
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: agrinet_cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    depends_on:
+      - nginx
