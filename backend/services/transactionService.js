@@ -1028,6 +1028,94 @@ async function resolveDispute(disputeId, resolution, adminId, opts = {}) {
   }
 }
 
+// ── Rating-window timeouts (P3-013 §4.1) ──────────────────────────────────────
+// A non-responsive party's rating defaults to +2 ("Basic Satisfaction"): silence is
+// read as a completed exchange with no complaint. The default is attributed to the
+// `system` user and marked (rater_role='system', category='timeout'), so it is
+// distinguishable from an affirmed rating. A buyer default confirms receipt and
+// releases escrow; a seller default just completes the record. Either way the dialog
+// then seals.
+const CONFIRM_WINDOW_MS = Number(process.env.CONFIRM_WINDOW_MS) || 14 * 24 * 3600 * 1000;  // buyer
+const REVIEW_WINDOW_MS = Number(process.env.REVIEW_WINDOW_MS) || 90 * 24 * 3600 * 1000;    // seller (post-hoc)
+const TIMEOUT_DEFAULT = 2;
+
+async function _defaultRate(txId, side) {
+  const ratingRepository = require("../repositories/ratingRepository");
+  const { ratedRole } = require("./lbtas");
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.query("SELECT * FROM transactions WHERE id = ? FOR UPDATE", [txId]);
+    const tx = rows[0];
+    if (!tx) { await connection.rollback(); return false; }
+    // re-check eligibility under the lock
+    if (side === "seller" && (tx.seller_rated === 1 || tx.status !== "completed")) { await connection.rollback(); return false; }
+    if (side === "buyer" && (tx.buyer_rated === 1 || tx.status !== "paid" || tx.escrow_locked !== 1)) { await connection.rollback(); return false; }
+
+    let postType = "direct_market";
+    try {
+      const [p] = await connection.query("SELECT post_type FROM posts WHERE id = ?", [tx.post_id || tx.listing_id]);
+      if (p.length) postType = p[0].post_type;
+    } catch (_) { /* default */ }
+
+    const ratedUserId = side === "buyer" ? tx.seller_id : tx.buyer_id;
+    const ratedRoleLabel = ratedRole(postType, side === "buyer" ? "provider" : "consumer");
+
+    await ratingRepository.createRating(
+      { transactionId: tx.id, ratedUserId, raterUserId: "system", raterRole: "system", ratedRole: ratedRoleLabel, value: TIMEOUT_DEFAULT, category: "timeout" },
+      connection
+    );
+    await connection.query(
+      side === "buyer" ? "UPDATE transactions SET buyer_rated = 1 WHERE id = ?" : "UPDATE transactions SET seller_rated = 1 WHERE id = ?",
+      [tx.id]
+    );
+
+    let released = false;
+    if (side === "buyer" && tx.status === "paid" && tx.escrow_locked === 1) {
+      released = await _settleEscrow(tx, connection, { actorId: "system", source: "timeout" });
+    }
+    await connection.query("UPDATE transactions SET rating_given = 1 WHERE id = ? AND buyer_rated = 1 AND seller_rated = 1", [tx.id]);
+    await connection.commit();
+
+    await logTx("rating", tx.id, { actorId: "system", actorRole: "system", ratedRole: ratedRoleLabel, value: TIMEOUT_DEFAULT, timeout_default: true });
+    if (released) await logTx("escrow_settled", tx.id, { actorId: "system", seller: tx.seller_id, amount: Number(tx.amount), trigger: "timeout" });
+    await sealIfComplete(tx.id);
+    return true;
+  } catch (e) {
+    await connection.rollback();
+    console.error("timeout default failed:", e.message);
+    return false;
+  } finally {
+    connection.release();
+  }
+}
+
+// Sweep for parties whose rating window has elapsed; emit +2 defaults and seal.
+// Windows are overridable (ms) for testing.
+async function applyRatingTimeouts({ confirmMs = CONFIRM_WINDOW_MS, reviewMs = REVIEW_WINDOW_MS } = {}) {
+  let sellers = 0, buyers = 0;
+
+  const [s] = await pool.query(
+    `SELECT id FROM transactions
+      WHERE status = 'completed' AND seller_rated = 0 AND escrow_released_at IS NOT NULL
+        AND escrow_released_at < (NOW() - INTERVAL ? SECOND)
+        AND id NOT IN (SELECT transaction_id FROM disputes WHERE status = 'open')`,
+    [Math.floor(reviewMs / 1000)]
+  );
+  for (const t of s) { if (await _defaultRate(t.id, "seller")) sellers++; }
+
+  const [b] = await pool.query(
+    `SELECT id FROM transactions
+      WHERE status = 'paid' AND escrow_locked = 1 AND buyer_rated = 0
+        AND COALESCE(settle_at, created_at) < (NOW() - INTERVAL ? SECOND)
+        AND id NOT IN (SELECT transaction_id FROM disputes WHERE status = 'open')`,
+    [Math.floor(confirmMs / 1000)]
+  );
+  for (const t of b) { if (await _defaultRate(t.id, "buyer")) buyers++; }
+
+  return { seller_defaults: sellers, buyer_defaults: buyers };
+}
+
 module.exports = {
   createTransactionWithWalletDebit,
   createFromListing,
@@ -1041,5 +1129,6 @@ module.exports = {
   openDispute,
   resolveDispute,
   sealIfComplete,
+  applyRatingTimeouts,
   getAdminStats
 };

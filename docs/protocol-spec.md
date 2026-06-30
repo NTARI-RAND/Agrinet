@@ -1,7 +1,7 @@
 # Agrinet Protocol Specification
 
 **Network Theory Applied Research Institute**
-Document ID: P3-012 · Version: 0.1 (Draft) · June 2026
+Document ID: P3-012 · Version: 0.2 (Draft) · June 2026
 *Normative companion to P3-011 v2 (Janus Facing Applications), P3-002 (Agrinet Whitepaper), and the LBTAS specification.*
 
 ---
@@ -361,7 +361,7 @@ informative, not normative.
 | §2 operator auth (7-key/2-sig, Ed25519, rotation, replay) | **Implemented** (`lib/operatorKeys`, `operatorRoutes`, `middleware/operatorAuth`) | Enforce on federation/operator routes; onboard operators (server-side signing) — deferred to the Cloudflare cutover. |
 | §3 transmission header / per-transmission signing | **Partial** | Per-transmission signing of intra-dialog messages/events is not yet wired; today only operator-management calls carry the token. |
 | §4 dialog file, append-as-received, seal | **Implemented** (`mycelium_log` + `mycelium_anchors`; `append`/`seal`/`annotate`; `sealIfComplete` on complete+quiescent) | — |
-| §4.4 timeout default (+2) | **Not yet** | Add the rating-window timeout sweep (emit a marked `+2` system rating). Seal-gating on an open audit **is** implemented. |
+| §4.4 timeout default (+2) | **Implemented** (`applyRatingTimeouts` hourly sweep: seller review window + buyer confirmation window; `system` rater, `category='timeout'`, `defaulted` count in reads) | — |
 | §5 Mycelium hash chain | **Implemented** (sealed dialog-file model) | — |
 | §6 LBTAS distribution / role-scoped / both-ways contest / annotate-not-hide | **Implemented** (`services/lbtas`, `ratingRepository`, `ratingRoutes`) | — |
 | §6.3/§9 narrative operator-local | **Implemented structurally** (`rating_narratives`, parties/adjudicator only) | Physical relocation to the front end's own store when Fruitful gains one; ensure federation never replicates narratives. |

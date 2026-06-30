@@ -401,6 +401,13 @@ setInterval(() => {
   expirePendingPayments();
 }, 60 * 1000); // roda a cada 1 minuto
 
+// Rating-window timeouts: emit +2 system defaults for non-responsive parties and
+// seal completed dialogs (P3-013 §4.1). Hourly.
+const { applyRatingTimeouts } = require("./services/transactionService");
+setInterval(() => {
+  applyRatingTimeouts().catch((e) => console.error("rating timeout sweep failed:", e.message));
+}, 60 * 60 * 1000);
+
 setInterval(async () => {
   try {
     const [[payments]] = await pool.query(

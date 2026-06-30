@@ -1,7 +1,7 @@
 # Mycelium: The Immutable Transaction-Record Ledger
 
 **Network Theory Applied Research Institute**
-Document ID: P3-013 · Version: 0.1 (Draft) · June 2026
+Document ID: P3-013 · Version: 0.2 (Draft) · June 2026
 *Companion to P3-011 v2 (Janus Facing Applications), P3-012 (Agrinet Protocol Specification), and the LBTAS specification.*
 
 ---
@@ -260,7 +260,7 @@ contains the dispute and its dismissal — the forgiveness is on the record, not
 | Money-lifecycle + ratings recorded as dialog transmissions | **Implemented** (after-commit hooks in `transactionService` / `contractService`) | — |
 | Dialog open→seal lifecycle (§1–§5) | **Implemented** | — |
 | Seal = complete **and** quiescent; `−1` holds the seal | **Implemented** (`sealIfComplete`: `rating_given` + no open dispute + no active contest; contest/uphold/dismiss resolve the audit) | — |
-| Rating-window timeout → marked `+2` default (§4.1) | **Not yet** | Add the timeout sweep + a system rater; surface defaults distinctly in reads. |
+| Rating-window timeout → marked `+2` default (§4.1) | **Implemented** (`applyRatingTimeouts`; seeded `system` rater; per-role `defaulted` count) | — |
 | Per-transmission operator signing of intra-dialog events | **Not yet** | Sign messages/events (rides with operator onboarding / Cloudflare). |
 | PII never anchored; narrative operator-local | **Implemented** (only refs in `data`; narrative in `rating_narratives`) | Relocate the narrative store to the front end when Fruitful gains one; federation excludes it. |
 | Annotate-not-erase; post-seal annotation | **Implemented** (post-seal `record` → `annotation` anchor) | — |

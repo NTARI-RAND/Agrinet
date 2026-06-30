@@ -104,7 +104,7 @@ async function receivedHarm(userId) {
 // annotated with who dismissed them and why (V1).
 async function getUserReputation(userId) {
   const [rows] = await pool.query(
-    `SELECT value, rated_role, transaction_id, created_at, voided, voided_by, voided_reason
+    `SELECT value, rated_role, rater_role, transaction_id, created_at, voided, voided_by, voided_reason
        FROM lbtas_ratings WHERE rated_user_id = ?`,
     [userId]
   );
@@ -132,6 +132,7 @@ async function getUserReputation(userId) {
       transaction_count: txIds.size,
       first_rated_at: times[0] || null,
       last_rated_at: times[times.length - 1] || null,
+      defaulted: rs.filter((x) => x.rater_role === 'system').length, // +2 timeout defaults (silence), distinct from affirmed
       dismissed: dismOut(dismByRole[role] || []),
     };
   }).sort((a, b) => b.total - a.total);
