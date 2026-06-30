@@ -148,8 +148,8 @@ async function transferContract({ transactionId, fromUserId, toEmail, price }) {
     });
 
     await connection.commit();
-    try { await mycelium.record('contract_transferred', { transactionId, data: { from: fromUserId, to: toUser.id, price: numericPrice } }); }
-    catch (e) { console.error('mycelium record failed:', e.message); }
+    try { await mycelium.record(transactionId, { type: 'contract_transferred', actorId: fromUserId, data: { from: fromUserId, to: toUser.id, price: numericPrice } }); }
+    catch (e) { console.error('mycelium append failed:', e.message); }
     return { transactionId, from: fromUserId, to: toUser.id, price: numericPrice };
 
   } catch (err) {

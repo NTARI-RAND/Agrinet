@@ -256,13 +256,14 @@ contains the dispute and its dismissal — the forgiveness is on the record, not
 
 | Element | Status | Delta |
 |---|---|---|
-| Hash-chained append-only ledger, `verify` | **Implemented** (`services/myceliumService.js`) at **per-event** granularity | Migrate the unit from event to **sealed dialog file** (§1–§5). |
-| Money-lifecycle events recorded | **Implemented** (after-commit hooks) | Fold into the dialog file as transmissions. |
-| Dialog open→seal lifecycle | **Not yet** | Build the open file, intra-dialog chain (§3), and seal (§4). |
-| Seal = complete **and** quiescent; timeout → marked `+2`; `−1` holds seal | **Not yet** | Rating-window timeout sweep; audit-gated seal. |
-| Per-transmission operator signing of intra-dialog events | **Partial** | Sign messages/events, not just operator-management calls. |
-| PII never anchored; narrative operator-local | **Structurally implemented** (`rating_narratives`; references only in records) | Relocate narrative store to the front end when Fruitful gains one; ensure federation excludes it. |
-| Annotate-not-erase (active vs dismissed) | **Implemented** (LBTAS reads) | Express late dismissals as post-seal anchored annotations (§7). |
+| Dialog-file ledger (`mycelium_log` + `mycelium_anchors`); intra- + inter-dialog chains; `append`/`seal`/`annotate`/`verify` | **Implemented** (`services/myceliumService.js`) | — |
+| Money-lifecycle + ratings recorded as dialog transmissions | **Implemented** (after-commit hooks in `transactionService` / `contractService`) | — |
+| Dialog open→seal lifecycle (§1–§5) | **Implemented** | — |
+| Seal = complete **and** quiescent; `−1` holds the seal | **Implemented** (`sealIfComplete`: `rating_given` + no open dispute + no active contest; contest/uphold/dismiss resolve the audit) | — |
+| Rating-window timeout → marked `+2` default (§4.1) | **Not yet** | Add the timeout sweep + a system rater; surface defaults distinctly in reads. |
+| Per-transmission operator signing of intra-dialog events | **Not yet** | Sign messages/events (rides with operator onboarding / Cloudflare). |
+| PII never anchored; narrative operator-local | **Implemented** (only refs in `data`; narrative in `rating_narratives`) | Relocate the narrative store to the front end when Fruitful gains one; federation excludes it. |
+| Annotate-not-erase; post-seal annotation | **Implemented** (post-seal `record` → `annotation` anchor) | — |
 
 ---
 

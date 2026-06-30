@@ -49,9 +49,19 @@ async function voidRating({ transactionId, raterRole, voidedBy, reason }, conn =
 // never deletes (V1).
 async function voidById(ratingId, voidedBy, reason) {
   const [res] = await pool.query(
-    `UPDATE lbtas_ratings SET voided = 1, voided_by = ?, voided_reason = ?
+    `UPDATE lbtas_ratings SET voided = 1, voided_by = ?, voided_reason = ?, contested = 0
        WHERE id = ? AND voided = 0`,
     [voidedBy, String(reason || '').slice(0, 255), ratingId]
+  );
+  return res.affectedRows;
+}
+
+// Uphold a contested rating: the contest is rejected, the rating stands. Clears the
+// active-contest flag so the dialog can seal (audit resolved).
+async function upholdContest(ratingId) {
+  const [res] = await pool.query(
+    `UPDATE lbtas_ratings SET contested = 0 WHERE id = ? AND contested = 1 AND voided = 0`,
+    [ratingId]
   );
   return res.affectedRows;
 }
@@ -226,6 +236,7 @@ module.exports = {
   createRating,
   voidRating,
   voidById,
+  upholdContest,
   contestRating,
   getRating,
   getNarrative,

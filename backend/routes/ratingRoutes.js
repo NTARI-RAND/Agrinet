@@ -13,6 +13,7 @@ const { userRateLimiter, strictWriteLimiter } = require('../middlewares/rateLimi
 const repo = require('../repositories/ratingRepository');
 const lbtas = require('../services/lbtas');
 const transactionService = require('../services/transactionService');
+const mycelium = require('../services/myceliumService');
 
 const router = express.Router();
 
@@ -108,6 +109,9 @@ router.post('/:id/contest', authenticateToken, userRateLimiter, async (req, res)
   try {
     const n = await repo.contestRating(req.params.id, req.user.id, req.body.reason);
     if (!n) return res.status(403).json({ error: 'Not a standing rating against you to contest' });
+    // The contest is an audit; it holds the dialog's seal open until resolved.
+    const r = await repo.getRating(req.params.id);
+    if (r) await mycelium.record(r.transaction_id, { type: 'audit_open', actorId: req.user.id, data: { target: req.params.id, kind: 'contest' } }).catch(() => {});
     res.json({ message: 'Rating contested — an adjudicator can review it' });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -117,9 +121,30 @@ router.post('/:id/contest', authenticateToken, userRateLimiter, async (req, res)
 /* ── POST /ratings/:id/dismiss — adjudicator dismisses a rating (annotated, not erased) ── */
 router.post('/:id/dismiss', authenticateToken, requireAdmin, async (req, res) => {
   try {
+    const r = await repo.getRating(req.params.id);
     const n = await repo.voidById(req.params.id, req.user.id, req.body.reason || 'dismissed by adjudicator');
     if (!n) return res.status(404).json({ error: 'Rating not found or already dismissed' });
+    if (r) {
+      await mycelium.record(r.transaction_id, { type: 'rating_dismissed', actorId: req.user.id, data: { target: req.params.id } }).catch(() => {});
+      await transactionService.sealIfComplete(r.transaction_id);
+    }
     res.json({ message: 'Rating dismissed; the dismissal is recorded and remains visible' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ── POST /ratings/:id/uphold — adjudicator rejects a contest; the rating stands ── */
+router.post('/:id/uphold', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const r = await repo.getRating(req.params.id);
+    const n = await repo.upholdContest(req.params.id);
+    if (!n) return res.status(404).json({ error: 'No active contest on that rating' });
+    if (r) {
+      await mycelium.record(r.transaction_id, { type: 'audit_resolved', actorId: req.user.id, data: { target: req.params.id, outcome: 'upheld' } }).catch(() => {});
+      await transactionService.sealIfComplete(r.transaction_id);
+    }
+    res.json({ message: 'Contest rejected; the rating stands' });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

@@ -27,15 +27,15 @@ router.get('/transaction/:id', async (req, res) => {
     if (!tx) return res.status(404).json({ error: 'Transaction not found' });
     const isParty = tx.buyer_id === req.user.id || tx.seller_id === req.user.id;
     if (!isParty && req.user.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
-    res.json({ entries: await mycelium.forTransaction(req.params.id) });
+    res.json(await mycelium.forDialog(req.params.id));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
-// Recent ledger entries (admin).
+// Recent sealed/annotation anchors (admin).
 router.get('/', requireAdmin, async (req, res) => {
-  try { res.json({ entries: await mycelium.list(req.query.limit) }); }
+  try { res.json({ anchors: await mycelium.listAnchors(req.query.limit) }); }
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 

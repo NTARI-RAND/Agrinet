@@ -360,9 +360,9 @@ informative, not normative.
 |---|---|---|
 | §2 operator auth (7-key/2-sig, Ed25519, rotation, replay) | **Implemented** (`lib/operatorKeys`, `operatorRoutes`, `middleware/operatorAuth`) | Enforce on federation/operator routes; onboard operators (server-side signing) — deferred to the Cloudflare cutover. |
 | §3 transmission header / per-transmission signing | **Partial** | Per-transmission signing of intra-dialog messages/events is not yet wired; today only operator-management calls carry the token. |
-| §4 dialog file, append-as-received, seal | **Not yet** | Mycelium currently anchors **per-event** entries, not sealed **per-dialog files**. Refactor to: open dialog file → append transmissions → seal on complete+quiescent → anchor the file hash. |
-| §4.4 timeout default (+2), seal-gating on audit | **Not yet** | Add the rating-window timeout sweep (emit a marked `+2` system rating) and block the seal while any audit is open. |
-| §5 Mycelium hash chain | **Implemented** (`myceliumService`) at event granularity | Change the unit from event to sealed dialog (above). |
+| §4 dialog file, append-as-received, seal | **Implemented** (`mycelium_log` + `mycelium_anchors`; `append`/`seal`/`annotate`; `sealIfComplete` on complete+quiescent) | — |
+| §4.4 timeout default (+2) | **Not yet** | Add the rating-window timeout sweep (emit a marked `+2` system rating). Seal-gating on an open audit **is** implemented. |
+| §5 Mycelium hash chain | **Implemented** (sealed dialog-file model) | — |
 | §6 LBTAS distribution / role-scoped / both-ways contest / annotate-not-hide | **Implemented** (`services/lbtas`, `ratingRepository`, `ratingRoutes`) | — |
 | §6.3/§9 narrative operator-local | **Implemented structurally** (`rating_narratives`, parties/adjudicator only) | Physical relocation to the front end's own store when Fruitful gains one; ensure federation never replicates narratives. |
 | §7 escrow gate / maturity / tranches | **Implemented** (`transactionService`) | — |

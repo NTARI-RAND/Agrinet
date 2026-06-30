@@ -18,11 +18,25 @@ const {
 } = require("../lib/metrics");
 const mycelium = require("./myceliumService");
 
-// Append an immutable Mycelium record after a committed money event.
-// Best-effort: a ledger failure is logged but never fails the money path.
-async function ledger(eventType, transactionId, data) {
-  try { await mycelium.record(eventType, { transactionId, data }); }
-  catch (e) { console.error("mycelium record failed:", e.message); }
+// Append a transmission to a transaction's Mycelium dialog (best-effort — a ledger
+// failure is logged but never fails the money path). `data` carries refs + facts only.
+async function logTx(type, transactionId, { actorId = null, actorRole = null, ...data } = {}) {
+  try { await mycelium.record(transactionId, { type, actorId, actorRole, data }); }
+  catch (e) { console.error("mycelium append failed:", e.message); }
+}
+
+// Seal the dialog once the exchange is COMPLETE (both sides rated -> rating_given)
+// AND QUIESCENT (no open dispute, no active contest). Best-effort; safe to re-call.
+async function sealIfComplete(transactionId) {
+  try {
+    const [[tx]] = await pool.query("SELECT rating_given FROM transactions WHERE id = ?", [transactionId]);
+    if (!tx || tx.rating_given !== 1) return;
+    const [[d]] = await pool.query("SELECT COUNT(*) n FROM disputes WHERE transaction_id = ? AND status = 'open'", [transactionId]);
+    if (Number(d.n) > 0) return;
+    const [[c]] = await pool.query("SELECT COUNT(*) n FROM lbtas_ratings WHERE transaction_id = ? AND contested = 1 AND voided = 0", [transactionId]);
+    if (Number(c.n) > 0) return;
+    await mycelium.seal(transactionId);
+  } catch (e) { console.error("mycelium seal failed:", e.message); }
 }
 
 async function createTransactionWithWalletDebit(payload) {
@@ -224,7 +238,7 @@ async function createFromListing({ listingId, buyerId, quantity }) {
     );
 
     await connection.commit();
-    await ledger('transaction_created', transactionId, { buyer: buyerId, seller: listing.user_id, listing: listing.id, amount: totalAmount, quantity });
+    await logTx('transaction_created', transactionId, { actorId: buyerId, buyer: buyerId, seller: listing.user_id, listing: listing.id, amount: totalAmount, quantity });
 
     return { transactionId, totalAmount };
 
@@ -328,7 +342,7 @@ async function createFromPlan({ planId, actorId, quantity }) {
     }
 
     await connection.commit();
-    await ledger('contract_created', transactionId, { buyer: buyerId, seller: sellerId, post: planId, amount, quantity: numericQty });
+    await logTx('contract_created', transactionId, { actorId: buyerId, buyer: buyerId, seller: sellerId, post: planId, amount, quantity: numericQty });
     return { transactionId, amount, buyerId, sellerId, postType: plan.post_type };
 
   } catch (err) {
@@ -539,8 +553,10 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
     await connection.commit();
     agrinet_rating_total.inc();
 
-    if (escrowReleased) await ledger('escrow_settled', transactionId, { seller: ratedUserId, amount: Number(tx.amount), trigger: 'rating' });
-    if (disputeOpened) await ledger('dispute_opened', transactionId, { by: userId, role: actorRole });
+    await logTx('rating', transactionId, { actorId: userId, actorRole, ratedRole: ratedRoleLabel, value: numericRating });
+    if (escrowReleased) await logTx('escrow_settled', transactionId, { actorId: userId, seller: ratedUserId, amount: Number(tx.amount), trigger: 'rating' });
+    if (disputeOpened) await logTx('audit_open', transactionId, { actorId: userId, role: actorRole, target: 'rating' });
+    await sealIfComplete(transactionId);
 
     return { message: "Rating submitted successfully", escrowReleased, disputeOpened };
 
@@ -769,7 +785,8 @@ async function releaseEscrow(transactionId, userId) {
     }
 
     await connection.commit();
-    await ledger('escrow_settled', transactionId, { seller: tx.seller_id, amount: Number(tx.amount), trigger: 'manual' });
+    await logTx('escrow_settled', transactionId, { actorId: userId, seller: tx.seller_id, amount: Number(tx.amount), trigger: 'manual' });
+    await sealIfComplete(transactionId);
 
     return { message: 'Escrow released' };
 
@@ -822,7 +839,7 @@ async function releaseTranche(transactionId, userId) {
     escrowReleaseSuccess.inc();
 
     await connection.commit();
-    await ledger('tranche_released', transactionId, { seller: tx.seller_id, amount: trancheAmt, tranche: done + 1, of: count });
+    await logTx('tranche_released', transactionId, { actorId: userId, seller: tx.seller_id, amount: trancheAmt, tranche: done + 1, of: count });
     return { released: trancheAmt, tranches_released: done + 1, tranche_count: count };
 
   } catch (err) {
@@ -996,7 +1013,11 @@ async function resolveDispute(disputeId, resolution, adminId, opts = {}) {
     );
 
     await connection.commit();
-    await ledger('dispute_resolved', tx.id, { resolution, by: adminId, voided_buyer_rating: !!opts.voidBuyerRating });
+    if (resolution === 'release') await logTx('escrow_settled', tx.id, { actorId: adminId, seller: tx.seller_id, trigger: 'dispute' });
+    else if (resolution === 'refund') await logTx('refunded', tx.id, { actorId: adminId, buyer: tx.buyer_id, trigger: 'dispute' });
+    if (opts.voidBuyerRating) await logTx('rating_dismissed', tx.id, { actorId: adminId, target: 'buyer_rating' });
+    await logTx('audit_resolved', tx.id, { actorId: adminId, outcome: resolution });
+    await sealIfComplete(tx.id);
     return { message: 'Dispute resolved', resolution, transactionId: tx.id };
 
   } catch (err) {
@@ -1019,5 +1040,6 @@ module.exports = {
   resolveFlag,
   openDispute,
   resolveDispute,
+  sealIfComplete,
   getAdminStats
 };
