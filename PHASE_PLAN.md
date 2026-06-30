@@ -76,8 +76,9 @@ Vendored the v2 LBTAS model into the Agrinet backend as a DB-backed **event stor
 
 **Phase 4 is complete.** Next: Phase 5 (operator keys / PQ / Mycelium).
 
-### Phase 5 — Protocol / operator keys / Mycelium — ⬜ TODO (research-grade, last)
-Transmission grammar; **operator registration + PQ-authenticated rotating keys** (hybrid-PQ TLS + signed tokens via a vetted lib — not hand-rolled McEliece); **Mycelium** immutable transaction-record ledger in the backend. ML monitoring is out of scope.
+### Phase 5 — Protocol / operator keys / Mycelium — 🟨 IN PROGRESS (research-grade, last)
+- **Operator keys — ✅ DONE.** Operators (frontend/federation instances — the platform boundary, distinct from user login) register a public key set; a transmission is signed by 2 of them, keeping the whitepaper's rotating 7-key / 2-per-transmission shape but with **Ed25519** signatures (Node-native, **PQ-swappable to ML-DSA** — only `algo` + sign/verify change). Hybrid-PQ TLS is provided by the Cloudflare tunnel; we did **not** hand-roll McEliece. Tables `operators` + `operator_keys` (public keys only; private keys never stored). `lib/operatorKeys.js` (generate/sign/verify, canonical signed message binds operator+ts+nonce+seq+indices), `repositories/operatorRepository.js`, `middleware/operatorAuth.js` (`operatorAuth` additive + `requireOperator`; replay bounded by a 5-min ts window + a Redis nonce cache), `routes/operatorRoutes.js` (`POST /operators` [admin], `POST /:id/rotate` [operator-authed], `POST /:id/revoke` [admin], `POST /verify`, `GET /whoami`, `GET /:id`), `tools/operator-keygen.js` (onboarding). Verified end-to-end: valid 2-sig passes; tampered/forged-index/duplicate-index/stale-ts/old-rotated-key/revoked all rejected; rotation works; HTTP middleware + replay-dedup confirmed.
+- **Remaining — ⬜ TODO:** the **Mycelium** immutable (hash-chained) transaction-record ledger in the backend; a transmission grammar; enforcing `requireOperator` on federation/operator routes once Fruitful (and other operators) sign server-side; an admin UI for operator management. ML monitoring is out of scope.
 
 ---
 
