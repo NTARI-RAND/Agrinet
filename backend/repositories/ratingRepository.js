@@ -10,7 +10,9 @@ const { randomUUID } = require('crypto');
 const pool = require('../lib/db');
 const { distributionOf, ROLE_LABELS } = require('../services/lbtas');
 
-// Insert one rating event. `conn` may be a pool connection inside a DB transaction.
+// Insert one rating EVENT (the protocol record — no narrative/PII). If a justifying
+// comment is supplied it is stored separately in the operator-local narrative table,
+// never as part of the event (V3).
 async function createRating(
   { transactionId, ratedUserId, raterUserId, raterRole, ratedRole = 'unknown', value, category = 'overall', comment = null },
   conn = pool
@@ -18,15 +20,22 @@ async function createRating(
   const id = randomUUID();
   await conn.query(
     `INSERT INTO lbtas_ratings
-       (id, transaction_id, rated_user_id, rater_user_id, rater_role, rated_role, value, category, comment)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, transactionId, ratedUserId, raterUserId, raterRole, ratedRole, value, category, comment]
+       (id, transaction_id, rated_user_id, rater_user_id, rater_role, rated_role, value, category)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [id, transactionId, ratedUserId, raterUserId, raterRole, ratedRole, value, category]
   );
+  if (comment && String(comment).trim()) {
+    await conn.query(
+      `INSERT INTO rating_narratives (id, rating_id, body) VALUES (?, ?, ?)`,
+      [randomUUID(), id, String(comment).slice(0, 4000)]
+    );
+  }
   return id;
 }
 
-// Void a rating so it stops counting (admin bad-faith finding). Identified by
-// transaction + the rater's side. Returns the number of rows voided.
+// Void a rating — a dismissal (admin bad-faith finding). The event is NEVER deleted
+// and remains visible downstream, annotated as dismissed (V1). Identified by
+// transaction + the rater's side (used by the escrow-dispute resolution path).
 async function voidRating({ transactionId, raterRole, voidedBy, reason }, conn = pool) {
   const [res] = await conn.query(
     `UPDATE lbtas_ratings SET voided = 1, voided_by = ?, voided_reason = ?
@@ -36,19 +45,69 @@ async function voidRating({ transactionId, raterRole, voidedBy, reason }, conn =
   return res.affectedRows;
 }
 
-// Distribution-based reputation for a rated user, broken out PER ROLE. Never
-// averaged; voided ratings are excluded. Same user, separate reputations.
+// Dismiss a single rating by id (admin). Works for EITHER direction (V2). Annotates,
+// never deletes (V1).
+async function voidById(ratingId, voidedBy, reason) {
+  const [res] = await pool.query(
+    `UPDATE lbtas_ratings SET voided = 1, voided_by = ?, voided_reason = ?
+       WHERE id = ? AND voided = 0`,
+    [voidedBy, String(reason || '').slice(0, 255), ratingId]
+  );
+  return res.affectedRows;
+}
+
+// Contest a rating made AGAINST you — either direction (V2). Only the rated party
+// can contest, and only while it stands (not already dismissed).
+async function contestRating(ratingId, byUserId, reason) {
+  const [res] = await pool.query(
+    `UPDATE lbtas_ratings SET contested = 1, contested_by = ?, contest_reason = ?
+       WHERE id = ? AND rated_user_id = ? AND voided = 0`,
+    [byUserId, String(reason || '').slice(0, 500), ratingId, byUserId]
+  );
+  return res.affectedRows;
+}
+
+async function getRating(ratingId) {
+  const [[r]] = await pool.query('SELECT * FROM lbtas_ratings WHERE id = ?', [ratingId]);
+  return r || null;
+}
+
+// The narrative for a rating (operator-local, parties/adjudicator only — never in the
+// commons reputation reads or the ledger).
+async function getNarrative(ratingId) {
+  const [[n]] = await pool.query('SELECT body FROM rating_narratives WHERE rating_id = ? ORDER BY created_at LIMIT 1', [ratingId]);
+  return n ? n.body : null;
+}
+
+// Harm ratings (-1) RECEIVED by a user — the surface from which they contest (V2).
+async function receivedHarm(userId) {
+  const [rows] = await pool.query(
+    `SELECT id, transaction_id, rater_role, rated_role, value, voided, contested, contest_reason, created_at
+       FROM lbtas_ratings WHERE rated_user_id = ? AND value = -1 ORDER BY created_at DESC`,
+    [userId]
+  );
+  return rows;
+}
+
+// Distribution-based reputation per role. The active distribution is the trust
+// signal; dismissed (voided) events are NOT hidden — they are surfaced separately,
+// annotated with who dismissed them and why (V1).
 async function getUserReputation(userId) {
   const [rows] = await pool.query(
-    `SELECT value, rated_role, transaction_id, created_at
-       FROM lbtas_ratings WHERE rated_user_id = ? AND voided = 0`,
+    `SELECT value, rated_role, transaction_id, created_at, voided, voided_by, voided_reason
+       FROM lbtas_ratings WHERE rated_user_id = ?`,
     [userId]
   );
 
+  const active = rows.filter((r) => !r.voided);
+  const dismissed = rows.filter((r) => r.voided);
+
   const byRole = {};
-  for (const r of rows) {
-    (byRole[r.rated_role] = byRole[r.rated_role] || []).push(r);
-  }
+  for (const r of active) (byRole[r.rated_role] = byRole[r.rated_role] || []).push(r);
+  const dismByRole = {};
+  for (const r of dismissed) (dismByRole[r.rated_role] = dismByRole[r.rated_role] || []).push(r);
+
+  const dismOut = (rs) => rs.map((d) => ({ value: Number(d.value), voided_by: d.voided_by, voided_reason: d.voided_reason, created_at: d.created_at }));
 
   const roles = Object.entries(byRole).map(([role, rs]) => {
     const values = rs.map((x) => Number(x.value));
@@ -63,25 +122,34 @@ async function getUserReputation(userId) {
       transaction_count: txIds.size,
       first_rated_at: times[0] || null,
       last_rated_at: times[times.length - 1] || null,
+      dismissed: dismOut(dismByRole[role] || []),
     };
   }).sort((a, b) => b.total - a.total);
 
-  const allValues = rows.map((r) => Number(r.value));
+  // roles that exist only as dismissed events still surface (never hidden)
+  for (const [role, ds] of Object.entries(dismByRole)) {
+    if (!byRole[role]) {
+      roles.push({ role, label: ROLE_LABELS[role] || role, distribution: distributionOf([]), total: 0, harm_count: 0, transaction_count: 0, first_rated_at: null, last_rated_at: null, dismissed: dismOut(ds) });
+    }
+  }
+
+  const allValues = active.map((r) => Number(r.value));
   return {
     user_id: userId,
     roles,
-    // overall across roles, kept for convenience — the per-role view is canonical
     distribution: distributionOf(allValues),
     total: allValues.length,
     harm_count: allValues.filter((v) => v === -1).length,
+    dismissed_count: dismissed.length,
   };
 }
 
 // Raw rating events for a transaction (review surface — caller must be authorized).
+// Includes void/contest annotations; the narrative is fetched separately (V3).
 async function getTransactionRatings(transactionId) {
   const [rows] = await pool.query(
     `SELECT id, transaction_id, rated_user_id, rater_user_id, rater_role, rated_role,
-            value, category, comment, voided, voided_by, voided_reason, created_at
+            value, category, voided, voided_by, voided_reason, contested, contest_reason, created_at
        FROM lbtas_ratings WHERE transaction_id = ? ORDER BY created_at`,
     [transactionId]
   );
@@ -116,6 +184,7 @@ async function generateReport() {
   harm_flagged.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
   const txIds = new Set(rows.map((r) => r.transaction_id));
+  const [[dism]] = await pool.query("SELECT COUNT(*) AS n FROM lbtas_ratings WHERE voided = 1");
 
   return {
     total_rated_users: Object.keys(perUser).length,
@@ -125,6 +194,7 @@ async function generateReport() {
     category_distributions,
     user_distributions,
     harm_flagged,
+    dismissed_total: Number(dism.n) || 0, // dismissals are recorded, not hidden (V1)
     generated_at: new Date().toISOString(),
   };
 }
@@ -155,6 +225,11 @@ async function pendingForUser(userId) {
 module.exports = {
   createRating,
   voidRating,
+  voidById,
+  contestRating,
+  getRating,
+  getNarrative,
+  receivedHarm,
   getUserReputation,
   getTransactionRatings,
   generateReport,

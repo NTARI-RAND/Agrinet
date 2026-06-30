@@ -45,6 +45,15 @@ router.get('/me/pending', authenticateToken, async (req, res) => {
   }
 });
 
+/* ── GET /ratings/me/received — harm ratings (-1) made against the caller (contest surface) ── */
+router.get('/me/received', authenticateToken, async (req, res) => {
+  try {
+    res.json({ received: await repo.receivedHarm(req.user.id) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 /* ── GET /ratings/users/:id — a user's public reputation distribution (counts only) ── */
 router.get('/users/:id', optionalAuth, async (req, res) => {
   try {
@@ -81,12 +90,36 @@ router.get('/transactions/:id', authenticateToken, async (req, res) => {
     const isParty = tx.buyer_id === req.user.id || tx.seller_id === req.user.id;
     if (!isAdmin && !isParty) return res.status(403).json({ error: 'Forbidden' });
 
-    let events = await repo.getTransactionRatings(req.params.id);
-    // A -1 comment is a justification against a party; only its author and admins read it.
-    if (!isAdmin) {
-      events = events.map((e) => (e.rater_user_id === req.user.id ? e : { ...e, comment: undefined }));
-    }
-    res.json({ ratings: events });
+    const events = await repo.getTransactionRatings(req.params.id);
+    // The narrative is operator-local (V3): attach it only for the adjudicator (admin)
+    // or the rating's author; everyone else gets the event without it.
+    const withNarrative = await Promise.all(events.map(async (e) => {
+      const mayRead = isAdmin || e.rater_user_id === req.user.id;
+      return mayRead ? { ...e, narrative: await repo.getNarrative(e.id) } : e;
+    }));
+    res.json({ ratings: withNarrative });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ── POST /ratings/:id/contest — the rated party contests a harm rating (either direction) ── */
+router.post('/:id/contest', authenticateToken, userRateLimiter, async (req, res) => {
+  try {
+    const n = await repo.contestRating(req.params.id, req.user.id, req.body.reason);
+    if (!n) return res.status(403).json({ error: 'Not a standing rating against you to contest' });
+    res.json({ message: 'Rating contested — an adjudicator can review it' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ── POST /ratings/:id/dismiss — adjudicator dismisses a rating (annotated, not erased) ── */
+router.post('/:id/dismiss', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const n = await repo.voidById(req.params.id, req.user.id, req.body.reason || 'dismissed by adjudicator');
+    if (!n) return res.status(404).json({ error: 'Rating not found or already dismissed' });
+    res.json({ message: 'Rating dismissed; the dismissal is recorded and remains visible' });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

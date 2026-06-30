@@ -83,6 +83,14 @@ Vendored the v2 LBTAS model into the Agrinet backend as a DB-backed **event stor
 
 **Phases 0–5 are complete.** Remaining is deployment: merge the stacked PRs, the Cloudflare tunnel + DNS cutover to `theagri.net` (which also unblocks Fruitful operator onboarding), a real `STRIPE_WEBHOOK_SECRET`, and `docs.theagri.net`.
 
+### P3-011 v2 (Janus Facing) audit fixes — ✅ DONE (V1–V3), 🟨 G1/G2 surfaced
+Audited the build against P3-011 v2 and fixed the peer-layer violations:
+- **V1 — dismissal annotates, never hides.** Voided ratings are no longer filtered out of reputation; `getUserReputation` surfaces them in a per-role `dismissed[]` annotated with `voided_by`/reason. Active distribution = trust signal; dismissed harm stays visible. `ReputationPanel` shows "N× rating dismissed (on record)".
+- **V2 — harm claims run both ways.** Decoupled rating-contestation from the escrow dispute: `POST /ratings/:id/contest` (the rated party, either direction) + `POST /ratings/:id/dismiss` (adjudicator). A consumer can now contest a producer's `−1`. Surfaced as "Flags received" on My Contracts.
+- **V3 — narrative out of the commons.** The justifying comment is no longer part of the protocol rating event; it moved to an operator-local `rating_narratives` table, read only by the rating's parties + the operator's adjudicator, never in reputation reads / Mycelium / federation. (Physical relocation to the front end's own store follows when Fruitful gets one.)
+- **G1/G2 — surfaced in the Fruitful footer** ("Network & Governance"): names the Agrinet protocol + the NTARI steward, states front-end standing / cheap-exit (G1) and links a rule-contestation path (G2). The full operator-trajectory rating engine (G1) and an in-app rule-change workflow (G2, core-layer) remain follow-ups.
+- **G3** (execution attestation): refined — a strictly ordered transmission grammar makes out-of-order/skip/inject sequences out-of-protocol (closing sequence-tampering), but does not attest the computation inside a step; the residual gap is the kitchen-vs-recipe problem. **G4** = formalizing that grammar/spec (the constitution).
+
 ---
 
 ## Open items / next actions
