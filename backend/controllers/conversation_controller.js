@@ -5,67 +5,67 @@ const { conversationsCreatedTotal } = require('../lib/metrics');
 
 exports.create = async (req, res) => {
   const buyerId = req.user.id;
-  const { listing_id } = req.body;
+  // Messaging is always anchored to a post (of any type). Accept post_id; fall back
+  // to listing_id for older callers (a shimmed listing shares its id in posts).
+  const postId = req.body.post_id || req.body.listing_id;
+
+  if (!postId || typeof postId !== "string") {
+    return res.status(400).json({ error: "post_id is required" });
+  }
 
   const connection = await pool.getConnection();
 
   try {
-    const [listingRows] = await connection.query(
-      `SELECT user_id FROM listings WHERE id = ?`,
-      [listing_id]
+    const [postRows] = await connection.query(
+      `SELECT id, user_id, title FROM posts WHERE id = ?`,
+      [postId]
     );
 
-    const listing = listingRows[0];
+    const post = postRows[0];
 
-    if (!listing) {
-      return res.status(404).json({ error: "Listing not found" });
+    if (!post) {
+      return res.status(404).json({ error: "Post not found" });
     }
 
-    const sellerId = listing.user_id;
+    const sellerId = post.user_id;
 
-    const id = randomUUID();
+    if (sellerId === buyerId) {
+      return res.status(400).json({ error: "You cannot message your own post" });
+    }
 
     const [existing] = await connection.query(
       `
       SELECT id
       FROM conversations
-      WHERE listing_id = ?
+      WHERE post_id = ?
         AND buyer_id = ?
         AND seller_id = ?
       `,
-      [listing_id, buyerId, sellerId]
+      [postId, buyerId, sellerId]
     );
 
     if (existing.length) {
       return res.json({
         id: existing[0].id,
-        listing_id,
+        post_id: postId,
         buyer_id: buyerId,
         seller_id: sellerId
       });
     }
 
+    const id = randomUUID();
+
     await connection.query(
-      `INSERT INTO conversations (
-        id,
-        listing_id,
-        buyer_id,
-        seller_id
-      )
-      VALUES (?, ?, ?, ?)`,
-      [id, listing_id, buyerId, sellerId]
+      `INSERT INTO conversations (id, post_id, buyer_id, seller_id, name)
+       VALUES (?, ?, ?, ?, ?)`,
+      [id, postId, buyerId, sellerId, post.title || null]
     );
 
     conversationsCreatedTotal.inc();
 
-    await connection.query(
-      "UPDATE listing_stats SET clicks = clicks + 1 WHERE listing_id = ?",
-      [listing_id]
-    );
-
     return res.status(201).json({
       id,
-      listing_id,
+      post_id: postId,
       buyer_id: buyerId,
       seller_id: sellerId
     });

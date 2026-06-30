@@ -12,6 +12,102 @@ const { messagesSentTotal } = require('../lib/metrics');
 
 router.use(auth);
 
+/* ── Enriched, post-scoped conversation endpoints (consumed by the chat UI) ── */
+
+// List the current user's conversations with post context + last message + unread.
+router.get('/conversations', async (req, res) => {
+  const userId = req.user.id;
+  const [rows] = await pool.query(
+    `SELECT c.id, c.post_id, c.buyer_id, c.seller_id, c.name, c.created_at,
+            p.title AS post_title, p.post_type,
+            bu.email AS buyer_name, su.email AS seller_name,
+            (SELECT m.message    FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message,
+            (SELECT m.created_at FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) AS last_message_at,
+            (SELECT COUNT(*)     FROM messages m WHERE m.conversation_id = c.id AND m.sender_id <> ? AND m.delivery_status <> 'read') AS unread_count
+       FROM conversations c
+       LEFT JOIN posts p  ON p.id  = c.post_id
+       LEFT JOIN users bu ON bu.id = c.buyer_id
+       LEFT JOIN users su ON su.id = c.seller_id
+      WHERE c.buyer_id = ? OR c.seller_id = ?
+      ORDER BY last_message_at DESC, c.created_at DESC`,
+    [userId, userId, userId]
+  );
+  const conversations = rows.map((r) => ({ ...r, listing_title: r.post_title }));
+  res.json({ conversations });
+});
+
+// A single conversation thread (conversation + messages), marking others' as read.
+router.get('/:id', async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+  const [crows] = await pool.query(
+    `SELECT c.*, p.title AS post_title, p.post_type,
+            bu.email AS buyer_name, su.email AS seller_name
+       FROM conversations c
+       LEFT JOIN posts p  ON p.id  = c.post_id
+       LEFT JOIN users bu ON bu.id = c.buyer_id
+       LEFT JOIN users su ON su.id = c.seller_id
+      WHERE c.id = ? AND (c.buyer_id = ? OR c.seller_id = ?)`,
+    [id, userId, userId]
+  );
+  if (!crows.length) return res.status(404).json({ error: "Conversation not found" });
+
+  await pool.query(
+    `UPDATE messages SET delivery_status = 'read' WHERE conversation_id = ? AND sender_id <> ?`,
+    [id, userId]
+  );
+
+  const [messages] = await pool.query(
+    `SELECT id, sender_id, message, attachment_url, attachment_type, created_at
+       FROM messages WHERE conversation_id = ? ORDER BY created_at ASC`,
+    [id]
+  );
+
+  const conversation = { ...crows[0], listing_title: crows[0].post_title };
+  res.json({ conversation, messages });
+});
+
+// Send a message to a conversation by id (the shape the chat thread posts).
+router.post('/:id', upload.single('file'), userRateLimiter, strictWriteLimiter, sanitizeFields(["message"]), async (req, res) => {
+  const { id } = req.params;
+  const { message } = req.body;
+  const senderId = req.user.id;
+
+  if (!message || typeof message !== "string" || message.length < 1 || message.length > 2000) {
+    return res.status(400).json({ error: "Invalid message" });
+  }
+
+  const [conv] = await pool.query(
+    `SELECT id FROM conversations WHERE id = ? AND (buyer_id = ? OR seller_id = ?)`,
+    [id, senderId, senderId]
+  );
+  if (!conv.length) return res.status(404).json({ error: "Conversation not found" });
+
+  let attachmentUrl = null;
+  let attachmentType = null;
+  if (req.file) {
+    attachmentUrl = await uploadFile(req.file.buffer, req.file.mimetype, "chat");
+    attachmentType = req.file.mimetype;
+  }
+
+  const msgId = randomUUID();
+  await pool.query(
+    `INSERT INTO messages (id, conversation_id, sender_id, message, attachment_url, attachment_type)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [msgId, id, senderId, message, attachmentUrl, attachmentType]
+  );
+  messagesSentTotal.inc();
+
+  res.status(201).json({
+    id: msgId,
+    conversation_id: id,
+    sender_id: senderId,
+    message,
+    attachment_url: attachmentUrl,
+    attachment_type: attachmentType
+  });
+});
+
 router.post(
   '/',
   upload.single('file'),
