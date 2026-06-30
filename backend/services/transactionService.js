@@ -227,6 +227,75 @@ async function createFromListing({ listingId, buyerId, quantity }) {
   }
 }
 
+// Contract a plan post (Phase 4). For a plan_producer post the actor is the buyer
+// (a backer contracting future production); for a plan_consumer post the actor is
+// the seller (a producer fulfilling the request). Creates a 'pending' escrow
+// transaction whose subject is the plan POST — it then flows through the same
+// pay / escrow-gate / rating / settlement machinery as a listing purchase.
+async function createFromPlan({ planId, actorId, quantity }) {
+  const numericQty = Number(quantity);
+  if (!Number.isFinite(numericQty) || numericQty <= 0) {
+    const e = new Error("Invalid quantity"); e.statusCode = 400; throw e;
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [rows] = await connection.query(`SELECT * FROM posts WHERE id = ? FOR UPDATE`, [planId]);
+    const plan = rows[0];
+
+    if (!plan) { const e = new Error("Plan not found"); e.statusCode = 404; throw e; }
+    if (plan.post_type !== 'plan_producer' && plan.post_type !== 'plan_consumer') {
+      const e = new Error("Post is not a plan"); e.statusCode = 400; throw e;
+    }
+    if (plan.status !== 'active') { const e = new Error("Plan not available"); e.statusCode = 400; throw e; }
+    if (plan.origin_node) {
+      const e = new Error("Plan belongs to another federation node"); e.statusCode = 400; e.origin_node = plan.origin_node; throw e;
+    }
+    if (plan.user_id === actorId) { const e = new Error("Cannot contract your own plan"); e.statusCode = 400; throw e; }
+    if (plan.price == null) { const e = new Error("Plan has no price to contract against"); e.statusCode = 400; throw e; }
+
+    // plan_producer: actor backs the producer's plan (actor = buyer).
+    // plan_consumer: actor fulfills the consumer's request (actor = seller).
+    const buyerId = plan.post_type === 'plan_producer' ? actorId : plan.user_id;
+    const sellerId = plan.post_type === 'plan_producer' ? plan.user_id : actorId;
+
+    if (plan.quantity_available != null && Number(plan.quantity_available) < numericQty) {
+      const e = new Error("Insufficient plan quantity"); e.statusCode = 400; throw e;
+    }
+
+    const unitPrice = Number(plan.price);
+    const amount = unitPrice * numericQty;
+    const transactionId = randomUUID();
+
+    await connection.query(
+      `INSERT INTO transactions (id, buyer_id, seller_id, post_id, listing_title, quantity, unit_price, amount, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+      [transactionId, buyerId, sellerId, planId, plan.title, numericQty, unitPrice, amount]
+    );
+
+    if (plan.quantity_available != null) {
+      await connection.query(
+        `UPDATE posts
+            SET quantity_available = quantity_available - ?,
+                status = CASE WHEN quantity_available - ? <= 0 THEN 'fulfilled' ELSE status END
+          WHERE id = ?`,
+        [numericQty, numericQty, planId]
+      );
+    }
+
+    await connection.commit();
+    return { transactionId, amount, buyerId, sellerId, postType: plan.post_type };
+
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
 async function createPaymentForTransaction(transactionId) {
   const connection = await pool.getConnection();
 
@@ -360,7 +429,7 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
     // are kept separate per role.
     let postType = 'direct_market';
     try {
-      const [prows] = await connection.query(`SELECT post_type FROM posts WHERE id = ?`, [tx.listing_id]);
+      const [prows] = await connection.query(`SELECT post_type FROM posts WHERE id = ?`, [tx.post_id || tx.listing_id]);
       if (prows.length) postType = prows[0].post_type;
     } catch (_) { /* no post row -> default market role */ }
     const ratedRoleLabel = ratedRole(postType, actorRole === "buyer" ? "provider" : "consumer");
@@ -785,7 +854,7 @@ async function resolveDispute(disputeId, resolution, adminId, opts = {}) {
       );
       if (opts.adminRating && opts.adminRating.value != null) {
         let postType = 'direct_market';
-        const [prows] = await connection.query(`SELECT post_type FROM posts WHERE id = ?`, [tx.listing_id]);
+        const [prows] = await connection.query(`SELECT post_type FROM posts WHERE id = ?`, [tx.post_id || tx.listing_id]);
         if (prows.length) postType = prows[0].post_type;
         await ratingRepository.createRating(
           {
@@ -821,6 +890,7 @@ async function resolveDispute(disputeId, resolution, adminId, opts = {}) {
 module.exports = {
   createTransactionWithWalletDebit,
   createFromListing,
+  createFromPlan,
   createPaymentForTransaction,
   releaseEscrow,
   pingTransaction,

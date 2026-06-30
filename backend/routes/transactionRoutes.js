@@ -55,6 +55,34 @@ router.post('/from-listing', userRateLimiter, strictWriteLimiter, async (req, re
   }
 });
 
+router.post('/from-plan', userRateLimiter, strictWriteLimiter, async (req, res) => {
+  try {
+    const { planId, quantity } = req.body;
+
+    if (!planId || typeof planId !== "string") {
+      return res.status(400).json({ error: "Invalid planId" });
+    }
+
+    if (typeof quantity !== "number" || quantity <= 0) {
+      return res.status(400).json({ error: "Invalid quantity" });
+    }
+
+    const result = await transactionService.createFromPlan({
+      planId,
+      actorId: req.user.id,
+      quantity
+    });
+
+    return res.status(201).json(result);
+
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({
+      error: err.message,
+      ...(err.origin_node ? { origin_node: err.origin_node } : {})
+    });
+  }
+});
+
 router.post('/:id/pay', userRateLimiter, async (req, res) => {
   try {
     const { id } = req.params;
