@@ -4,6 +4,7 @@ const pool = require('../lib/db');
 const { redis } = require("../lib/redis");
 const { authenticateToken } = require('../middleware/authMiddleware');
 const { logAdminAction } = require('../services/adminAuditService');
+const transactionService = require('../services/transactionService');
 
 const router = express.Router();
 
@@ -477,60 +478,23 @@ router.post("/disputes/:id/resolve", async (req, res) => {
   const disputeId = req.params.id;
   const { resolution } = req.body;
 
-  const [[dispute]] = await pool.query(
-    "SELECT * FROM disputes WHERE id=?",
-    [disputeId]
-  );
+  try {
+    // resolveDispute moves the money atomically: 'release' settles escrow to the
+    // seller, 'refund' returns the held amount to the buyer.
+    const result = await transactionService.resolveDispute(disputeId, resolution, req.user.id);
 
-  if (!dispute) {
-    return res.status(404).json({ error: "Dispute not found" });
-  }
-
-  if (dispute.status !== "open") {
-    return res.status(400).json({ error: "Dispute already resolved" });
-  }
-
-  if (resolution === "refund") {
-
-    await pool.query(
-      "UPDATE transactions SET status='refunded' WHERE id=?",
-      [dispute.transaction_id]
+    await logAdminAction(
+      req.user.id,
+      "resolve_dispute",
+      "dispute",
+      disputeId,
+      { resolution, transactionId: result.transactionId }
     );
 
+    res.json({ message: "Dispute resolved", resolution });
+  } catch (err) {
+    res.status(err.statusCode || 400).json({ error: err.message });
   }
-
-  if (resolution === "release") {
-
-    await pool.query(
-      "UPDATE transactions SET status='completed' WHERE id=?",
-      [dispute.transaction_id]
-    );
-
-  }
-
-  if (resolution === "partial") {
-
-    await pool.query(
-      "UPDATE transactions SET status='partial_refund' WHERE id=?",
-      [dispute.transaction_id]
-    );
-
-  }
-
-  await pool.query(
-    "UPDATE disputes SET status='resolved', resolution=? WHERE id=?",
-    [resolution, disputeId]
-  );
-
-  await logAdminAction(
-    req.user.id,
-    "resolve_dispute",
-    "dispute",
-    disputeId,
-    { resolution, transactionId: dispute.transaction_id }
-  );
-
-  res.json({ message: "Dispute resolved", resolution });
 
 });
 

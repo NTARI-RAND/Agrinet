@@ -376,15 +376,27 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
       [transactionId]
     );
 
-    // LBTAS escrow gate (Phase 4): the consumer's (buyer's) rating is what releases
-    // the held funds to the producer. The producer's post-hoc rating never moves money.
+    // LBTAS escrow gate (Phase 4): the consumer's (buyer's) rating settles the held
+    // funds. A 0..+4 releases to the producer. A -1 ("No Trust") instead FREEZES the
+    // funds and auto-opens a dispute (the mandatory -1 comment is the dispute reason)
+    // for manual admin resolution. The producer's post-hoc rating never moves money.
     let escrowReleased = false;
+    let disputeOpened = false;
     if (actorRole === "buyer" && tx.status === "paid" && tx.escrow_locked === 1) {
-      escrowReleased = await _settleEscrow(
-        { id: transactionId, amount: tx.amount, seller_id: tx.seller_id },
-        connection,
-        { actorId: userId, source: 'lbtas_gate' }
-      );
+      if (numericRating === -1) {
+        await _openDisputeTx(
+          { id: transactionId },
+          connection,
+          { openedBy: userId, reason: `No Trust (-1): ${comment || ''}`.trim() }
+        );
+        disputeOpened = true;
+      } else {
+        escrowReleased = await _settleEscrow(
+          { id: transactionId, amount: tx.amount, seller_id: tx.seller_id },
+          connection,
+          { actorId: userId, source: 'lbtas_gate' }
+        );
+      }
     }
 
     // finalize once both sides have rated
@@ -397,7 +409,7 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
     await connection.commit();
     agrinet_rating_total.inc();
 
-    return { message: "Rating submitted successfully", escrowReleased };
+    return { message: "Rating submitted successfully", escrowReleased, disputeOpened };
 
   } catch (err) {
     if (err?.statusCode === 409) {
@@ -540,10 +552,13 @@ async function getAdminStats() {
 // `source` tags the audit trail ('lbtas_gate' = auto-release on the consumer's
 // rating; 'manual' = a seller-initiated release after the gate is satisfied).
 async function _settleEscrow(tx, connection, { actorId, source }) {
+  // Settle held funds from either 'paid' (the normal rating release) or 'disputed'
+  // (an admin resolving a frozen dispute in the seller's favour). escrow_locked is
+  // the real "funds still held" flag; callers validate the higher-level state.
   const [updateTx] = await connection.query(
     `UPDATE transactions
        SET status='completed', escrow_locked=0, escrow_released_at=NOW()
-     WHERE id=? AND status='paid' AND escrow_locked=1`,
+     WHERE id=? AND escrow_locked=1 AND status IN ('paid','disputed')`,
     [tx.id]
   );
   if (updateTx.affectedRows === 0) return false;
@@ -622,6 +637,26 @@ async function releaseEscrow(transactionId, userId) {
   }
 }
 
+// Open a dispute within an EXISTING db transaction (caller owns the connection and
+// holds the tx row locked). Freezes the funds by moving the tx to 'disputed'. Used
+// by a buyer-initiated dispute and by the automatic -1 ("No Trust") escrow freeze.
+// `reason` is capped to the disputes.reason column width (the full justifying text
+// lives in the LBTAS rating event).
+async function _openDisputeTx(tx, connection, { openedBy, reason }) {
+  const disputeId = randomUUID();
+  await connection.query(
+    `INSERT INTO disputes (id, transaction_id, opened_by, reason, status)
+     VALUES (?, ?, ?, ?, 'open')`,
+    [disputeId, tx.id, openedBy, String(reason || '').slice(0, 255)]
+  );
+  await connection.query(
+    `UPDATE transactions SET status = 'disputed' WHERE id = ?`,
+    [tx.id]
+  );
+  disputesOpenedTotal.inc();
+  return disputeId;
+}
+
 async function openDispute(transactionId, userId, reason) {
   const connection = await pool.getConnection();
 
@@ -649,33 +684,83 @@ async function openDispute(transactionId, userId, reason) {
       throw new Error('Escrow already released');
     }
 
-    const disputeId = randomUUID();
-
-    await connection.query(
-      `INSERT INTO disputes (
-        id,
-        transaction_id,
-        opened_by,
-        reason,
-        status
-      ) VALUES (?, ?, ?, ?, 'open')`,
-      [disputeId, transactionId, userId, reason]
-    );
-
-    await connection.query(
-      `UPDATE transactions
-       SET status = 'disputed'
-       WHERE id = ?`,
-      [transactionId]
-    );
+    const disputeId = await _openDisputeTx(tx, connection, { openedBy: userId, reason });
 
     await connection.commit();
-    disputesOpenedTotal.inc();
 
     return {
       message: 'Dispute opened',
       disputeId
     };
+
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
+// Admin resolution of a frozen dispute: actually move the money.
+//   release -> settle escrow to the seller (complete the tx)
+//   refund  -> return the held amount to the buyer (refund the tx)
+async function resolveDispute(disputeId, resolution, adminId) {
+  if (resolution !== 'release' && resolution !== 'refund') {
+    const err = new Error("resolution must be 'release' or 'refund'");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [drows] = await connection.query(
+      `SELECT * FROM disputes WHERE id = ? FOR UPDATE`,
+      [disputeId]
+    );
+    const dispute = drows[0];
+    if (!dispute) { const e = new Error('Dispute not found'); e.statusCode = 404; throw e; }
+    if (dispute.status !== 'open') { const e = new Error('Dispute already resolved'); e.statusCode = 400; throw e; }
+
+    const [trows] = await connection.query(
+      `SELECT * FROM transactions WHERE id = ? FOR UPDATE`,
+      [dispute.transaction_id]
+    );
+    const tx = trows[0];
+    if (!tx) { const e = new Error('Transaction not found'); e.statusCode = 404; throw e; }
+    if (tx.escrow_locked !== 1) { const e = new Error('Escrow already released'); e.statusCode = 409; throw e; }
+
+    if (resolution === 'release') {
+      const ok = await _settleEscrow(tx, connection, { actorId: adminId, source: 'dispute_release' });
+      if (!ok) { const e = new Error('Transaction not eligible for release'); e.statusCode = 409; throw e; }
+    } else {
+      // refund: unlock + mark refunded first (guarded), then credit the buyer back
+      const [upd] = await connection.query(
+        `UPDATE transactions SET status='refunded', escrow_locked=0
+          WHERE id=? AND escrow_locked=1`,
+        [tx.id]
+      );
+      if (upd.affectedRows === 0) { const e = new Error('Transaction not eligible for refund'); e.statusCode = 409; throw e; }
+      await walletRepository.credit(
+        tx.buyer_id,
+        Number(tx.amount),
+        `Refund (dispute): ${tx.listing_title || ''}`.trim(),
+        tx.id,
+        null,
+        'refund',
+        connection
+      );
+    }
+
+    await connection.query(
+      `UPDATE disputes SET status='resolved', resolution=? WHERE id=?`,
+      [resolution, disputeId]
+    );
+
+    await connection.commit();
+    return { message: 'Dispute resolved', resolution, transactionId: tx.id };
 
   } catch (err) {
     await connection.rollback();
@@ -693,5 +778,7 @@ module.exports = {
   pingTransaction,
   rateTransaction,
   resolveFlag,
+  openDispute,
+  resolveDispute,
   getAdminStats
 };
