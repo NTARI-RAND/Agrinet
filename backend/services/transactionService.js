@@ -376,6 +376,17 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
       [transactionId]
     );
 
+    // LBTAS escrow gate (Phase 4): the consumer's (buyer's) rating is what releases
+    // the held funds to the producer. The producer's post-hoc rating never moves money.
+    let escrowReleased = false;
+    if (actorRole === "buyer" && tx.status === "paid" && tx.escrow_locked === 1) {
+      escrowReleased = await _settleEscrow(
+        { id: transactionId, amount: tx.amount, seller_id: tx.seller_id },
+        connection,
+        { actorId: userId, source: 'lbtas_gate' }
+      );
+    }
+
     // finalize once both sides have rated
     await connection.query(
       `UPDATE transactions SET rating_given = 1
@@ -386,7 +397,7 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
     await connection.commit();
     agrinet_rating_total.inc();
 
-    return { message: "Rating submitted successfully" };
+    return { message: "Rating submitted successfully", escrowReleased };
 
   } catch (err) {
     if (err?.statusCode === 409) {
@@ -523,6 +534,39 @@ async function getAdminStats() {
   };
 }
 
+// Settle escrow within an EXISTING db transaction (caller owns the connection and
+// has the tx row locked FOR UPDATE): transition paid->completed and credit the
+// seller. The WHERE guard makes it idempotent. Returns true iff it released.
+// `source` tags the audit trail ('lbtas_gate' = auto-release on the consumer's
+// rating; 'manual' = a seller-initiated release after the gate is satisfied).
+async function _settleEscrow(tx, connection, { actorId, source }) {
+  const [updateTx] = await connection.query(
+    `UPDATE transactions
+       SET status='completed', escrow_locked=0, escrow_released_at=NOW()
+     WHERE id=? AND status='paid' AND escrow_locked=1`,
+    [tx.id]
+  );
+  if (updateTx.affectedRows === 0) return false;
+
+  await connection.query(
+    `UPDATE wallets SET balance = balance + ? WHERE user_id = ?`,
+    [tx.amount, tx.seller_id]
+  );
+
+  await auditFinancialEvent({
+    eventType: "escrow_release",
+    userId: actorId,
+    transactionId: tx.id,
+    walletUserId: tx.seller_id,
+    amount: tx.amount,
+    metadata: { source },
+    connection
+  });
+
+  escrowReleaseSuccess.inc();
+  return true;
+}
+
 async function releaseEscrow(transactionId, userId) {
   const connection = await pool.getConnection();
 
@@ -554,40 +598,19 @@ async function releaseEscrow(transactionId, userId) {
       throw new Error('Escrow already released');
     }
 
-    await connection.query(
-      `UPDATE wallets 
-       SET balance = balance + ? 
-       WHERE user_id = ?`,
-      [tx.amount, tx.seller_id]
-    );
+    // LBTAS escrow gate: no release signal until the consumer's rating is in.
+    if (tx.buyer_rated !== 1) {
+      const err = new Error("Escrow release requires the buyer's LBTAS rating first");
+      err.statusCode = 409;
+      throw err;
+    }
 
-    const [updateTx] = await connection.query(
-      `UPDATE transactions 
-       SET status='completed',
-           escrow_locked=0,
-           escrow_released_at=NOW()
-       WHERE id=?
-         AND status='paid'
-         AND escrow_locked=1`,
-      [transactionId]
-    );
-
-    if (updateTx.affectedRows === 0) {
+    const released = await _settleEscrow(tx, connection, { actorId: userId, source: 'manual' });
+    if (!released) {
       throw new Error('Escrow already released or transaction not eligible');
     }
 
-    await auditFinancialEvent({
-      eventType: "escrow_release",
-      userId: userId,
-      transactionId: transactionId,
-      walletUserId: tx.seller_id,
-      amount: tx.amount,
-      metadata: { source: "transaction_service" },
-      connection
-    });
-
     await connection.commit();
-    escrowReleaseSuccess.inc();
 
     return { message: 'Escrow released' };
 
