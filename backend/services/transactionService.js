@@ -265,12 +265,14 @@ async function createFromPlan({ planId, actorId, quantity }) {
       const e = new Error("Insufficient plan quantity"); e.statusCode = 400; throw e;
     }
 
+    let payload = {};
+    try { payload = plan.payload ? JSON.parse(plan.payload) : {}; } catch { /* default */ }
+
     // Contract shares (§4.5.3.4): how a plan may be split across backers.
     //   none     -> not divisible: one backer must take the full remaining quantity
     //   fixed    -> divisible in whole shares (integer quantities)
     //   variable -> divisible into any quantity (default)
-    let sharePolicy = 'variable';
-    try { sharePolicy = (plan.payload ? JSON.parse(plan.payload) : {}).contract_shares || 'variable'; } catch { /* default */ }
+    const sharePolicy = payload.contract_shares || 'variable';
     if (sharePolicy === 'none' && (plan.quantity_available == null || Number(plan.quantity_available) !== numericQty)) {
       const e = new Error("This plan is not divisible — contract the full remaining quantity"); e.statusCode = 400; throw e;
     }
@@ -278,14 +280,23 @@ async function createFromPlan({ planId, actorId, quantity }) {
       const e = new Error("This plan is sold in whole shares"); e.statusCode = 400; throw e;
     }
 
+    // Delayed settlement: if the plan settles "at maturity", snapshot the maturity
+    // date so escrow can't release before then. Null = settle on confirmation.
+    let settleAt = null;
+    if (payload.settlement === 'maturity') {
+      const d = payload.expected_harvest_date || payload.desired_harvest_date || payload.needed_by_date;
+      const dt = d ? new Date(d) : null;
+      if (dt && !isNaN(dt.getTime())) settleAt = dt.toISOString().slice(0, 19).replace('T', ' ');
+    }
+
     const unitPrice = Number(plan.price);
     const amount = unitPrice * numericQty;
     const transactionId = randomUUID();
 
     await connection.query(
-      `INSERT INTO transactions (id, buyer_id, seller_id, post_id, listing_title, quantity, unit_price, amount, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-      [transactionId, buyerId, sellerId, planId, plan.title, numericQty, unitPrice, amount]
+      `INSERT INTO transactions (id, buyer_id, seller_id, post_id, listing_title, quantity, unit_price, amount, status, settle_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
+      [transactionId, buyerId, sellerId, planId, plan.title, numericQty, unitPrice, amount, settleAt]
     );
 
     if (plan.quantity_available != null) {
@@ -430,6 +441,15 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
 
     if (actorRole === "seller" && tx.seller_rated === 1) {
       const err = new Error("Seller already rated");
+      err.statusCode = 409;
+      throw err;
+    }
+
+    // Maturity hold: the buyer's confirm-to-release can't happen before the settle
+    // date. (Problems before maturity go through the manual dispute path.)
+    if (actorRole === "buyer" && tx.settle_at && new Date(tx.settle_at) > new Date()) {
+      const maturity = new Date(tx.settle_at).toISOString().slice(0, 10);
+      const err = new Error(`This contract settles at maturity (${maturity}). You can confirm after the delivery date.`);
       err.statusCode = 409;
       throw err;
     }
@@ -710,6 +730,13 @@ async function releaseEscrow(transactionId, userId) {
     // LBTAS escrow gate: no release signal until the consumer's rating is in.
     if (tx.buyer_rated !== 1) {
       const err = new Error("Escrow release requires the buyer's LBTAS rating first");
+      err.statusCode = 409;
+      throw err;
+    }
+
+    // Maturity hold: funds can't release before the contract's settle date.
+    if (tx.settle_at && new Date(tx.settle_at) > new Date()) {
+      const err = new Error("Escrow is held until the contract's maturity date");
       err.statusCode = 409;
       throw err;
     }
