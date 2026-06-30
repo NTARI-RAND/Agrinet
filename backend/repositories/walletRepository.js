@@ -53,7 +53,7 @@ async function debit(userId, amount, note, refId = null, externalConnection = nu
     }
 
     await connection.query(
-      "INSERT INTO wallet_history (user_id, type, amount, note, ref_id) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO wallet_history (user_id, type, amount, note, tx_id) VALUES (?, ?, ?, ?, ?)",
       [userId, "purchase", -amount, note, refId]
     );
 
