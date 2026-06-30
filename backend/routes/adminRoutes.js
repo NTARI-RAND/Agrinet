@@ -476,19 +476,24 @@ router.get("/disputes/:id", async (req, res) => {
 router.post("/disputes/:id/resolve", async (req, res) => {
 
   const disputeId = req.params.id;
-  const { resolution } = req.body;
+  const { resolution, voidBuyerRating, voidReason, adminRating } = req.body;
 
   try {
     // resolveDispute moves the money atomically: 'release' settles escrow to the
-    // seller, 'refund' returns the held amount to the buyer.
-    const result = await transactionService.resolveDispute(disputeId, resolution, req.user.id);
+    // seller, 'refund' returns the held amount to the buyer. On a bad-faith finding,
+    // voidBuyerRating voids the buyer's rating and adminRating issues a replacement.
+    const result = await transactionService.resolveDispute(disputeId, resolution, req.user.id, {
+      voidBuyerRating: !!voidBuyerRating,
+      voidReason,
+      adminRating,
+    });
 
     await logAdminAction(
       req.user.id,
       "resolve_dispute",
       "dispute",
       disputeId,
-      { resolution, transactionId: result.transactionId }
+      { resolution, voidBuyerRating: !!voidBuyerRating, transactionId: result.transactionId }
     );
 
     res.json({ message: "Dispute resolved", resolution });

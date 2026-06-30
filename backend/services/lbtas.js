@@ -36,6 +36,40 @@ const RATING_DESCRIPTIONS = {
   '-1': 'User was harmed, exploited, or received a product/service with evidence of no discipline or malicious intent.',
 };
 
+// A user holds a SEPARATE reputation per role — the capacity in which they acted.
+// Keyed by (activity post_type, side). `provider` = the seller/host/producer being
+// rated by a consumer; `consumer` = the buyer/guest/backer being rated by a provider.
+const RATED_ROLES = {
+  direct_market: { provider: 'market_seller', consumer: 'market_buyer' },
+  product: { provider: 'product_maker', consumer: 'product_buyer' },
+  service: { provider: 'service_provider', consumer: 'service_client' },
+  agrotourism: { provider: 'agrotourism_host', consumer: 'agrotourism_guest' },
+  plan_producer: { provider: 'plan_producer', consumer: 'plan_backer' },
+  plan_consumer: { provider: 'plan_fulfiller', consumer: 'plan_requester' },
+};
+
+const ROLE_LABELS = {
+  market_seller: 'Market Seller',
+  market_buyer: 'Market Buyer',
+  product_maker: 'Product Maker',
+  product_buyer: 'Product Buyer',
+  service_provider: 'Service Provider',
+  service_client: 'Service Client',
+  agrotourism_host: 'Agrotourism Host',
+  agrotourism_guest: 'Agrotourism Guest',
+  plan_producer: 'Plan Producer',
+  plan_backer: 'Plan Backer',
+  plan_fulfiller: 'Plan Fulfiller',
+  plan_requester: 'Plan Requester',
+  unknown: 'General',
+};
+
+// Map (post_type, side) -> the rated user's role label. Defaults to the market roles.
+function ratedRole(postType, side) {
+  const m = RATED_ROLES[postType] || RATED_ROLES.direct_market;
+  return m[side] || 'unknown';
+}
+
 function newDistribution() {
   return { '-1': 0, 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
 }
@@ -90,6 +124,9 @@ module.exports = {
   RATING_LEVELS,
   RATING_LABELS,
   RATING_DESCRIPTIONS,
+  RATED_ROLES,
+  ROLE_LABELS,
+  ratedRole,
   newDistribution,
   distributionOf,
   wordCount,

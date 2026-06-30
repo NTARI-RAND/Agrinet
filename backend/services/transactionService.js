@@ -294,7 +294,7 @@ async function createPaymentForTransaction(transactionId) {
 // auto-actioned.
 async function rateTransaction(transactionId, rating, userId, { comment = null, category = 'overall' } = {}) {
   const numericRating = Number(rating);
-  const { validateRating } = require("./lbtas");
+  const { validateRating, ratedRole } = require("./lbtas");
   const ratingRepository = require("../repositories/ratingRepository");
 
   const v = validateRating(numericRating, comment);
@@ -354,6 +354,17 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
 
     const ratedUserId = actorRole === "buyer" ? tx.seller_id : tx.buyer_id;
 
+    // The rated user's *role* is the capacity they acted in: a buyer rating a seller
+    // rates them as the provider of the post's activity (market_seller, agrotourism_host,
+    // …); a seller rating a buyer rates them as that activity's consumer. Reputations
+    // are kept separate per role.
+    let postType = 'direct_market';
+    try {
+      const [prows] = await connection.query(`SELECT post_type FROM posts WHERE id = ?`, [tx.listing_id]);
+      if (prows.length) postType = prows[0].post_type;
+    } catch (_) { /* no post row -> default market role */ }
+    const ratedRoleLabel = ratedRole(postType, actorRole === "buyer" ? "provider" : "consumer");
+
     // Persist the rating event (distribution-based reputation, never averaged).
     await ratingRepository.createRating(
       {
@@ -361,6 +372,7 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
         ratedUserId,
         raterUserId: userId,
         raterRole: actorRole,
+        ratedRole: ratedRoleLabel,
         value: numericRating,
         category,
         comment: comment || null,
@@ -704,11 +716,20 @@ async function openDispute(transactionId, userId, reason) {
 // Admin resolution of a frozen dispute: actually move the money.
 //   release -> settle escrow to the seller (complete the tx)
 //   refund  -> return the held amount to the buyer (refund the tx)
-async function resolveDispute(disputeId, resolution, adminId) {
+async function resolveDispute(disputeId, resolution, adminId, opts = {}) {
   if (resolution !== 'release' && resolution !== 'refund') {
     const err = new Error("resolution must be 'release' or 'refund'");
     err.statusCode = 400;
     throw err;
+  }
+
+  const ratingRepository = require("../repositories/ratingRepository");
+  const { validateRating, ratedRole } = require("./lbtas");
+
+  // If the admin issues a replacement rating, validate it up front (a -1 needs a comment).
+  if (opts.voidBuyerRating && opts.adminRating && opts.adminRating.value != null) {
+    const v = validateRating(Number(opts.adminRating.value), opts.adminRating.comment);
+    if (!v.ok) { const e = new Error(v.errors.join('; ')); e.statusCode = 400; throw e; }
   }
 
   const connection = await pool.getConnection();
@@ -752,6 +773,33 @@ async function resolveDispute(disputeId, resolution, adminId) {
         'refund',
         connection
       );
+    }
+
+    // Bad-faith finding: void the buyer's rating of the seller so it stops counting,
+    // and (optionally) let the admin issue a replacement rating of the seller. The
+    // seller's own rating of the buyer is untouched — it still stands.
+    if (opts.voidBuyerRating) {
+      await ratingRepository.voidRating(
+        { transactionId: tx.id, raterRole: 'buyer', voidedBy: adminId, reason: opts.voidReason || 'admin: bad-faith rating' },
+        connection
+      );
+      if (opts.adminRating && opts.adminRating.value != null) {
+        let postType = 'direct_market';
+        const [prows] = await connection.query(`SELECT post_type FROM posts WHERE id = ?`, [tx.listing_id]);
+        if (prows.length) postType = prows[0].post_type;
+        await ratingRepository.createRating(
+          {
+            transactionId: tx.id,
+            ratedUserId: tx.seller_id,
+            raterUserId: adminId,
+            raterRole: 'admin',
+            ratedRole: ratedRole(postType, 'provider'),
+            value: Number(opts.adminRating.value),
+            comment: opts.adminRating.comment || null,
+          },
+          connection
+        );
+      }
     }
 
     await connection.query(
