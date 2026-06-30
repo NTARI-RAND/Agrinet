@@ -11,6 +11,7 @@ const pool = require('../lib/db');
 const walletRepository = require('../repositories/walletRepository');
 const postRepository = require('../repositories/postRepository');
 const { auditFinancialEvent } = require('../utils/financialAudit');
+const mycelium = require('./myceliumService');
 
 const DAY = 24 * 60 * 60 * 1000;
 const STEP_DAYS = { daily: 1, weekly: 7, monthly: 30 };
@@ -147,6 +148,8 @@ async function transferContract({ transactionId, fromUserId, toEmail, price }) {
     });
 
     await connection.commit();
+    try { await mycelium.record('contract_transferred', { transactionId, data: { from: fromUserId, to: toUser.id, price: numericPrice } }); }
+    catch (e) { console.error('mycelium record failed:', e.message); }
     return { transactionId, from: fromUserId, to: toUser.id, price: numericPrice };
 
   } catch (err) {

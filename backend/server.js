@@ -331,6 +331,7 @@ app.use('/listings', require('./routes/listingRoutes'));
 app.use('/posts', require('./routes/postRoutes'));
 app.use('/ratings', require('./routes/ratingRoutes'));
 app.use('/operators', require('./routes/operatorRoutes'));
+app.use('/mycelium', require('./routes/myceliumRoutes'));
 app.use('/wallet',   require('./routes/walletRoutes'));
 app.use("/conversations", require("./routes/conversationRoutes"));
 app.use("/messages", require("./routes/messageRoutes"));

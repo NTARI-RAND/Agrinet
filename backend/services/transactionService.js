@@ -16,6 +16,14 @@ const {
   fraudBlockTotal,
   disputesOpenedTotal
 } = require("../lib/metrics");
+const mycelium = require("./myceliumService");
+
+// Append an immutable Mycelium record after a committed money event.
+// Best-effort: a ledger failure is logged but never fails the money path.
+async function ledger(eventType, transactionId, data) {
+  try { await mycelium.record(eventType, { transactionId, data }); }
+  catch (e) { console.error("mycelium record failed:", e.message); }
+}
 
 async function createTransactionWithWalletDebit(payload) {
   const numericAmount = Number(payload.amount);
@@ -216,6 +224,7 @@ async function createFromListing({ listingId, buyerId, quantity }) {
     );
 
     await connection.commit();
+    await ledger('transaction_created', transactionId, { buyer: buyerId, seller: listing.user_id, listing: listing.id, amount: totalAmount, quantity });
 
     return { transactionId, totalAmount };
 
@@ -319,6 +328,7 @@ async function createFromPlan({ planId, actorId, quantity }) {
     }
 
     await connection.commit();
+    await ledger('contract_created', transactionId, { buyer: buyerId, seller: sellerId, post: planId, amount, quantity: numericQty });
     return { transactionId, amount, buyerId, sellerId, postType: plan.post_type };
 
   } catch (err) {
@@ -528,6 +538,9 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
 
     await connection.commit();
     agrinet_rating_total.inc();
+
+    if (escrowReleased) await ledger('escrow_settled', transactionId, { seller: ratedUserId, amount: Number(tx.amount), trigger: 'rating' });
+    if (disputeOpened) await ledger('dispute_opened', transactionId, { by: userId, role: actorRole });
 
     return { message: "Rating submitted successfully", escrowReleased, disputeOpened };
 
@@ -756,6 +769,7 @@ async function releaseEscrow(transactionId, userId) {
     }
 
     await connection.commit();
+    await ledger('escrow_settled', transactionId, { seller: tx.seller_id, amount: Number(tx.amount), trigger: 'manual' });
 
     return { message: 'Escrow released' };
 
@@ -808,6 +822,7 @@ async function releaseTranche(transactionId, userId) {
     escrowReleaseSuccess.inc();
 
     await connection.commit();
+    await ledger('tranche_released', transactionId, { seller: tx.seller_id, amount: trancheAmt, tranche: done + 1, of: count });
     return { released: trancheAmt, tranches_released: done + 1, tranche_count: count };
 
   } catch (err) {
@@ -981,6 +996,7 @@ async function resolveDispute(disputeId, resolution, adminId, opts = {}) {
     );
 
     await connection.commit();
+    await ledger('dispute_resolved', tx.id, { resolution, by: adminId, voided_buyer_rating: !!opts.voidBuyerRating });
     return { message: 'Dispute resolved', resolution, transactionId: tx.id };
 
   } catch (err) {
