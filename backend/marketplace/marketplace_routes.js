@@ -184,15 +184,16 @@ router.post("/transactions/dialog-validate", asyncHandler(async (req, res) => {
 }));
 
 
-// Submit a rating
+// Submit a rating (LBTAS, bidirectional; a -1 requires a comment <=500 words)
 router.post("/transactions/rate", authenticateToken, strictWriteLimiter, asyncHandler(async (req, res) => {
   const userId = req.user.id;
-  const { transactionId, rating } = req.body;
+  const { transactionId, rating, comment, category } = req.body;
 
   const result = await transactionService.rateTransaction(
     transactionId,
     rating,
-    userId
+    userId,
+    { comment, category }
   );
 
   res.json(result);

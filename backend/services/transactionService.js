@@ -287,24 +287,19 @@ async function createPaymentForTransaction(transactionId) {
   }
 }
 
-async function rateTransaction(transactionId, rating, userId) {
+// LBTAS rating submission (Phase 3). Bidirectional, distribution-based.
+// Writes an immutable rating EVENT — it does NOT sum into users.reputation_score
+// (reputation is computed as a distribution on read; see ratingRepository). A -1
+// requires a justifying comment (<=500 words). No auto-ban: harm is surfaced, not
+// auto-actioned.
+async function rateTransaction(transactionId, rating, userId, { comment = null, category = 'overall' } = {}) {
   const numericRating = Number(rating);
-  const transaction = await transactionRepository.findById(transactionId);
+  const { validateRating } = require("./lbtas");
+  const ratingRepository = require("../repositories/ratingRepository");
 
-  if (transaction && transaction.ratingGiven) {
-    const err = new Error("Transaction already finalized");
-    err.statusCode = 409;
-    throw err;
-  }
-
-  if (transaction && transaction.status === "completed") {
-    const err = new Error("Transaction already finalized");
-    err.statusCode = 409;
-    throw err;
-  }
-
-  if (!Number.isFinite(numericRating) || numericRating < -1 || numericRating > 4) {
-    const err = new Error("Invalid rating value. Must be between -1 and 4.");
+  const v = validateRating(numericRating, comment);
+  if (!v.ok) {
+    const err = new Error(v.errors.join("; "));
     err.statusCode = 400;
     throw err;
   }
@@ -344,13 +339,7 @@ async function rateTransaction(transactionId, rating, userId) {
       throw err;
     }
 
-    if (tx.rating_given === 1) {
-      const err = new Error("Transaction already finalized");
-      err.statusCode = 409;
-      throw err;
-    }
-
-    // prevent double rating
+    // prevent double rating (one rating per direction per transaction)
     if (actorRole === "buyer" && tx.buyer_rated === 1) {
       const err = new Error("Buyer already rated");
       err.statusCode = 409;
@@ -363,7 +352,23 @@ async function rateTransaction(transactionId, rating, userId) {
       throw err;
     }
 
-    // mark rating
+    const ratedUserId = actorRole === "buyer" ? tx.seller_id : tx.buyer_id;
+
+    // Persist the rating event (distribution-based reputation, never averaged).
+    await ratingRepository.createRating(
+      {
+        transactionId,
+        ratedUserId,
+        raterUserId: userId,
+        raterRole: actorRole,
+        value: numericRating,
+        category,
+        comment: comment || null,
+      },
+      connection
+    );
+
+    // mark this side as rated
     await connection.query(
       actorRole === "buyer"
         ? `UPDATE transactions SET buyer_rated = 1 WHERE id = ?`
@@ -371,21 +376,12 @@ async function rateTransaction(transactionId, rating, userId) {
       [transactionId]
     );
 
-    const userIdToRate =
-      actorRole === "buyer" ? tx.seller_id : tx.buyer_id;
-
+    // finalize once both sides have rated
     await connection.query(
-      `UPDATE users SET reputation_score = reputation_score + ? WHERE id = ?`,
-      [numericRating, userIdToRate]
-    );
-
-    // reload updated row
-    const [updatedRows] = await connection.query(
-      `SELECT * FROM transactions WHERE id = ?`,
+      `UPDATE transactions SET rating_given = 1
+        WHERE id = ? AND buyer_rated = 1 AND seller_rated = 1`,
       [transactionId]
     );
-
-    const updated = updatedRows[0];
 
     await connection.commit();
     agrinet_rating_total.inc();

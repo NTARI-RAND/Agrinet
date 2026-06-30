@@ -9,7 +9,7 @@ Network Theory Applied Research Institute's official **frontend** for it. The go
 community of independent, AGPL-licensed frontend operators (Fruitful, and others) all
 federating through the one neutral Agrinet backend — so the network effect lives in the
 shared backend and operators compete on UX, instead of the community fragmenting into
-incompatible proprietary silos.
+incompatible siloed, copyleft instances.
 
 | Thing | Repo | Role |
 |---|---|---|
@@ -17,7 +17,7 @@ incompatible proprietary silos.
 | **Fruitful** | `NTARI-RAND/fruitful` | Frontend UI (Next.js). Split out of the monolith via subtree (history preserved). |
 | **Docs** | `NTARI-RAND/agrinet-docs` | Docusaurus site → GitHub Pages. Moving `theagri.net` → `docs.theagri.net`. |
 
-Source: derived from upstream `carloszambonii/agrinet-brazil` (scanned clean of malware before import).
+Source: derived from upstream `carloszambonii/agrinet-brazil` and the original work of Calvin Secrest https://calvinsecrest.com/, and the tireless volunteers at the Network Theory Applied Research Institute.
 
 ---
 
@@ -52,13 +52,12 @@ Source: derived from upstream `carloszambonii/agrinet-brazil` (scanned clean of 
 - **1A:** rebrand Agrinet→Fruitful; the five tabs; scaffolded `/farm`, `/services`, `/contracts`; AGPL footer with all source links. Build passes (11 routes).
 - **Remaining (org-admin actions):** merge `phase-1a → seed` via PR; establish/rename the canonical default branch (`seed` → `main`); flip the repo to public when ready.
 
-### Phase 2 — Post taxonomy + forms — ⬜ TODO
-Implement the whitepaper post types and create/list flows:
-Service (`la`/`lr`/`pr`/`cr`/`es`), Direct Market, Product, Agrotourism, Consumer/Producer Plans;
-use-categories food/pharma/fiber/chemical/mineral/ornamental. Backend schema changes.
+### Phase 2 — Post taxonomy + forms — ✅ DONE
+Backend: unified `posts` table (`post_type` + indexed common columns + JSON `payload`), per-type validation, `/posts` API, local-disk media at `/posts/upload-media`.
+Frontend (`fruitful`, branch `phase-2-forms`): config-driven create flow (`lib/postTypes.js` + `NewPostModal`) for all six types — Service (`la`/`lr`/`pr`/`cr`/`es`), Direct Market, Product, Agrotourism, Consumer/Producer Plans; `MyPosts` owner views on My Farm/My Services; Marketplace switched to the `/posts` General Broadcast with post-type pills. Use-categories food/pharma/fiber/chemical/mineral/ornamental.
 
-### Phase 3 — LBTAS — ⬜ TODO
-Vendor the v2 `lbtas.ts` (`LevesonRatingSystem`) into the Agrinet backend; swap its JSON-file storage for the DB; one `−1…+4` rating per transaction; distribution-based, no averaging, no auto-ban.
+### Phase 3 — LBTAS — ✅ DONE
+Vendored the v2 LBTAS model into the Agrinet backend as a DB-backed **event store** (`lbtas_ratings`), replacing the old `reputation_score` sum. Reputation is a **distribution** computed on read (per-level counts + total + transaction count + first/last rated), **never averaged**; **no auto-ban**. Bidirectional (`buyer`/`seller`), one rating per direction per transaction. A `−1` ("No Trust") requires a justifying comment ≤500 words, enforced at the boundary. New `/ratings` API: `scale` (public), `me`, `me/pending` (prompt feed), `users/:id` (public distribution), `transactions/:id` (review — parties/admin, fail-closed), `report` + `harm-flagged` (admin). The Bayesian-averaging `utils/reputation.js` is now a throwing deprecation stub.
 
 ### Phase 4 — Plans / PING / settlement + escrow gate — ⬜ TODO
 Consumer/Producer plans, PING schedule + calendar, delayed-settlement holds, contract shares, PING updates with files. **Wire the LBTAS gate into the escrow-release path** (`releaseTx`): no release signal to Stripe until the consumer's rating is in.
