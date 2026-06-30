@@ -280,13 +280,22 @@ async function createFromPlan({ planId, actorId, quantity }) {
       const e = new Error("This plan is sold in whole shares"); e.statusCode = 400; throw e;
     }
 
-    // Delayed settlement: if the plan settles "at maturity", snapshot the maturity
-    // date so escrow can't release before then. Null = settle on confirmation.
+    // Settlement model:
+    //   maturity -> snapshot a settle_at date; escrow can't release before then
+    //   tranches -> split escrow into N progress payments (buyer releases as the
+    //               producer reports; the final tranche is gated by the rating)
+    //   on_confirmation (default) -> release in full on the buyer's rating
     let settleAt = null;
+    let trancheCount = null;
     if (payload.settlement === 'maturity') {
       const d = payload.expected_harvest_date || payload.desired_harvest_date || payload.needed_by_date;
       const dt = d ? new Date(d) : null;
       if (dt && !isNaN(dt.getTime())) settleAt = dt.toISOString().slice(0, 19).replace('T', ' ');
+    } else if (payload.settlement === 'tranches') {
+      let n = parseInt(payload.tranche_count, 10);
+      if (!Number.isFinite(n) || n < 2) n = 3;
+      if (n > 12) n = 12;
+      trancheCount = n;
     }
 
     const unitPrice = Number(plan.price);
@@ -294,9 +303,9 @@ async function createFromPlan({ planId, actorId, quantity }) {
     const transactionId = randomUUID();
 
     await connection.query(
-      `INSERT INTO transactions (id, buyer_id, seller_id, post_id, listing_title, quantity, unit_price, amount, status, settle_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
-      [transactionId, buyerId, sellerId, planId, plan.title, numericQty, unitPrice, amount, settleAt]
+      `INSERT INTO transactions (id, buyer_id, seller_id, post_id, listing_title, quantity, unit_price, amount, status, settle_at, tranche_count)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+      [transactionId, buyerId, sellerId, planId, plan.title, numericQty, unitPrice, amount, settleAt, trancheCount]
     );
 
     if (plan.quantity_available != null) {
@@ -505,11 +514,8 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
         );
         disputeOpened = true;
       } else {
-        escrowReleased = await _settleEscrow(
-          { id: transactionId, amount: tx.amount, seller_id: tx.seller_id },
-          connection,
-          { actorId: userId, source: 'lbtas_gate' }
-        );
+        // pass the full row so _settleEscrow sees released_amount (tranche contracts)
+        escrowReleased = await _settleEscrow(tx, connection, { actorId: userId, source: 'lbtas_gate' });
       }
     }
 
@@ -671,26 +677,29 @@ async function _settleEscrow(tx, connection, { actorId, source }) {
   // the real "funds still held" flag; callers validate the higher-level state.
   const [updateTx] = await connection.query(
     `UPDATE transactions
-       SET status='completed', escrow_locked=0, escrow_released_at=NOW()
+       SET status='completed', escrow_locked=0, escrow_released_at=NOW(), released_amount = amount
      WHERE id=? AND escrow_locked=1 AND status IN ('paid','disputed')`,
     [tx.id]
   );
   if (updateTx.affectedRows === 0) return false;
 
-  await connection.query(
-    `UPDATE wallets SET balance = balance + ? WHERE user_id = ?`,
-    [tx.amount, tx.seller_id]
-  );
-
-  await auditFinancialEvent({
-    eventType: "escrow_release",
-    userId: actorId,
-    transactionId: tx.id,
-    walletUserId: tx.seller_id,
-    amount: tx.amount,
-    metadata: { source },
-    connection
-  });
+  // Release only what is still held (intermediate tranches may already be paid out).
+  const remaining = Number(tx.amount) - Number(tx.released_amount || 0);
+  if (remaining > 0) {
+    await connection.query(
+      `UPDATE wallets SET balance = balance + ? WHERE user_id = ?`,
+      [remaining, tx.seller_id]
+    );
+    await auditFinancialEvent({
+      eventType: "escrow_release",
+      userId: actorId,
+      transactionId: tx.id,
+      walletUserId: tx.seller_id,
+      amount: remaining,
+      metadata: { source },
+      connection
+    });
+  }
 
   escrowReleaseSuccess.inc();
   return true;
@@ -749,6 +758,57 @@ async function releaseEscrow(transactionId, userId) {
     await connection.commit();
 
     return { message: 'Escrow released' };
+
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
+// Release one intermediate progress tranche to the producer (buyer-initiated, as
+// the producer posts PING progress). The final tranche is NOT released here — it is
+// gated by the buyer's rating (rateTransaction -> _settleEscrow releases the rest).
+async function releaseTranche(transactionId, userId) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [rows] = await connection.query(`SELECT * FROM transactions WHERE id = ? FOR UPDATE`, [transactionId]);
+    const tx = rows[0];
+    if (!tx) { const e = new Error("Transaction not found"); e.statusCode = 404; throw e; }
+    if (tx.buyer_id !== userId) { const e = new Error("Only the buyer can release a progress payment"); e.statusCode = 403; throw e; }
+    if (!tx.tranche_count) { const e = new Error("This contract is not on progress payments"); e.statusCode = 400; throw e; }
+    if (tx.status !== 'paid' || tx.escrow_locked !== 1) { const e = new Error("No live escrow to release"); e.statusCode = 409; throw e; }
+
+    const count = Number(tx.tranche_count);
+    const done = Number(tx.tranches_released || 0);
+    if (done >= count - 1) {
+      const e = new Error("Only the final payment remains — release it by confirming/rating the contract");
+      e.statusCode = 409; throw e;
+    }
+
+    const trancheAmt = Math.round((Number(tx.amount) / count) * 100) / 100;
+
+    await connection.query(`UPDATE wallets SET balance = balance + ? WHERE user_id = ?`, [trancheAmt, tx.seller_id]);
+    await connection.query(
+      `UPDATE transactions SET released_amount = released_amount + ?, tranches_released = tranches_released + 1 WHERE id = ?`,
+      [trancheAmt, transactionId]
+    );
+    await auditFinancialEvent({
+      eventType: "escrow_release",
+      userId,
+      transactionId,
+      walletUserId: tx.seller_id,
+      amount: trancheAmt,
+      metadata: { source: 'tranche', tranche: done + 1, of: count },
+      connection
+    });
+    escrowReleaseSuccess.inc();
+
+    await connection.commit();
+    return { released: trancheAmt, tranches_released: done + 1, tranche_count: count };
 
   } catch (err) {
     await connection.rollback();
@@ -873,15 +933,19 @@ async function resolveDispute(disputeId, resolution, adminId, opts = {}) {
         [tx.id]
       );
       if (upd.affectedRows === 0) { const e = new Error('Transaction not eligible for refund'); e.statusCode = 409; throw e; }
-      await walletRepository.credit(
-        tx.buyer_id,
-        Number(tx.amount),
-        `Refund (dispute): ${tx.listing_title || ''}`.trim(),
-        tx.id,
-        null,
-        'refund',
-        connection
-      );
+      // Only the still-held amount returns to the buyer (released tranches already paid out).
+      const refundable = Number(tx.amount) - Number(tx.released_amount || 0);
+      if (refundable > 0) {
+        await walletRepository.credit(
+          tx.buyer_id,
+          refundable,
+          `Refund (dispute): ${tx.listing_title || ''}`.trim(),
+          tx.id,
+          null,
+          'refund',
+          connection
+        );
+      }
     }
 
     // Bad-faith finding: void the buyer's rating of the seller so it stops counting,
@@ -933,6 +997,7 @@ module.exports = {
   createFromPlan,
   createPaymentForTransaction,
   releaseEscrow,
+  releaseTranche,
   pingTransaction,
   rateTransaction,
   resolveFlag,

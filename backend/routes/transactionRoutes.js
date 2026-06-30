@@ -123,6 +123,15 @@ router.post('/:id/release', userRateLimiter, async (req, res) => {
   }
 });
 
+router.post('/:id/release-tranche', userRateLimiter, async (req, res) => {
+  try {
+    const result = await transactionService.releaseTranche(req.params.id, req.user.id);
+    return res.json(result);
+  } catch (err) {
+    return res.status(err.statusCode || 400).json({ error: err.message });
+  }
+});
+
 router.post('/:id/dispute', userRateLimiter, async (req, res) => {
   try {
     const { id } = req.params;
