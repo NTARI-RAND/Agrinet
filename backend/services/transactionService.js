@@ -265,6 +265,19 @@ async function createFromPlan({ planId, actorId, quantity }) {
       const e = new Error("Insufficient plan quantity"); e.statusCode = 400; throw e;
     }
 
+    // Contract shares (§4.5.3.4): how a plan may be split across backers.
+    //   none     -> not divisible: one backer must take the full remaining quantity
+    //   fixed    -> divisible in whole shares (integer quantities)
+    //   variable -> divisible into any quantity (default)
+    let sharePolicy = 'variable';
+    try { sharePolicy = (plan.payload ? JSON.parse(plan.payload) : {}).contract_shares || 'variable'; } catch { /* default */ }
+    if (sharePolicy === 'none' && (plan.quantity_available == null || Number(plan.quantity_available) !== numericQty)) {
+      const e = new Error("This plan is not divisible — contract the full remaining quantity"); e.statusCode = 400; throw e;
+    }
+    if (sharePolicy === 'fixed' && !Number.isInteger(numericQty)) {
+      const e = new Error("This plan is sold in whole shares"); e.statusCode = 400; throw e;
+    }
+
     const unitPrice = Number(plan.price);
     const amount = unitPrice * numericQty;
     const transactionId = randomUUID();

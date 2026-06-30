@@ -1,4 +1,5 @@
 const express = require('express');
+const pool = require('../lib/db');
 const repo = require('../repositories/postRepository');
 const { validate } = require('../services/postTypes');
 const { authenticateToken, optionalAuth } = require('../middleware/authMiddleware');
@@ -35,6 +36,45 @@ router.get('/:id', optionalAuth, async (req, res) => {
     const post = await repo.getById(req.params.id);
     if (!post) return res.status(404).json({ error: 'Post not found' });
     res.json(post);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+/* ── GET /posts/:id/contracts — plan share allocation (backers + remaining) ── */
+router.get('/:id/contracts', optionalAuth, async (req, res) => {
+  try {
+    const post = await repo.getById(req.params.id);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    const [[agg]] = await pool.query(
+      `SELECT COUNT(*) AS backer_count, COALESCE(SUM(quantity), 0) AS allocated
+         FROM transactions WHERE post_id = ? AND status <> 'cancelled'`,
+      [req.params.id]
+    );
+    const allocated = Number(agg.allocated) || 0;
+    const remaining = post.quantity_available != null ? Number(post.quantity_available) : null;
+
+    const out = {
+      post_id: post.id,
+      contract_shares: post.payload?.contract_shares || 'variable',
+      backer_count: Number(agg.backer_count) || 0,
+      allocated,
+      remaining,
+      total: remaining != null ? allocated + remaining : null,
+    };
+
+    // The plan owner sees the individual backers.
+    if (req.user && req.user.id === post.user_id) {
+      const [backers] = await pool.query(
+        `SELECT id, buyer_id, quantity, amount, status, created_at
+           FROM transactions WHERE post_id = ? ORDER BY created_at DESC`,
+        [req.params.id]
+      );
+      out.backers = backers;
+    }
+
+    res.json(out);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
