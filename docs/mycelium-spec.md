@@ -1,8 +1,8 @@
 # Mycelium: The Immutable Transaction-Record Ledger
 
 **Network Theory Applied Research Institute**
-Document ID: P3-013 · Version: 0.2 (Draft) · June 2026
-*Companion to P3-011 v2 (Janus Facing Applications), P3-012 (Agrinet Protocol Specification), and the LBTAS specification.*
+Document ID: P3-013 · Version: 0.3 (Draft) · June 2026
+*Companion to P3-011 v2 (Janus Facing Applications), P3-012 (Agrinet Protocol Specification), and the LBTAS specification. Held to* Janus-Facing Architecture *(builder's guide, v2.0) and* Building JFA Software *(v1.0). Canonical home: the* NTARI-RAND/Mycelium *repository; this copy is mirrored for the JFA paper.*
 
 ---
 
@@ -27,6 +27,12 @@ below:
    information. The non-erasable record is, by construction, PII-free; the erasable
    PII lives at the front end. This is what lets an immutable record coexist with
    privacy law and a right to be forgotten (P3-011 §6, research agenda).
+3. **Per-operator logs, witnessed — detection, not prevention (P3-011 §3.1).** There is
+   **no global chain and no consensus layer** over unrelated exchanges. Each operator
+   keeps its **own** append-only log and publishes **signed, monotonic checkpoints** to
+   independent witnesses; equivocation (showing two histories) is thereby made
+   **evident**, not impossible. This is the Certificate Transparency model (RFC 6962).
+   Detection is only as strong as a verifier's reach to independent witnesses (§5, §9).
 
 Mycelium does **not** attest the honesty of a computation *inside* a record (§9). It
 attests the **sequence and integrity** of the record itself.
@@ -130,24 +136,42 @@ After sealing, the file is immutable.
 
 ---
 
-## 5. The inter-dialog chain (the ledger)
+## 5. The per-operator log and witnessing (the ledger)
 
-Sealed dialogs are linked into one global, append-only chain. Each **anchor** binds a
-sealed dialog's file hash to the previous anchor:
+Sealed dialogs are linked into a **per-operator**, append-only chain — **not one global
+chain, and not a consensus layer**. The *form* of the log is shared (the construction
+is domain-independent); each operator runs a **separate** log over that form, scoped by
+`operator_id`. Each **anchor** binds a sealed dialog's file hash to the previous anchor
+in that operator's log:
 
 ```
-anchor = { dialog_id, file_hash F, sealed_at, prev_anchor_hash }
+anchor = { operator_id, dialog_id, file_hash F, sealed_at, prev_anchor_hash }
 anchor.hash = H(prev_anchor_hash ‖ canonical(anchor))
 ```
 
-This is the Mycelium ledger: a hash chain of sealed exchanges. Editing or removing any
-anchored dialog breaks the chain from that point forward, so the ledger is
-tamper-evident as a whole. Anchors are append-only; there is no update and no delete.
-A `verify` walks the chain, recomputes every link, and reports the first break.
+Editing or removing any anchored dialog breaks the chain from that point forward, so
+the log is tamper-evident as a whole. Anchors are append-only; there is no update and
+no delete. A `verify` walks the log, recomputes every link, and reports the first break.
+
+### 5.1 Non-equivocation by witnessing
+
+Integrity *across* operators comes from **witnessing**, not from a shared authority. An
+operator publishes **signed, monotonic checkpoints** of its log head to independent
+witnesses. An operator that shows two different histories thereby emits two
+validly-signed, mutually-inconsistent checkpoints — a self-evident, attributable,
+portable proof that it lied (Certificate Transparency, RFC 6962). A verifier SHOULD
+check inclusion proofs cheaply and automatically on read.
+
+> **Status (honest):** the witness layer — checkpoint publication, independent
+> witnesses, cross-operator inclusion proofs — is **intended, not yet built**. Until it
+> exists, non-equivocation rests on there being a **single backend**, and the current
+> anchor chain is effectively one operator's log. Building this is the single
+> highest-leverage step toward real federation.
 
 Two chains, two scopes: the **intra-dialog** chain (§3) protects the order and content
-of one exchange as it is built; the **inter-dialog** chain (§5) protects the set of
-completed exchanges against later rewriting.
+of one exchange as it is built; the **per-operator** chain (§5) protects that operator's
+set of completed exchanges against later rewriting, with witnessing (§5.1) extending
+non-equivocation across operators.
 
 ---
 
@@ -229,8 +253,10 @@ from P3-012 can verify the record independently and stay on the network.
   sealed record.
 - **Operator keys (P3-012 §2):** supply per-transmission authenticity; Mycelium supplies
   order and immutability.
-- **Federation:** anchors and structural records MAY federate across protocol nodes;
-  operator-local narratives MUST NOT.
+- **Federation & witnessing:** each operator keeps its own log and publishes signed
+  checkpoints to independent witnesses (§5.1); anchors and structural records MAY
+  federate across nodes, operator-local narratives MUST NOT. Non-equivocation is by
+  witnessing, never by a global chain or consensus.
 
 ---
 
@@ -264,6 +290,8 @@ contains the dispute and its dismissal — the forgiveness is on the record, not
 | Per-transmission operator signing of intra-dialog events | **Not yet** | Sign messages/events (rides with operator onboarding / Cloudflare). |
 | PII never anchored; narrative operator-local | **Implemented** (only refs in `data`; narrative in `rating_narratives`) | Relocate the narrative store to the front end when Fruitful gains one; federation excludes it. |
 | Annotate-not-erase; post-seal annotation | **Implemented** (post-seal `record` → `annotation` anchor) | — |
+| Per-operator log scoping (`operator_id`) | **Not conformant** (single global anchor chain) | Add `operator_id` to `mycelium_log` + `mycelium_anchors`; scope the chain per operator. |
+| Witnessing — signed checkpoints, independent witnesses, inclusion proofs (§5.1) | **Not built** (intended) | Certificate-Transparency checkpointing across operators. Highest-leverage federation step. |
 
 ---
 
