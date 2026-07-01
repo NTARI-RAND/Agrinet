@@ -17,6 +17,9 @@ const {
   disputesOpenedTotal
 } = require("../lib/metrics");
 const mycelium = require("./myceliumService");
+const ledger = require("../repositories/ledgerRepository");
+const settings = require("../repositories/settingsRepository");
+const { ACCOUNTS } = ledger;
 
 // Append a transmission to a transaction's Mycelium dialog (best-effort — a ledger
 // failure is logged but never fails the money path). `data` carries refs + facts only.
@@ -92,16 +95,18 @@ async function createTransactionWithWalletDebit(payload) {
   try {
     await connection.beginTransaction();
 
-    // 🔒 Debit using SAME connection
-    await walletRepository.debit(
-      buyerId,
-      numericAmount,
-      `Purchase: ${payload.listingTitle || ""}`.trim(),
-      null,
-      connection
-    );
-
     const id = randomUUID();
+
+    // Fund escrow from the buyer's in-network balance (net-zero): buyer -A, escrow +A.
+    // (Fiat purchases fund escrow via the Stripe webhook instead; JFA §7.2/§7.3.)
+    await ledger.post(
+      connection,
+      { txId: id, kind: 'escrow_fund', entries: [
+        { account: buyerId, amount: -numericAmount },
+        { account: ACCOUNTS.ESCROW, amount: numericAmount },
+      ] },
+      { checkFunds: true }
+    );
 
     const item = createTransactionItem({
       ...payload,
@@ -527,6 +532,7 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
     // funds. A 0..+4 releases to the producer. A -1 ("No Trust") instead FREEZES the
     // funds and auto-opens a dispute (the mandatory -1 comment is the dispute reason)
     // for manual admin resolution. The producer's post-hoc rating never moves money.
+    let settle = null;
     let escrowReleased = false;
     let disputeOpened = false;
     if (actorRole === "buyer" && tx.status === "paid" && tx.escrow_locked === 1) {
@@ -539,7 +545,8 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
         disputeOpened = true;
       } else {
         // pass the full row so _settleEscrow sees released_amount (tranche contracts)
-        escrowReleased = await _settleEscrow(tx, connection, { actorId: userId, source: 'lbtas_gate' });
+        settle = await _settleEscrow(tx, connection, { actorId: userId, source: 'lbtas_gate' });
+        escrowReleased = !!settle;
       }
     }
 
@@ -554,7 +561,8 @@ async function rateTransaction(transactionId, rating, userId, { comment = null, 
     agrinet_rating_total.inc();
 
     await logTx('rating', transactionId, { actorId: userId, actorRole, ratedRole: ratedRoleLabel, value: numericRating });
-    if (escrowReleased) await logTx('escrow_settled', transactionId, { actorId: userId, seller: ratedUserId, amount: Number(tx.amount), trigger: 'rating' });
+    if (escrowReleased) await logTx('escrow_settled', transactionId, { actorId: userId, seller: ratedUserId, amount: settle.sellerNet, gross: Number(tx.amount), fee: settle.fee, trigger: 'rating' });
+    if (escrowReleased && settle.fee > 0) await logTx('platform_fee', transactionId, { actorId: 'platform', amount: settle.fee, trigger: 'rating' });
     if (disputeOpened) await logTx('audit_open', transactionId, { actorId: userId, role: actorRole, target: 'rating' });
     await sealIfComplete(transactionId);
 
@@ -620,15 +628,14 @@ async function resolveFlag(transactionId, action, adminId) {
         throw err;
       }
 
-      // 1️⃣ Refund buyer inside SAME transaction
-      await walletRepository.credit(
-        transaction.buyer_id,
-        Number(transaction.amount),
-        `Refund: ${transaction.listing_title || ""}`,
-        `${transactionId}-refund`,
-        null,
-        "deposit"
-      );
+      // 1️⃣ Refund buyer inside the SAME db transaction: escrow -> buyer (net-zero).
+      const refundable = Number(transaction.amount) - Number(transaction.released_amount || 0);
+      if (refundable > 0) {
+        await ledger.post(connection, { txId: transactionId, kind: 'refund', entries: [
+          { account: ACCOUNTS.ESCROW, amount: -refundable },
+          { account: transaction.buyer_id, amount: refundable },
+        ] });
+      }
 
       // 2️⃣ Cancel transaction + unlock escrow
       await connection.query(
@@ -714,24 +721,33 @@ async function _settleEscrow(tx, connection, { actorId, source }) {
 
   // Release only what is still held (intermediate tranches may already be paid out).
   const remaining = Number(tx.amount) - Number(tx.released_amount || 0);
+  let fee = 0, sellerNet = 0;
   if (remaining > 0) {
-    await connection.query(
-      `UPDATE wallets SET balance = balance + ? WHERE user_id = ?`,
-      [remaining, tx.seller_id]
-    );
+    // Split the release: seller gets amount - fee; the platform fee is a visible
+    // ledger entry to the `platform` account (JFA §7.4, transparent fee). Net-zero.
+    const bps = await settings.getFeeBps(connection);
+    fee = settings.feeFor(remaining, bps);
+    sellerNet = ledger.round2(remaining - fee);
+    const entries = [
+      { account: ACCOUNTS.ESCROW, amount: -remaining },
+      { account: tx.seller_id, amount: sellerNet },
+    ];
+    if (fee > 0) entries.push({ account: ACCOUNTS.PLATFORM, amount: fee });
+    await ledger.post(connection, { txId: tx.id, kind: 'escrow_release', entries });
+
     await auditFinancialEvent({
       eventType: "escrow_release",
       userId: actorId,
       transactionId: tx.id,
       walletUserId: tx.seller_id,
-      amount: remaining,
-      metadata: { source },
+      amount: sellerNet,
+      metadata: { source, fee, fee_bps: bps },
       connection
     });
   }
 
   escrowReleaseSuccess.inc();
-  return true;
+  return { fee, sellerNet, remaining };
 }
 
 async function releaseEscrow(transactionId, userId) {
@@ -779,13 +795,14 @@ async function releaseEscrow(transactionId, userId) {
       throw err;
     }
 
-    const released = await _settleEscrow(tx, connection, { actorId: userId, source: 'manual' });
-    if (!released) {
+    const settle = await _settleEscrow(tx, connection, { actorId: userId, source: 'manual' });
+    if (!settle) {
       throw new Error('Escrow already released or transaction not eligible');
     }
 
     await connection.commit();
-    await logTx('escrow_settled', transactionId, { actorId: userId, seller: tx.seller_id, amount: Number(tx.amount), trigger: 'manual' });
+    await logTx('escrow_settled', transactionId, { actorId: userId, seller: tx.seller_id, amount: settle.sellerNet, gross: Number(tx.amount), fee: settle.fee, trigger: 'manual' });
+    if (settle.fee > 0) await logTx('platform_fee', transactionId, { actorId: 'platform', amount: settle.fee, trigger: 'manual' });
     await sealIfComplete(transactionId);
 
     return { message: 'Escrow released' };
@@ -821,8 +838,18 @@ async function releaseTranche(transactionId, userId) {
     }
 
     const trancheAmt = Math.round((Number(tx.amount) / count) * 100) / 100;
+    const bps = await settings.getFeeBps(connection);
+    const fee = settings.feeFor(trancheAmt, bps);
+    const sellerNet = ledger.round2(trancheAmt - fee);
 
-    await connection.query(`UPDATE wallets SET balance = balance + ? WHERE user_id = ?`, [trancheAmt, tx.seller_id]);
+    // escrow -> seller (net of fee) + platform (fee). Net-zero.
+    const entries = [
+      { account: ACCOUNTS.ESCROW, amount: -trancheAmt },
+      { account: tx.seller_id, amount: sellerNet },
+    ];
+    if (fee > 0) entries.push({ account: ACCOUNTS.PLATFORM, amount: fee });
+    await ledger.post(connection, { txId: transactionId, kind: 'tranche', entries });
+
     await connection.query(
       `UPDATE transactions SET released_amount = released_amount + ?, tranches_released = tranches_released + 1 WHERE id = ?`,
       [trancheAmt, transactionId]
@@ -832,15 +859,16 @@ async function releaseTranche(transactionId, userId) {
       userId,
       transactionId,
       walletUserId: tx.seller_id,
-      amount: trancheAmt,
-      metadata: { source: 'tranche', tranche: done + 1, of: count },
+      amount: sellerNet,
+      metadata: { source: 'tranche', tranche: done + 1, of: count, fee, fee_bps: bps },
       connection
     });
     escrowReleaseSuccess.inc();
 
     await connection.commit();
-    await logTx('tranche_released', transactionId, { actorId: userId, seller: tx.seller_id, amount: trancheAmt, tranche: done + 1, of: count });
-    return { released: trancheAmt, tranches_released: done + 1, tranche_count: count };
+    await logTx('tranche_released', transactionId, { actorId: userId, seller: tx.seller_id, amount: sellerNet, gross: trancheAmt, fee, tranche: done + 1, of: count });
+    if (fee > 0) await logTx('platform_fee', transactionId, { actorId: 'platform', amount: fee, trigger: 'tranche' });
+    return { released: sellerNet, gross: trancheAmt, fee, tranches_released: done + 1, tranche_count: count };
 
   } catch (err) {
     await connection.rollback();
@@ -954,11 +982,12 @@ async function resolveDispute(disputeId, resolution, adminId, opts = {}) {
     if (!tx) { const e = new Error('Transaction not found'); e.statusCode = 404; throw e; }
     if (tx.escrow_locked !== 1) { const e = new Error('Escrow already released'); e.statusCode = 409; throw e; }
 
+    let settle = null;
     if (resolution === 'release') {
-      const ok = await _settleEscrow(tx, connection, { actorId: adminId, source: 'dispute_release' });
-      if (!ok) { const e = new Error('Transaction not eligible for release'); e.statusCode = 409; throw e; }
+      settle = await _settleEscrow(tx, connection, { actorId: adminId, source: 'dispute_release' });
+      if (!settle) { const e = new Error('Transaction not eligible for release'); e.statusCode = 409; throw e; }
     } else {
-      // refund: unlock + mark refunded first (guarded), then credit the buyer back
+      // refund: unlock + mark refunded first (guarded), then return held funds to the buyer
       const [upd] = await connection.query(
         `UPDATE transactions SET status='refunded', escrow_locked=0
           WHERE id=? AND escrow_locked=1`,
@@ -968,15 +997,15 @@ async function resolveDispute(disputeId, resolution, adminId, opts = {}) {
       // Only the still-held amount returns to the buyer (released tranches already paid out).
       const refundable = Number(tx.amount) - Number(tx.released_amount || 0);
       if (refundable > 0) {
-        await walletRepository.credit(
-          tx.buyer_id,
-          refundable,
-          `Refund (dispute): ${tx.listing_title || ''}`.trim(),
-          tx.id,
-          null,
-          'refund',
-          connection
-        );
+        // escrow -> buyer (net-zero)
+        await ledger.post(connection, { txId: tx.id, kind: 'refund', entries: [
+          { account: ACCOUNTS.ESCROW, amount: -refundable },
+          { account: tx.buyer_id, amount: refundable },
+        ] });
+        await auditFinancialEvent({
+          eventType: 'refund', userId: adminId, transactionId: tx.id,
+          walletUserId: tx.buyer_id, amount: refundable, metadata: { source: 'dispute' }, connection,
+        });
       }
     }
 
@@ -1013,7 +1042,10 @@ async function resolveDispute(disputeId, resolution, adminId, opts = {}) {
     );
 
     await connection.commit();
-    if (resolution === 'release') await logTx('escrow_settled', tx.id, { actorId: adminId, seller: tx.seller_id, trigger: 'dispute' });
+    if (resolution === 'release') {
+      await logTx('escrow_settled', tx.id, { actorId: adminId, seller: tx.seller_id, amount: settle.sellerNet, gross: Number(tx.amount), fee: settle.fee, trigger: 'dispute' });
+      if (settle.fee > 0) await logTx('platform_fee', tx.id, { actorId: 'platform', amount: settle.fee, trigger: 'dispute' });
+    }
     else if (resolution === 'refund') await logTx('refunded', tx.id, { actorId: adminId, buyer: tx.buyer_id, trigger: 'dispute' });
     if (opts.voidBuyerRating) await logTx('rating_dismissed', tx.id, { actorId: adminId, target: 'buyer_rating' });
     await logTx('audit_resolved', tx.id, { actorId: adminId, outcome: resolution });
@@ -1070,15 +1102,17 @@ async function _defaultRate(txId, side) {
       [tx.id]
     );
 
-    let released = false;
+    let settle = null;
     if (side === "buyer" && tx.status === "paid" && tx.escrow_locked === 1) {
-      released = await _settleEscrow(tx, connection, { actorId: "system", source: "timeout" });
+      settle = await _settleEscrow(tx, connection, { actorId: "system", source: "timeout" });
     }
+    const released = !!settle;
     await connection.query("UPDATE transactions SET rating_given = 1 WHERE id = ? AND buyer_rated = 1 AND seller_rated = 1", [tx.id]);
     await connection.commit();
 
     await logTx("rating", tx.id, { actorId: "system", actorRole: "system", ratedRole: ratedRoleLabel, value: TIMEOUT_DEFAULT, timeout_default: true });
-    if (released) await logTx("escrow_settled", tx.id, { actorId: "system", seller: tx.seller_id, amount: Number(tx.amount), trigger: "timeout" });
+    if (released) await logTx("escrow_settled", tx.id, { actorId: "system", seller: tx.seller_id, amount: settle.sellerNet, gross: Number(tx.amount), fee: settle.fee, trigger: "timeout" });
+    if (released && settle.fee > 0) await logTx("platform_fee", tx.id, { actorId: "platform", amount: settle.fee, trigger: "timeout" });
     await sealIfComplete(tx.id);
     return true;
   } catch (e) {

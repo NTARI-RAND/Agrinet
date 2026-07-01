@@ -1,41 +1,27 @@
 const express = require("express");
-const { createPixPayment } = require("../services/stripeService");
 const { authenticateToken } = require("../middleware/authMiddleware");
 const { strictWriteLimiter, userRateLimiter } = require("../middlewares/rateLimiters");
-const pool = require("../lib/db");
+const settingsRepository = require("../repositories/settingsRepository");
 
 const router = express.Router();
 
-router.post("/pix/create", authenticateToken, userRateLimiter, strictWriteLimiter, async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const { amount } = req.body;
+// Retired (JFA §7.3): the in-network unit is not purchasable — there is no general
+// wallet top-up. Payments fund a specific transaction's escrow via the transaction
+// payment flow (createPaymentForTransaction); a generic fiat deposit would make the
+// unit purchasable (deposit-taking), which the architecture forbids.
+router.post("/pix/create", authenticateToken, userRateLimiter, strictWriteLimiter, (req, res) => {
+  res.status(410).json({
+    error: "Wallet top-up is retired. Pay for a specific transaction's escrow instead.",
+    code: "PURCHASABILITY_RETIRED",
+  });
+});
 
-    const paymentIntent = await createPixPayment({ amount, userId });
-
-    await pool.query(
-      `
-      INSERT INTO payments (
-        id,
-        user_id,
-        amount,
-        status,
-        provider,
-        expires_at
-      )
-      VALUES (?, ?, ?, 'pending', 'stripe', DATE_ADD(NOW(), INTERVAL 15 MINUTE))
-      `,
-      [paymentIntent.id, userId, amount]
-    );
-
-    res.json({
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id,
-      amount: paymentIntent.amount
-    });
-  } catch (err) {
-    next(err);
-  }
+// Public transparency: the current platform fee (JFA §7.4, open problem 7 — fees are
+// transparent and contestable). The fee also appears as a visible ledger entry on
+// every settlement.
+router.get("/fee", async (_req, res) => {
+  const bps = await settingsRepository.getFeeBps();
+  res.json({ fee_bps: bps, fee_percent: bps / 100 });
 });
 
 module.exports = router;
