@@ -1,6 +1,7 @@
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const pool = require("../lib/db");
 const walletRepository = require("../repositories/walletRepository");
+const ledger = require("../repositories/ledgerRepository");
 const { auditFinancialEvent } = require("../utils/financialAudit");
 const {
   stripePaymentSucceededTotal,
@@ -102,45 +103,53 @@ module.exports = async (req, res) => {
 
       const transactionId = paymentIntent.metadata?.transactionId;
 
-      if (transactionId) {
-        await connection.query(
-          `UPDATE transactions
-           SET status = 'paid'
-           WHERE id = ? AND status = 'pending'`,
-          [transactionId]
-        );
+      if (!transactionId) {
+        // JFA §7.3: the in-network unit is not purchasable — there is no general
+        // wallet top-up. Every payment funds a specific transaction's escrow. A
+        // payment with no transactionId is out of the escrow model; do not credit
+        // any wallet.
+        console.warn("Payment without transactionId — no wallet credited (purchasability retired):", paymentIntent.id);
+        await connection.commit();
+        return res.json({ received: true });
       }
 
-      console.log("Crediting wallet...");
+      // Fund THIS transaction's escrow from the fiat on-ramp (net-zero):
+      // fiat_gateway -A, escrow +A. No general spendable balance is created.
+      await connection.query(
+        `UPDATE transactions
+           SET status = 'paid', escrow_locked = 1
+         WHERE id = ? AND status = 'pending'`,
+        [transactionId]
+      );
 
-      await walletRepository.credit(
-        payment.user_id,
-        Number(payment.amount),
-        "Stripe deposit",
-        null,
-        paymentIntent.id,
-        "deposit",
-        connection
+      await ledger.post(
+        connection,
+        { txId: transactionId, kind: 'escrow_fund', entries: [
+          { account: ledger.ACCOUNTS.FIAT_GATEWAY, amount: -Number(payment.amount) },
+          { account: ledger.ACCOUNTS.ESCROW, amount: Number(payment.amount) },
+        ] }
       );
 
       await auditFinancialEvent({
         eventType: "payment",
         userId: payment.user_id,
+        transactionId,
         paymentId: paymentIntent.id,
         amount: Number(payment.amount),
         metadata: {
           provider: "stripe",
-          type: "deposit"
+          type: "escrow_fund"
         },
         connection
       });
 
+      // Fraud velocity: too many succeeded payments in a short window.
       const [velocityRows] = await connection.query(
         `
         SELECT COUNT(*) as count
-        FROM wallet_history
+        FROM payments
         WHERE user_id = ?
-        AND type = 'deposit'
+        AND status = 'succeeded'
         AND created_at >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)
         `,
         [payment.user_id]

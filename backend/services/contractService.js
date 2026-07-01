@@ -9,6 +9,7 @@
 const { randomUUID } = require('crypto');
 const pool = require('../lib/db');
 const walletRepository = require('../repositories/walletRepository');
+const ledger = require('../repositories/ledgerRepository');
 const postRepository = require('../repositories/postRepository');
 const { auditFinancialEvent } = require('../utils/financialAudit');
 const mycelium = require('./myceliumService');
@@ -126,9 +127,15 @@ async function transferContract({ transactionId, fromUserId, toEmail, price }) {
     if (toUser.id === fromUserId) { const e = new Error('Cannot transfer to yourself'); e.statusCode = 400; throw e; }
     if (toUser.id === tx.seller_id) { const e = new Error('The producer cannot hold the buyer side'); e.statusCode = 400; throw e; }
 
-    // new buyer pays the current holder the negotiated price
-    await walletRepository.debit(toUser.id, numericPrice, `Contract purchase: ${tx.listing_title || ''}`.trim(), transactionId, connection);
-    await walletRepository.credit(fromUserId, numericPrice, `Contract sale: ${tx.listing_title || ''}`.trim(), transactionId, null, 'sale', connection);
+    // new buyer pays the current holder the negotiated price (wallet -> wallet, net-zero)
+    await ledger.post(
+      connection,
+      { txId: transactionId, kind: 'contract_transfer', entries: [
+        { account: toUser.id, amount: -numericPrice },
+        { account: fromUserId, amount: numericPrice },
+      ] },
+      { checkFunds: true }
+    );
 
     await connection.query('UPDATE transactions SET buyer_id = ? WHERE id = ?', [toUser.id, transactionId]);
 

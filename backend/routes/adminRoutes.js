@@ -5,6 +5,8 @@ const { redis } = require("../lib/redis");
 const { authenticateToken } = require('../middleware/authMiddleware');
 const { logAdminAction } = require('../services/adminAuditService');
 const transactionService = require('../services/transactionService');
+const settingsRepository = require('../repositories/settingsRepository');
+const ledgerRepository = require('../repositories/ledgerRepository');
 
 const router = express.Router();
 
@@ -501,6 +503,30 @@ router.post("/disputes/:id/resolve", async (req, res) => {
     res.status(err.statusCode || 400).json({ error: err.message });
   }
 
+});
+
+// ── Platform fee (JFA §7.4 — transparent, contestable operator fee) ──────────────
+// The fee is charged at settlement and recorded as a visible ledger entry to the
+// `platform` account. Stored in basis points (100 bps = 1%).
+router.get("/settings/platform-fee", async (req, res) => {
+  const bps = await settingsRepository.getFeeBps();
+  const income = await ledgerRepository.balanceOf(ledgerRepository.ACCOUNTS.PLATFORM);
+  res.json({ fee_bps: bps, fee_percent: bps / 100, platform_income: income });
+});
+
+router.put("/settings/platform-fee", async (req, res) => {
+  try {
+    let bps;
+    if (req.body.fee_bps != null) bps = Math.round(Number(req.body.fee_bps));
+    else if (req.body.fee_percent != null) bps = Math.round(Number(req.body.fee_percent) * 100);
+    else return res.status(400).json({ error: "Provide fee_percent or fee_bps" });
+
+    const saved = await settingsRepository.setFeeBps(bps, req.user.id);
+    await logAdminAction(req.user.id, "set_platform_fee", "platform_settings", "1", { fee_bps: saved });
+    res.json({ fee_bps: saved, fee_percent: saved / 100 });
+  } catch (err) {
+    res.status(err.statusCode || 400).json({ error: err.message });
+  }
 });
 
 module.exports = router;
