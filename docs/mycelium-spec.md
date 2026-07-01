@@ -290,8 +290,8 @@ contains the dispute and its dismissal — the forgiveness is on the record, not
 | Per-transmission operator signing of intra-dialog events | **Not yet** | Sign messages/events (rides with operator onboarding / Cloudflare). |
 | PII never anchored; narrative operator-local | **Implemented** (only refs in `data`; narrative in `rating_narratives`) | Relocate the narrative store to the front end when Fruitful gains one; federation excludes it. |
 | Annotate-not-erase; post-seal annotation | **Implemented** (post-seal `record` → `annotation` anchor) | — |
-| Per-operator log scoping (`operator_id`) | **Not conformant** (single global anchor chain) | Add `operator_id` to `mycelium_log` + `mycelium_anchors`; scope the chain per operator. |
-| Witnessing — signed checkpoints, independent witnesses, inclusion proofs (§5.1) | **Not built** (intended) | Certificate-Transparency checkpointing across operators. Highest-leverage federation step. |
+| Per-operator log scoping (`operator_id`) | **Implemented** (both `mycelium_log` + `mycelium_anchors` scoped; chain + verify per operator) | — |
+| Witnessing — signed checkpoints, independent witnesses, inclusion proofs (§5.1) | **Not built** (intended; `checkpoint()` body stub present) | Sign + publish checkpoints to independent witnesses; serve inclusion proofs (Certificate Transparency). Highest-leverage federation step. |
 
 ---
 
