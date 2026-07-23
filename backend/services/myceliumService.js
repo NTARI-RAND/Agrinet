@@ -4,25 +4,28 @@
  * Two append-only hash chains:
  *   - intra-dialog (mycelium_log): each transmission folds into a running head
  *     hash, so an open dialog is tamper-evident as it is built.
- *   - inter-dialog (mycelium_anchors): sealed dialogs (and post-seal annotations)
- *     are chained globally, so the set of completed exchanges can't be rewritten.
+ *   - per-operator (mycelium_anchors): sealed dialogs (and post-seal annotations)
+ *     are chained WITHIN THIS OPERATOR'S log (§5) — there is no global chain and no
+ *     consensus. Cross-operator non-equivocation is by witnessing (§5.1, `checkpoint`),
+ *     which is intended-not-built.
  *
- * append() serializes on the dialog tail; seal()/annotate() serialize on the global
- * anchor tail. Only references + structural facts are hashed — never PII (P3-013 §6).
+ * append() serializes on the dialog tail; seal()/annotate() serialize on this
+ * operator's anchor tail. Only references + structural facts are hashed — never PII.
  */
 const crypto = require('crypto');
 const { randomUUID } = require('crypto');
 const pool = require('../lib/db');
 
+const OPERATOR_ID = process.env.OPERATOR_ID || 'agrinet';
 const H = (s) => crypto.createHash('sha256').update(s).digest('hex');
 
 // Canonical bytes of one transmission (header-led; refs only).
 function txnCore({ dialogId, seq, type, actorId, actorRole, dataText }) {
   return `${dialogId}|${seq}|${type}|${actorId || ''}|${actorRole || ''}|${dataText || ''}`;
 }
-// Canonical bytes of one anchor.
-function anchorCore({ kind, dialogId, fileHash, sealedSeq }) {
-  return `${kind}|${dialogId}|${fileHash}|${sealedSeq}`;
+// Canonical bytes of one anchor — bound to the operator so logs cannot be spliced (§5).
+function anchorCore({ operatorId, kind, dialogId, fileHash, sealedSeq }) {
+  return `${operatorId}|${kind}|${dialogId}|${fileHash}|${sealedSeq}`;
 }
 
 // Append a transmission to a dialog's open file. Returns { seq, head }.
@@ -39,9 +42,9 @@ async function append(dialogId, { type, actorId = null, actorRole = null, data =
     const prevHead = tail.length ? tail[0].head_hash : null;
     const head = H((prevHead || '') + txnCore({ dialogId, seq, type, actorId, actorRole, dataText }));
     await conn.query(
-      `INSERT INTO mycelium_log (id, dialog_id, seq, type, actor_id, actor_role, data, head_hash)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [randomUUID(), dialogId, seq, type, actorId, actorRole, dataText, head]
+      `INSERT INTO mycelium_log (id, dialog_id, operator_id, seq, type, actor_id, actor_role, data, head_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [randomUUID(), dialogId, OPERATOR_ID, seq, type, actorId, actorRole, dataText, head]
     );
     await conn.commit();
     return { seq, head };
@@ -58,7 +61,7 @@ async function isSealed(dialogId) {
   return !!a;
 }
 
-// Anchor the dialog's current head on the global chain (kind = 'seal' | 'annotation').
+// Anchor the dialog's current head on THIS operator's chain (kind = 'seal' | 'annotation').
 async function _writeAnchor(dialogId, kind) {
   const conn = await pool.getConnection();
   try {
@@ -67,13 +70,14 @@ async function _writeAnchor(dialogId, kind) {
     if (!head.length) { await conn.rollback(); return null; }
     const fileHash = head[0].head_hash;
     const sealedSeq = head[0].seq;
-    const [gtail] = await conn.query('SELECT hash FROM mycelium_anchors ORDER BY n DESC LIMIT 1 FOR UPDATE');
+    // per-operator tail (not a global chain — §5)
+    const [gtail] = await conn.query('SELECT hash FROM mycelium_anchors WHERE operator_id = ? ORDER BY n DESC LIMIT 1 FOR UPDATE', [OPERATOR_ID]);
     const prevHash = gtail.length ? gtail[0].hash : null;
-    const hash = H((prevHash || '') + anchorCore({ kind, dialogId, fileHash, sealedSeq }));
+    const hash = H((prevHash || '') + anchorCore({ operatorId: OPERATOR_ID, kind, dialogId, fileHash, sealedSeq }));
     await conn.query(
-      `INSERT INTO mycelium_anchors (id, dialog_id, kind, file_hash, sealed_seq, prev_hash, hash)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [randomUUID(), dialogId, kind, fileHash, sealedSeq, prevHash, hash]
+      `INSERT INTO mycelium_anchors (id, dialog_id, operator_id, kind, file_hash, sealed_seq, prev_hash, hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [randomUUID(), dialogId, OPERATOR_ID, kind, fileHash, sealedSeq, prevHash, hash]
     );
     await conn.commit();
     return { kind, file_hash: fileHash, hash, sealed_seq: sealedSeq };
@@ -107,16 +111,17 @@ async function record(dialogId, transmission) {
   return { appended: true };
 }
 
-// Verify both chains: every anchor links and hashes correctly, and each anchor's
-// file_hash equals the recomputed intra-dialog head at sealed_seq.
-async function verifyChain() {
+// Verify THIS operator's log (§8): every anchor links and hashes correctly, and each
+// anchor's file_hash equals the recomputed intra-dialog head at sealed_seq.
+async function verifyChain(operatorId = OPERATOR_ID) {
   const [anchors] = await pool.query(
-    'SELECT n, dialog_id, kind, file_hash, sealed_seq, prev_hash, hash FROM mycelium_anchors ORDER BY n ASC'
+    'SELECT n, dialog_id, kind, file_hash, sealed_seq, prev_hash, hash FROM mycelium_anchors WHERE operator_id = ? ORDER BY n ASC',
+    [operatorId]
   );
   let prev = null;
   for (const a of anchors) {
     if ((a.prev_hash || null) !== prev) return { ok: false, broken_at: `anchor ${a.n}`, reason: 'anchor linkage broken' };
-    const expected = H((prev || '') + anchorCore({ kind: a.kind, dialogId: a.dialog_id, fileHash: a.file_hash, sealedSeq: a.sealed_seq }));
+    const expected = H((prev || '') + anchorCore({ operatorId, kind: a.kind, dialogId: a.dialog_id, fileHash: a.file_hash, sealedSeq: a.sealed_seq }));
     if (a.hash !== expected) return { ok: false, broken_at: `anchor ${a.n}`, reason: 'anchor hash mismatch' };
 
     const [rows] = await pool.query(
@@ -131,7 +136,7 @@ async function verifyChain() {
     if (h !== a.file_hash) return { ok: false, broken_at: `anchor ${a.n}`, reason: 'file_hash does not match dialog' };
     prev = a.hash;
   }
-  return { ok: true, anchors: anchors.length };
+  return { ok: true, anchors: anchors.length, operator_id: operatorId };
 }
 
 // The full record for one dialog: its transmissions + its anchors (sealed/annotation).
@@ -153,12 +158,38 @@ async function forDialog(dialogId) {
 
 async function listAnchors(limit = 50) {
   const [rows] = await pool.query(
-    'SELECT n, dialog_id, kind, file_hash, hash, created_at FROM mycelium_anchors ORDER BY n DESC LIMIT ?',
-    [Number(limit) || 50]
+    'SELECT n, dialog_id, kind, file_hash, hash, created_at FROM mycelium_anchors WHERE operator_id = ? ORDER BY n DESC LIMIT ?',
+    [OPERATOR_ID, Number(limit) || 50]
   );
   return rows;
 }
 
+// Produce a signed, monotonic checkpoint of this operator's log head — the unit an
+// independent witness co-signs so equivocation becomes self-evident (§5.1,
+// Certificate Transparency / RFC 6962).
+//
+// STATUS: INTENDED, NOT BUILT. Returns the checkpoint BODY only. Signing the body
+// with the operator key, publishing to >= 1 independent witness, obtaining a signed
+// witness receipt, and serving inclusion proofs on read are the highest-leverage
+// federation step and are not implemented here — until they exist, non-equivocation
+// rests on there being a single backend.
+async function checkpoint(operatorId = OPERATOR_ID) {
+  const [[row]] = await pool.query(
+    'SELECT COUNT(*) AS tree_size, MAX(n) AS max_n FROM mycelium_anchors WHERE operator_id = ?',
+    [operatorId]
+  );
+  let headHash = null;
+  if (row.max_n) {
+    const [[h]] = await pool.query('SELECT hash FROM mycelium_anchors WHERE operator_id = ? ORDER BY n DESC LIMIT 1', [operatorId]);
+    headHash = h ? h.hash : null;
+  }
+  return {
+    body: { operator_id: operatorId, tree_size: Number(row.tree_size), head_hash: headHash },
+    signature: null,   // no operator signer wired yet
+    witnessed: false,  // no witness receipt — witnessing not built (§5.1)
+  };
+}
+
 function safeParse(s) { try { return JSON.parse(s); } catch { return s; } }
 
-module.exports = { append, seal, annotate, record, isSealed, verifyChain, forDialog, listAnchors };
+module.exports = { append, seal, annotate, record, isSealed, verifyChain, forDialog, listAnchors, checkpoint, OPERATOR_ID };

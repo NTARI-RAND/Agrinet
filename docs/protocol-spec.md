@@ -522,8 +522,8 @@ informative, not normative.
 | §7 escrow gate / maturity / tranches | **Implemented** (`transactionService`) | — |
 | §9 market/reputation in the protocol, portable | **Implemented** (Agrinet backend holds posts/transactions/ratings/escrow/ledger; Fruitful is swappable UI) | Cross-node reputation federation (multi-backend) not built; single-protocol-many-frontends holds today. |
 | §1 substrate / no hosting chokepoint | **Partial** (runs on SoHoLINK-capable infra; usually a shared backend) | Package for participant-owned deploy; document the self-host path. |
-| §5.1 per-operator log | **Implemented** (single backend) | — |
-| §5.2 witnessing / cross-operator non-equivocation | **Not built** (intended) | Signed checkpoints, independent witnesses, inclusion proofs (Certificate Transparency). Highest-leverage federation step. |
+| §5.1 per-operator log | **Implemented** (`operator_id`-scoped log + anchor chain; verify per operator) | — |
+| §5.2 witnessing / cross-operator non-equivocation | **Not built** (intended; `checkpoint()` body stub present) | Sign checkpoints, publish to independent witnesses, serve inclusion proofs (Certificate Transparency). Highest-leverage federation step. |
 | §7.2 net-zero balances from the record | **Not conformant** | Balances are a mutable `wallets.balance` (direct `UPDATE`); `wallet_history` is an audit trail, not the source of truth. Delta: append-only wallet-entries ledger, balance = derived sum, each exchange nets to zero. |
 | §7.3 non-redeemable / non-purchasable / denominated-not-backed | **Flag — purchasability** | No cash-out path exists (conformant on redemption). But Stripe payments credit a *general spendable wallet* (`webhook.js` "Stripe deposit") — fiat buying in-network balance. Delta: bind each payment to a specific transaction's escrow; retire the general fiat top-up (§10, tension protocol). |
 | §7.4 covenant gate + separate limit | **Not built** (credit off) | Add a limit instrument separate from the harm distribution, gated by the covenant. |
