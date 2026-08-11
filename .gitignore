@@ -1,0 +1,34 @@
+# --- Secrets / local environment: never commit ---
+# Real credentials belong in the runtime environment, not in git.
+.env
+.env.*
+**/.env
+**/.env.local
+**/.env.*.local
+# ...but always keep the *.example templates
+!*.example
+!**/*.example
+
+# AWS Amplify generated config — contains AppSync API keys, regenerate with `amplify pull`
+aws-exports.js
+**/aws-exports.js
+aws-exports.ts
+**/aws-exports.ts
+
+# Private keys / certs
+*.pem
+*.key
+*.p12
+*.pfx
+
+# --- Dependencies & build output ---
+node_modules/
+**/node_modules/
+dist/
+build/
+.next/
+coverage/
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
