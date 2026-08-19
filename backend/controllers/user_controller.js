@@ -1,6 +1,6 @@
 const bcrypt = require("../utils/bcrypt");
 const jwt = require("../utils/jwt");
-const { randomUUID } = require("crypto");
+const { randomUUID, randomInt } = require("crypto");
 const docClient = require("../lib/dynamodbClient");
 const { USER_TABLE_NAME, createUserItem } = require("../models/user");
 
@@ -8,7 +8,10 @@ exports.registerUser = async (req, res) => {
     try {
         const { name, email, location, role, password, phone } = req.body;
         const hashedPassword = await bcrypt.hash(password, 10);
-        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+        // crypto.randomInt: Math.random() is predictable, and a guessable
+        // verification code lets an attacker verify an account they registered
+        // with someone else's email/phone.
+        const verificationCode = randomInt(100000, 1000000).toString();
 
         const userItem = createUserItem({
             id: randomUUID(),
