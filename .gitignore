@@ -1,0 +1,13 @@
+# Environment files — never commit credentials (see backend/.env.example)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dependencies
+node_modules/
+
+# Logs
+*.log
