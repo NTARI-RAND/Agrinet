@@ -4,3 +4,9 @@ frontend/user_login.js
 frontend/federationStatusCLI.js
 README.md
 frontend/chat-ui/.env.local
+README.ar.md
+README.es.md
+README.fr.md
+README.hi.md
+README.tok.md
+README.zh.md
