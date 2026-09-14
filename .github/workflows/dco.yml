@@ -1,0 +1,20 @@
+name: DCO
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  dco:
+    runs-on: ubuntu-latest
+    steps:
+      # SAFETY: pull_request_target runs with write access to the BASE repo.
+      # This job is safe ONLY because it reads commit metadata via the API and never
+      # checks out or executes the PR's code. Do NOT add a checkout of the PR head
+      # here — doing so turns this into a remote-code-execution vector.
+      - uses: KineticCafe/actions-dco@1da04282bbf757dab7d92a5c8535dbfb8113da5c   # v3.1.0
+        # repo-token defaults to ${{ github.token }}; no explicit input needed.
+        with:
+          config: |
+            comment = true
