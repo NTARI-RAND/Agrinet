@@ -6,6 +6,10 @@ const {
   createTransactionLogItem
 } = require('../models/transactionLog');
 const authMiddleware = require('../middleware/authMiddleware');
+const { writeLimiter } = require('../middleware/rateLimit');
+
+// Both handlers touch DynamoDB, so cap request volume per client.
+router.use(writeLimiter);
 
 // Store a new transaction log entry
 router.post('/logs', authMiddleware, async (req, res) => {
