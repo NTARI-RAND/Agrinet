@@ -28,7 +28,7 @@ Example:
 ```bash
 curl -X POST "${API_BASE_URL}/conversations" \
   -H "Content-Type: application/json" \
-  -H "x-api-key: da2-5z3fzvunwvhwtbyudvutf6x6by" \
+  -H "x-api-key: <your-key>" \
   -d '{"title": "Chat QA Demo"}'
 ```
 
@@ -150,7 +150,7 @@ curl -N "${API_BASE_URL}/stream/<conversationId>" \
 #!/usr/bin/env bash
 
 API="${API_BASE_URL:-http://api-host:5000}"
-KEY="da2-5z3fzvunwvhwtbyudvutf6x6by"
+KEY="<your-key>"
 
 echo "Health check..."
 curl -sS "$API/health" | jq
