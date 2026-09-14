@@ -1,4 +1,5 @@
 const KeyLibrary = require("../models/KeyLibrary");
+const { randomBytes } = require("crypto");
 
 const TRANSMISSION_LIMITS = [3, 6, 9, 12, 365]; // Keys retire after these limits
 
@@ -87,5 +88,7 @@ exports.retryKeyValidation = async (req, res) => {
 
 // Function to generate McEliese keys
 function generateMcElieseKey() {
-    return Math.random().toString(36).substring(2, 15);
+    // 32 bytes of CSPRNG output; Math.random() is predictable and yielded
+    // only ~67 bits drawn from a non-cryptographic generator.
+    return randomBytes(32).toString("base64url");
 }

@@ -5,16 +5,14 @@ try {
   try {
     bcrypt = require('bcrypt');
   } catch {
-    const crypto = require('crypto');
-    bcrypt = {
-      async hash(password, _saltRounds) {
-        return crypto.createHash('sha256').update(password).digest('hex');
-      },
-      async compare(password, hashed) {
-        const digest = crypto.createHash('sha256').update(password).digest('hex');
-        return digest === hashed;
-      }
-    };
+    // No silent fallback: the previous unsalted single-round SHA-256 shim
+    // made every stored password crackable at billions of guesses/second.
+    // bcryptjs is a declared dependency, so this throw only fires on a
+    // broken install — which must fail loudly, not degrade silently.
+    throw new Error(
+      "No bcrypt implementation available: install 'bcryptjs' (declared in package.json). " +
+      'Refusing to fall back to a fast unsalted hash for passwords.'
+    );
   }
 }
 module.exports = bcrypt;
