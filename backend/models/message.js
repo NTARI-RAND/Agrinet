@@ -26,8 +26,18 @@ async function sendMessage(
   };
 
   if (file && file.data) {
-    const filename = Date.now() + '_' + file.name;
+    // file.name arrives from the client, so collapse it to a bare filename and
+    // drop anything outside [A-Za-z0-9._-]. That strips directory separators,
+    // '..' segments and NUL bytes, so the write cannot escape UPLOAD_DIR.
+    const baseName = path.basename(String(file.name ?? ''));
+    const safeName = baseName.replace(/[^\w.-]/g, '_').replace(/^\.+/, '') || 'upload';
+    const filename = Date.now() + '_' + safeName;
     const filePath = path.join(UPLOAD_DIR, filename);
+    // Defence in depth: refuse to write if the resolved path is not directly
+    // inside UPLOAD_DIR.
+    if (path.dirname(path.resolve(filePath)) !== path.resolve(UPLOAD_DIR)) {
+      throw new Error('Refusing to write upload outside of the upload directory');
+    }
     fs.writeFileSync(filePath, Buffer.from(file.data, 'base64'));
     msg.file = {
       path: '/uploads/' + filename,
