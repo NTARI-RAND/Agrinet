@@ -3,8 +3,7 @@ set -euo pipefail
 
 ALLOWLIST_FILE="$(dirname "$0")/hardcoded-url-allowlist.txt"
 
-matches=$(grep -R --line-number --exclude-dir=node_modules --exclude-dir=.git -E "http://localhost|localhost:5000" || true)
-matches=$(echo "$matches" | grep -v 'scripts/list-hardcoded-urls.sh' || true)
+matches=$(git grep --line-number -I -E "http://localhost|localhost:5000" -- . ':!scripts/list-hardcoded-urls.sh' || true)
 
 if [[ -f "$ALLOWLIST_FILE" ]]; then
   matches=$(echo "$matches" | grep -F -v -f "$ALLOWLIST_FILE" || true)
