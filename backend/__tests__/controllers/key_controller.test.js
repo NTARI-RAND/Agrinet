@@ -1,39 +1,7 @@
 const { test, mock } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const Module = require('module');
-
-const keyModelPath = path.join(__dirname, '..', '..', 'models', 'key.js');
 const keyLibraryPath = path.join(__dirname, '..', '..', 'models', 'KeyLibrary.js');
-
-// Patch module resolution to map to our mocked paths
-const originalResolve = Module._resolveFilename;
-Module._resolveFilename = function (request, parent, isMain, options) {
-  if (request.includes('/models/KeyLibrary')) return keyLibraryPath;
-  if (request.includes('/models/key')) return keyModelPath;
-  return originalResolve.call(this, request, parent, isMain, options);
-};
-
-// Mock the key model functions as required
-require.cache[keyModelPath] = {
-  id: keyModelPath,
-  filename: keyModelPath,
-  loaded: true,
-  exports: {
-    createKeyItem: mock.fn(),
-    putKey: mock.fn(),
-    getKeyByValue: mock.fn(),
-    updateKey: mock.fn()
-  },
-// Use mock.import to mock required modules instead of patching Module internals
-
-// Mock the key model functions as required
-const keyModelMock = {
-  createKeyItem: mock.fn(),
-  putKey: mock.fn(),
-  getKeyByValue: mock.fn(),
-  updateKey: mock.fn()
-};
 
 // In-memory store for keys
 const activeKeys = [];
@@ -144,4 +112,3 @@ test('validateKey responds with error when key is missing', async () => {
   assert.equal(res.statusCode, 400);
   assert.equal(res.body.error, 'Invalid or retired key');
 });
-
