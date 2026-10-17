@@ -18,36 +18,11 @@ export default function ChatWindow() {
   const { state, dispatch } = useStore();
   const bottomRef = useRef();
   const containerRef = useRef();
-  const rafRef = useRef();
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [state.messages]);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return undefined;
-
-    const updateParallax = () => {
-      const max = el.scrollHeight - el.clientHeight;
-      const depth = max > 0 ? el.scrollTop / max : 0;
-      el.style.setProperty('--scroll-depth', `${Math.min(Math.max(depth, 0), 1) * 100}`);
-      rafRef.current = null;
-    };
-
-    const handleScroll = () => {
-      if (rafRef.current) return;
-      rafRef.current = requestAnimationFrame(updateParallax);
-    };
-
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    updateParallax();
-
-    return () => {
-      el.removeEventListener('scroll', handleScroll);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
+  useParallax(containerRef);
 
   useEffect(() => {
     dispatch({ type: 'SET_AI_THINKING', value: false });
@@ -97,4 +72,32 @@ export default function ChatWindow() {
       <div ref={bottomRef} />
     </div>
   );
+}
+
+function useParallax(containerRef) {
+  const rafRef = useRef();
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return undefined;
+
+    const updateParallax = () => {
+      const max = el.scrollHeight - el.clientHeight;
+      const depth = max > 0 ? el.scrollTop / max : 0;
+      el.style.setProperty('--scroll-depth', `${Math.min(Math.max(depth, 0), 1) * 100}`);
+      rafRef.current = null;
+    };
+
+    const handleScroll = () => {
+      if (rafRef.current) return;
+      rafRef.current = requestAnimationFrame(updateParallax);
+    };
+
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    updateParallax();
+
+    return () => {
+      el.removeEventListener('scroll', handleScroll);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [containerRef]);
 }
