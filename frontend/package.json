@@ -6,22 +6,24 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint --ext .js,.jsx,.mjs . --max-warnings 0",
     "test": "next build",
     "federation-status": "node federationStatusCLI.js",
     "federation-status:ci": "BACKEND_URL=$BACKEND_URL node federationStatusCLI.js",
     "test-connection": "node test-connection.js"
   },
   "dependencies": {
-    "next": "15.5.24",
+    "next": "15.5.28",
     "react": "18.2.0",
     "react-dom": "18.2.0"
   },
   "devDependencies": {
-    "eslint": "8.56.0",
-    "eslint-config-next": "14.2.35"
+    "eslint": "8.57.1",
+    "eslint-config-next": "15.5.28"
   },
     "overrides": {
-          "glob": "^11.1.0"
+          "glob": "^11.1.0",
+          "@next/eslint-plugin-next": "14.2.35",
+          "postcss": "^8.5.30"
     }
 }

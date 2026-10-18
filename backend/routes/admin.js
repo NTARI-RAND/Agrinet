@@ -1,7 +1,7 @@
 const express = require("express");
 const docClient = require("../lib/dynamodbClient");
 const { USER_TABLE_NAME } = require("../models/user");
-const Key = require("../models/key");
+const { KEY_TABLE_NAME } = require("../models/key");
 const router = express.Router();
 
 // Get all users
@@ -20,7 +20,7 @@ router.get("/users", async (req, res) => {
 // Get key usage logs
 router.get("/keys", async (req, res) => {
     try {
-        const keys = await Key.find().populate("userId", "username email");
+        const { Items: keys = [] } = await docClient.scan({ TableName: KEY_TABLE_NAME }).promise();
         res.json(keys);
     } catch (err) {
         res.status(500).json({ error: "Failed to fetch keys" });

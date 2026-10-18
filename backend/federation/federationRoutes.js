@@ -4,6 +4,7 @@ const docClient = require('../lib/dynamodbClient');
 const { LISTING_TABLE_NAME } = require('../models/listing');
 const { TRANSACTION_TABLE_NAME } = require('../models/transaction');
 const { USER_TABLE_NAME } = require('../models/user');
+const { importFederatedData } = require('../sync/importHelper');
 
 // Export route for peer sync
 router.get('/export', async (req, res) => {
@@ -24,17 +25,7 @@ router.get('/export', async (req, res) => {
 // Import route for federation sync
 router.post('/import', async (req, res) => {
   try {
-    const { listings = [], transactions = [], users = [] } = req.body;
-
-    const putAll = async (items, TableName) => {
-      for (const item of items) {
-        await docClient.put({ TableName, Item: item }).promise();
-      }
-    };
-
-    await putAll(listings, LISTING_TABLE_NAME);
-    await putAll(transactions, TRANSACTION_TABLE_NAME);
-    await putAll(users, USER_TABLE_NAME);
+    await importFederatedData(req.body);
 
     res.json({ message: 'Import successful' });
   } catch (err) {

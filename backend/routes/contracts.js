@@ -1,5 +1,7 @@
 const express = require("express");
-const Contract = require("../models/contract");
+const { CONTRACT_TABLE_NAME, createContractItem } = require("../models/contract");
+const docClient = require('../lib/dynamodbClient');
+const crypto = require('crypto');
 const router = express.Router();
 const cache = new Map();
 const axios = require("axios");
@@ -9,7 +11,7 @@ router.get("/", async (req, res) => {
   if (cache.has("contracts")) return res.json(cache.get("contracts"));
 
   try {
-    const contracts = await Contract.find();
+    const { Items: contracts = [] } = await docClient.scan({ TableName: CONTRACT_TABLE_NAME }).promise();
     cache.set("contracts", contracts); // Store in cache
     res.json(contracts);
   } catch (error) {
@@ -20,12 +22,13 @@ router.get("/", async (req, res) => {
 // POST Contract (with webhook)
 router.post("/", async (req, res) => {
   try {
-    const newContract = new Contract(req.body);
-    await newContract.save();
+    const newContract = createContractItem({ ...req.body, id: crypto.randomUUID() });
+    await docClient.put({ TableName: CONTRACT_TABLE_NAME, Item: newContract }).promise();
+    cache.delete('contracts');
 
     // Notify Wix that a contract has been created
     await axios.post("https://www.ntari.org/_functions/webhookUpdate", {
-      contractId: newContract._id,
+      contractId: newContract.id,
       status: "created",
     });
 
