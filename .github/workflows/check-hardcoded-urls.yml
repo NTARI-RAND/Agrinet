@@ -3,6 +3,10 @@ name: Check for hardcoded URLs
 on:
   pull_request:
 
+# Read-only: the job only checks out the tree and greps it.
+permissions:
+  contents: read
+
 jobs:
   hardcoded-urls:
     runs-on: ubuntu-latest
