@@ -1,0 +1,31 @@
+config_version = "0"
+
+exclude_patterns = ["**/node_modules/**", "**/.next/**", "**/dist/**"]
+
+[[source]]
+name = "default"
+default = true
+
+[[plugin]]
+name = "actionlint"
+
+[[plugin]]
+name = "eslint"
+version = "8.57.1"
+package_file = "frontend/package.json"
+package_filters = ["eslint", "eslint-config-next", "next"]
+
+[[plugin]]
+name = "osv-scanner"
+
+[[plugin]]
+name = "ripgrep"
+
+[[plugin]]
+name = "shellcheck"
+
+[[plugin]]
+name = "trufflehog"
+
+[[plugin]]
+name = "zizmor"

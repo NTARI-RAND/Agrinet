@@ -3,10 +3,15 @@ name: Check for hardcoded URLs
 on:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   hardcoded-urls:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: List hardcoded URLs
         run: ./scripts/list-hardcoded-urls.sh
