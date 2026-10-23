@@ -1,29 +1,32 @@
 const { test } = require('node:test');
-const assert = require('node:assert');
-const { createRes } = require('./testUtils');
+const assert = require('node:assert/strict');
+const express = require('express');
+const request = require('supertest');
 const depositController = require('../controllers/deposit_controller');
 
-const calls = [];
-depositController.getOrCreateAccount = async () => { calls.push('get'); };
-depositController.fundAccount = async () => { calls.push('fund'); };
-depositController.withdrawAccount = async () => { calls.push('withdraw'); };
-depositController.getTransactionHistory = async () => { calls.push('history'); };
+for (const method of ['getOrCreateAccount', 'fundAccount', 'withdrawAccount', 'getTransactionHistory']) {
+  depositController[method] = async (_req, res) => res.json({ method });
+}
+const app = express();
+app.use(require('../routes/depositRoutes'));
 
-const router = require('../routes/depositRoutes');
-
-test('router wires controller methods', async () => {
-  const routes = router.routes;
-  const req = { headers: { 'x-api-key': 'key' }, user: { id: 'u1' }, body: { amount: 1 } };
-  const res = createRes();
-  await routes.find(r => r.method === 'get' && r.path === '/').handler(req, res);
-  await routes.find(r => r.method === 'post' && r.path === '/fund').handler(req, res);
-  await routes.find(r => r.method === 'post' && r.path === '/withdraw').handler(req, res);
-  await routes.find(r => r.method === 'get' && r.path === '/history').handler(req, res);
-  assert.deepStrictEqual(calls, ['get', 'fund', 'withdraw', 'history']);
+test('deposit routes dispatch authenticated requests to their controllers', async (t) => {
+  const originalKey = process.env.API_KEY;
+  process.env.API_KEY = 'test-deposit-key';
+  t.after(() => {
+    if (originalKey === undefined) delete process.env.API_KEY;
+    else process.env.API_KEY = originalKey;
+  });
+  for (const [verb, path, method] of [
+    ['get', '/', 'getOrCreateAccount'], ['post', '/fund', 'fundAccount'],
+    ['post', '/withdraw', 'withdrawAccount'], ['get', '/history', 'getTransactionHistory'],
+  ]) {
+    const response = await request(app)[verb](path).set('x-api-key', process.env.API_KEY);
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body, { method });
+  }
 });
 
-test('router registers auth middleware', () => {
-  const first = router.routes[0];
-  assert.strictEqual(first.method, 'use');
-  assert.strictEqual(typeof first.handler, 'function');
+test('deposit routes reject unauthenticated requests', async () => {
+  assert.equal((await request(app).get('/')).status, 403);
 });

@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const express = require('express');
+const request = require('supertest');
 const marketplaceRoutes = require('../../marketplace/marketplace_routes');
 const docClient = require('../../lib/dynamodbClient');
 
@@ -10,8 +11,8 @@ test('POST /listings creates service listing with limited media', async () => {
   docClient.scan = () => ({ promise: async () => ({ Items: [] }) });
 
   const app = express();
+  app.use(express.json());
   app.use('/', marketplaceRoutes);
-  const route = app.routes.find(r => r.method === 'post' && r.path === '/listings');
 
   const req = {
     body: {
@@ -22,14 +23,7 @@ test('POST /listings creates service listing with limited media', async () => {
       med: ['1','2','3','4','5','6']
     }
   };
-  let status = 200;
-  let body;
-  const res = {
-    status(code) { status = code; return this; },
-    json(payload) { body = payload; }
-  };
-
-  await route.handler(req, res);
+  const { status, body } = await request(app).post('/listings').send(req.body);
 
   assert.strictEqual(status, 201);
   assert.strictEqual(body.listing.media.length, 5);

@@ -1,12 +1,9 @@
 const express = require('express');
 const request = require('supertest');
 
-const scanMock = jest.fn();
-const populateMock = jest.fn();
-const findMock = jest.fn(() => ({ populate: populateMock }));
+const mockScan = jest.fn();
 
-jest.mock('../../lib/dynamodbClient', () => ({ scan: scanMock }));
-jest.mock('../../models/key', () => ({ find: findMock }));
+jest.mock('../../lib/dynamodbClient', () => ({ scan: mockScan }));
 
 const { USER_TABLE_NAME } = require('../../models/user');
 const adminRouter = require('../admin');
@@ -15,14 +12,12 @@ const app = express();
 app.use('/', adminRouter);
 
 beforeEach(() => {
-  scanMock.mockReset();
-  populateMock.mockReset();
-  findMock.mockClear();
+  mockScan.mockReset();
 });
 
 describe('GET /users', () => {
   it('uses scan and omits password', async () => {
-    scanMock.mockReturnValue({
+    mockScan.mockReturnValue({
       promise: jest.fn().mockResolvedValue({
         Items: [
           { id: '1', username: 'alice', password: 'secret' }
@@ -32,39 +27,38 @@ describe('GET /users', () => {
 
     const res = await request(app).get('/users');
 
-    expect(scanMock).toHaveBeenCalledWith({ TableName: USER_TABLE_NAME });
+    expect(mockScan).toHaveBeenCalledWith({ TableName: USER_TABLE_NAME });
     expect(res.status).toBe(200);
     expect(res.body).toEqual([{ id: '1', username: 'alice' }]);
     expect(res.body[0].password).toBeUndefined();
   });
 
   it('returns 500 when scan rejects', async () => {
-    scanMock.mockReturnValue({
+    mockScan.mockReturnValue({
       promise: jest.fn().mockRejectedValue(new Error('fail'))
     });
 
     const res = await request(app).get('/users');
 
-    expect(scanMock).toHaveBeenCalled();
+    expect(mockScan).toHaveBeenCalled();
     expect(res.status).toBe(500);
   });
 });
 
 describe('GET /keys', () => {
-  it('returns populated keys', async () => {
+  it('returns stored keys', async () => {
     const sampleKeys = [
       {
         id: 'k1',
         key: 'abc',
-        userId: { username: 'bob', email: 'bob@example.com' }
+        userId: 'u1'
       }
     ];
-    populateMock.mockResolvedValue(sampleKeys);
+    mockScan.mockReturnValue({ promise: async () => ({ Items: sampleKeys }) });
 
     const res = await request(app).get('/keys');
 
-    expect(findMock).toHaveBeenCalled();
-    expect(populateMock).toHaveBeenCalledWith('userId', 'username email');
+    expect(mockScan).toHaveBeenCalledWith({ TableName: 'Keys' });
     expect(res.status).toBe(200);
     expect(res.body).toEqual(sampleKeys);
   });
