@@ -52,4 +52,5 @@ export function stream(path) {
   return new EventSource(url);
 }
 
-export default { get, post, put, del, stream };
+const api = { get, post, put, del, stream };
+export default api;

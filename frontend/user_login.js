@@ -53,7 +53,7 @@ export default function AuthPage() {
 
   const handleKeyValidation = async () => {
     try {
-      const res = await axios.post(`${BASE_URL}/keys/validate-key`, { key });
+      await axios.post(`${BASE_URL}/keys/validate-key`, { key });
       setKeyMessage("Key validated successfully!");
     } catch (error) {
       setKeyMessage("Invalid or expired key.");
