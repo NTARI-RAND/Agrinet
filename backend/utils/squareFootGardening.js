@@ -43,7 +43,7 @@ function projectGrowth(plant, startDate) {
   if (!data) throw new Error(`Unknown plant ${plant}`);
   const start = new Date(startDate);
   const harvest = new Date(start);
-  harvest.setDate(start.getDate() + data.daysToMaturity);
+  harvest.setUTCDate(start.getUTCDate() + data.daysToMaturity);
   return { plant, startDate: start, harvestDate: harvest };
 }
 

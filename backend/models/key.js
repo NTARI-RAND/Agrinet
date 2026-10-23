@@ -34,12 +34,7 @@ async function getKeyByValue(keyValue) {
     ExpressionAttributeNames: { '#k': 'key' },
     ExpressionAttributeValues: { ':keyValue': keyValue }
   };
-    IndexName: KEY_GSI_NAME,
-    KeyConditionExpression: '#k = :keyValue',
-    ExpressionAttributeNames: { '#k': 'key' },
-    ExpressionAttributeValues: { ':keyValue': keyValue }
-  };
-  const data = await docClient.query(params).promise();
+  const data = await docClient.scan(params).promise();
   return data.Items ? data.Items[0] : undefined;
 }
 

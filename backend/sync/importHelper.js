@@ -1,6 +1,3 @@
-const Listing = require("../marketplace/models/listings");
-const Transaction = require("../models/transaction");
-const User = require("../models/user");
 const docClient = require('../lib/dynamodbClient');
 const { LISTING_TABLE_NAME } = require('../models/listing');
 const { TRANSACTION_TABLE_NAME } = require('../models/transaction');
