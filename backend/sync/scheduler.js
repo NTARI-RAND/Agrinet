@@ -3,9 +3,6 @@ const dynamodbClient = require("../lib/dynamodbClient");
 const Listing = require("../marketplace/models/listings");
 const Transaction = require("../models/transaction");
 const User = require("../models/user");
-const { getAllNodes } = require("../models/nodeRegistry");
-const federationRoutes = require("../routes/federationRoutes");
-const Listing = require("../marketplace/models/listings");
 
 const NODE_REGISTRY_TABLE = "NodeRegistry";
 
@@ -50,16 +47,6 @@ const syncFromPeers = async () => {
       } catch (err) {
         console.error(`❌ Federation sync error for node ${node.nodeUrl}:`, err.message);
       }
-    const nodes = await getAllNodes();
-    for (let node of nodes) {
-      //const res = await axios.get(`${node.nodeUrl}/federation/export`);
-      //const { listings } = res.data;
-      const res = await axios.get(`${node.url}/federation/export`);
-      const { listings, transactions, users } = res.data;
-
-      if (listings) await upsertMany(Listing, listings);
-
-      console.log(`✔ Synced data from node: ${node.url}`);
     }
   } catch (err) {
     console.error("❌ Federation sync error:", err.message);
