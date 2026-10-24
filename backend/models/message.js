@@ -26,9 +26,10 @@ async function sendMessage(
   };
 
   if (file && file.data) {
-    const filename = Date.now() + '_' + file.name;
+    // Client filenames are metadata only, never part of a filesystem path.
+    const filename = randomUUID();
     const filePath = path.join(UPLOAD_DIR, filename);
-    fs.writeFileSync(filePath, Buffer.from(file.data, 'base64'));
+    fs.writeFileSync(filePath, Buffer.from(file.data, 'base64'), { flag: 'wx' });
     msg.file = {
       path: '/uploads/' + filename,
       originalname: file.name,
