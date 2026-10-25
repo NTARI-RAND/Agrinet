@@ -4,6 +4,7 @@ const multer = require("multer");
 const path = require("path");
 const Agrotourism = require("../models/agrotourism");
 const authMiddleware = require("../middleware/authMiddleware");
+const { apiLimiter, uploadLimiter } = require("../middleware/rateLimit");
 
 // Configure Multer for image uploads
 const storage = multer.diskStorage({
@@ -15,6 +16,10 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage });
+
+// Listing reads hit Mongo; /create also accepts up to five image uploads.
+router.use(apiLimiter);
+router.use("/create", uploadLimiter);
 
 // Create Agrotourism Listing
 router.post("/create", authMiddleware, upload.array("images", 5), async (req, res) => {

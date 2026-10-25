@@ -14,6 +14,7 @@ try {
 }
 const path = require("path");
 const authMiddleware = require("./middleware/authMiddleware");
+const { apiLimiter } = require("./middleware/rateLimit");
 
 // Load environment variables
 dotenv.config();
@@ -129,6 +130,8 @@ global.emitToken = emitToken;
 global.emitMessage = emitMessage;
 
 // Middleware
+// Global ceiling ahead of auth so unauthenticated floods are shed early.
+app.use(apiLimiter);
 app.use(authMiddleware);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
