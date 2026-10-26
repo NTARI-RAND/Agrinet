@@ -103,6 +103,19 @@ profiles, attachment bytes, or chat narrative. Keep this application metadata
 private to the platform, alongside its message store. Conversation deletion still
 erases its message content; retained receipts prevent resurrection on retry.
 
+API-credential receipt IDs use asynchronous scrypt (`N=16384`, `r=8`, `p=5`,
+32-byte output). The salt is the hex SHA-256 of the JSON array
+`["message-send-api-key-v2", conversationId, idempotencyKey]`; credential bytes
+never enter a fast hash. This makes offline credential guesses against leaked
+receipts expensive. Each active derivation uses roughly 16 MiB; concurrent work
+runs through Node's worker pool. JWT receipt IDs and payload fingerprints retain
+SHA-256 because they do not include authentication secrets.
+
+This replaces the undeployed API-key ID derivation from the initial PR revision.
+Disposable test receipts from that revision cannot replay under this derivation.
+Do not mix the two revisions' API-key workers or reuse old test receipts as
+production retry protection.
+
 ## NTARI boundaries
 
 This extends the existing application message API. It does not edit a sealed
@@ -136,5 +149,6 @@ docker run --rm -d --name agrinet-retry-check \
   -p 127.0.0.1:18001:8000 amazon/dynamodb-local:latest \
   -jar DynamoDBLocal.jar -inMemory -sharedDb
 DYNAMODB_TEST_ENDPOINT=http://127.0.0.1:18001 node scripts/check-message-retries.js
+DYNAMODB_TEST_ENDPOINT=http://127.0.0.1:18001 node scripts/check-message-retries.js --api-key
 docker stop agrinet-retry-check
 ```

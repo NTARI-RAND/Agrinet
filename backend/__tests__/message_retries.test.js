@@ -148,27 +148,30 @@ test('invalid keys are rejected before persistence or AI work', async () => {
   assert.equal(aiCalls, 0);
 });
 
-test('parallel retries cannot acquire a second send while the first AI response is running', async () => {
-  let started, finish;
-  const running = new Promise(resolve => { started = resolve; });
-  const release = new Promise(resolve => { finish = resolve; });
-  setClient({ chat: { completions: { create: async () => {
-    aiCalls++;
-    started();
-    await release;
-    return (async function* () { yield { choices: [{ delta: { content: 'Ready' } }] }; })();
-  } } } });
-  const first = send().then(response => response);
-  await running;
-  const racing = await Promise.all(Array.from({ length: 8 }, () => send()));
-  finish();
-  const done = await first;
-  assert.ok(racing.every(response => response.status === 409 && response.body.code === 'message_send_pending'));
-  assert.deepEqual((await send()).body, done.body);
-  assert.equal(messages().length, 2);
-  assert.equal(aiCalls, 1);
-  assert.equal(emitted.length, 2);
-});
+for (const apiCaller of [false, true]) {
+  test(`parallel ${apiCaller ? 'API-key' : 'JWT'} retries cannot acquire a second send while the first AI response is running`, async () => {
+    const auth = apiCaller ? { apiKey: process.env.API_KEY } : {};
+    let started, finish;
+    const running = new Promise(resolve => { started = resolve; });
+    const release = new Promise(resolve => { finish = resolve; });
+    setClient({ chat: { completions: { create: async () => {
+      aiCalls++;
+      started();
+      await release;
+      return (async function* () { yield { choices: [{ delta: { content: 'Ready' } }] }; })();
+    } } } });
+    const first = send(auth).then(response => response);
+    await running;
+    const racing = await Promise.all(Array.from({ length: 8 }, () => send(auth)));
+    finish();
+    const done = await first;
+    assert.ok(racing.every(response => response.status === 409 && response.body.code === 'message_send_pending'));
+    assert.deepEqual((await send(auth)).body, done.body);
+    assert.equal(messages().length, 2);
+    assert.equal(aiCalls, 1);
+    assert.equal(emitted.length, 2);
+  });
+}
 
 test('completed receipts survive reloading the request handler', async () => {
   const first = await send();
@@ -207,6 +210,61 @@ test('API-key callers replay within their credential scope and do not share JWT 
   assert.equal(user.status, 201);
   assert.notEqual(user.body.message.id, first.body.message.id);
   assert.equal(aiCalls, 2);
+});
+
+test('API-key receipts use the stable scrypt scope instead of a fast credential hash', async () => {
+  const first = await send({ apiKey: process.env.API_KEY });
+  assert.equal(first.status, 201);
+  const [receipt] = db.tables.get('MessageSends').values();
+  // Independent Python hashlib.scrypt fixture: password=test-only-api-key,
+  // salt=SHA256(JSON([message-send-api-key-v2, conversation-1, send-1])).hex,
+  // N=16384, r=8, p=5, dklen=32. Locks the durable replay namespace.
+  assert.equal(receipt.id, 'e54be044e9e970d309de6ebe2b3763f1cbb49c546d04c7379102ba52709867e6');
+  assert.ok(!JSON.stringify(receipt).includes(process.env.API_KEY));
+  delete require.cache[require.resolve('../services/retrySafeMessage')];
+  delete require.cache[require.resolve('../controllers/communication_controller')];
+  delete require.cache[require.resolve('../routes/communicationRoutes')];
+  app = makeApp();
+  assert.deepEqual((await send({ apiKey: process.env.API_KEY })).body, first.body);
+  assert.equal(aiCalls, 1);
+});
+
+test('API-key rotation, conversation and send keys have separate retry scopes', async () => {
+  const first = await send({ apiKey: process.env.API_KEY });
+  const otherConversation = await send({ apiKey: process.env.API_KEY, conversation: 'conversation-2' });
+  const otherSend = await send({ apiKey: process.env.API_KEY, key: 'send-2' });
+  process.env.API_KEY = 'rotated-test-api-key';
+  const rotated = await send({ apiKey: process.env.API_KEY });
+  for (const response of [first, otherConversation, otherSend, rotated]) assert.equal(response.status, 201);
+  assert.equal(new Set([first, otherConversation, otherSend, rotated].map(response => response.body.message.id)).size, 4);
+  assert.deepEqual((await send({ apiKey: process.env.API_KEY })).body, rotated.body);
+  assert.equal(aiCalls, 4);
+});
+
+test('WIX API-key retries work without a JWT secret', async () => {
+  const priorWixKey = process.env.WIX_API_KEY;
+  delete process.env.API_KEY;
+  delete process.env.JWT_SECRET;
+  process.env.WIX_API_KEY = 'test-only-wix-api-key';
+  try {
+    const first = await send({ apiKey: process.env.WIX_API_KEY });
+    assert.equal(first.status, 201);
+    assert.deepEqual((await send({ apiKey: process.env.WIX_API_KEY })).body, first.body);
+    assert.equal(aiCalls, 1);
+  } finally {
+    if (priorWixKey === undefined) delete process.env.WIX_API_KEY; else process.env.WIX_API_KEY = priorWixKey;
+  }
+});
+
+test('an invalid API-key header cannot alter a verified JWT retry scope', async () => {
+  const first = await send();
+  const retry = await request(app).post('/messages/conversation-1')
+    .set('Authorization', `Bearer ${jwt.sign({ userId: 'grower-1' }, process.env.JWT_SECRET)}`)
+    .set('X-API-Key', 'invalid-api-key')
+    .set('Idempotency-Key', 'send-1').send(payload);
+  assert.equal(retry.status, 201);
+  assert.deepEqual(retry.body, first.body);
+  assert.equal(aiCalls, 1);
 });
 
 test('authentication failures and JWTs without a stable user ID create no receipts', async () => {

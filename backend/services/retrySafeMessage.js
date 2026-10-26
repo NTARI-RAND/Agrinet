@@ -1,4 +1,6 @@
-const { createHash } = require('crypto');
+const { createHash, scrypt } = require('crypto');
+const { promisify } = require('util');
+const deriveKey = promisify(scrypt);
 const MessageSend = require('../models/messageSend');
 const Message = require('../models/message');
 
@@ -25,19 +27,26 @@ async function send(req, deliver) {
   }
   // Auth middleware has already verified the JWT or accepted the configured
   // API key. Never use body.from (a display/role label) as the caller identity.
-  const principal = req.user
-    ? (typeof req.user.userId === 'string' && req.user.userId ? ['user', req.user.userId] : null)
-    : (req.headers['x-api-key'] ? ['api-key', req.headers['x-api-key']] : null);
-  if (!principal) return problem(400, 'idempotency_identity_required', 'Retry-safe sends require a stable authenticated user ID or API key.');
+  const userId = typeof req.user?.userId === 'string' && req.user.userId ? req.user.userId : null;
+  const apiKey = req.user ? null : req.headers['x-api-key'];
+  if (!userId && !apiKey) return problem(400, 'idempotency_identity_required', 'Retry-safe sends require a stable authenticated user ID or API key.');
 
   const conversationId = req.params.conversationId;
-  const id = hash(['message-send-v1', principal, conversationId, key]);
   const { from, to, content, type = 'text', file } = req.body;
   const fingerprint = hash(canonical({ from, to, content, type,
     file: file?.data ? { name: file.name, type: file.type, data: file.data } : undefined }));
 
-  let claim;
-  try { claim = await MessageSend.begin(id, fingerprint); } catch {
+  let id, claim;
+  try {
+    // Credentials must not become cheap offline guessing targets in receipts.
+    // The public scope supplies a deterministic salt so workers and restarts
+    // find the same receipt. Keep JWT IDs and non-secret fingerprints unchanged.
+    id = userId
+      ? hash(['message-send-v1', ['user', userId], conversationId, key])
+      : (await deriveKey(apiKey, hash(['message-send-api-key-v2', conversationId, key]), 32,
+        { N: 16384, r: 8, p: 5, maxmem: 32 * 1024 * 1024 })).toString('hex');
+    claim = await MessageSend.begin(id, fingerprint);
+  } catch {
     return problem(503, 'message_send_unavailable', 'Retry protection is unavailable. No send was started by this request. Retry with the same key.');
   }
   if (!claim.claimed) {
