@@ -43,3 +43,15 @@ Adopts the covenant scale (LBTAS, v2 floor) and carries its own record instance.
 ## Product-specific notes (last, per the ordering rule)
 
 The reference economy. Its operator/federation model is the named reference for the substrate's frontend-as-operator design target.
+
+Private application chat uses the verified backend account `userId` as an
+immutable conversation owner. Conversation/message routes and attachment
+downloads enforce that boundary; shared integration keys supply no participant
+identity. Legacy ownerless rows remain inaccessible pending explicit operator
+assignment. Bindings: `backend/middleware/chatAuth.js`,
+`conversationOwner.js`, `attachmentOwner.js`, the conditional conversation
+model writes, and `backend/__tests__/conversationAccess.test.js`. This does not
+promote private chat to a sealed commons dialog or change the in-review ledger
+claims above. SSE requires the companion authenticated-stream change before
+rollout. See `backend/docs/conversation-ownership.md` for migration and client
+integration limits.

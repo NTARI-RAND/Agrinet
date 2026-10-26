@@ -1,5 +1,9 @@
+import { createAccountClient } from './accountClient.mjs';
+
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const API_KEY = import.meta.env.VITE_API_KEY || '';
+export const accountClient = createAccountClient({ baseUrl: API_BASE_URL, apiKey: API_KEY });
+export const setAccountToken = accountClient.setToken;
 
 function buildUrl(path) {
   const clean = path.startsWith('/') ? path : `/${path}`;
@@ -7,33 +11,17 @@ function buildUrl(path) {
 }
 
 async function request(method, path, body) {
-  const url = buildUrl(path);
-  const headers = {};
-  if (API_KEY) headers['x-api-key'] = API_KEY;
-  const options = { method, headers };
-  if (body !== undefined) {
-    headers['Content-Type'] = 'application/json';
-    options.body = JSON.stringify(body);
-  }
+  return accountClient.request(method, path.startsWith('/') ? path : `/${path}`, body);
+}
 
-  const res = await fetch(url, options);
-  const text = await res.text();
-  let data = null;
-  if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch (err) {
-      // non-JSON response; preserve text in data
-      data = text;
-    }
-  }
-  if (!res.ok) {
-    const error = new Error(data?.message || `Request failed with status ${res.status}`);
-    error.status = res.status;
-    error.data = data;
-    throw error;
-  }
-  return data;
+export async function downloadAttachment(file) {
+  const blob = await accountClient.attachment(file.path);
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = file.originalname || 'attachment';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
 }
 
 export const get = (path) => request('GET', path);
