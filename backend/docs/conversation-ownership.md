@@ -45,8 +45,8 @@ or table. They prioritize correct isolation; an indexed attachment lookup is
 a possible measured follow-up, not supplied by this change.
 
 **Roll out together with the authenticated-stream companion PR (A2).** A1
-closes REST and attachment access; unauthenticated SSE remains a separate
-existing path until A2 lands. Other open hardening work, including admin,
+closes REST and attachment access; A2 supplies account-authorized SSE. See
+`authenticated-streams.md` for that boundary and lifecycle. Other open hardening work, including admin,
 user/federation authorization and attachment write containment, remains
 separate and must be assessed before exposing public signup.
 

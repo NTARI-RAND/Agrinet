@@ -75,6 +75,8 @@ async function remove(id, ownerId) {
     if (err.code === 'ConditionalCheckFailedException') return false;
     throw err;
   }
+  // Closing streams must not depend on later narrative cleanup succeeding.
+  require('../lib/conversationStreams').close(id);
   await Message.removeByConversation(id);
   return true;
 }

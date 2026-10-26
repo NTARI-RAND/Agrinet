@@ -62,73 +62,21 @@ app.get('/health', (req, res) => {
 // Server & SSE event stream
 const server = http.createServer(app);
 
-// Simple Server-Sent Events implementation
-const sseClients = new Set();
-// Map of conversationId -> Set of response objects
-const conversationStreams = new Map();
-
-app.get('/events', (req, res) => {
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive'
-  });
-  sseClients.add(res);
-  req.on('close', () => sseClients.delete(res));
+// Account-scoped streams share the same owner check as message reads/sends.
+const conversationStreams = require('./lib/conversationStreams');
+app.get('/events', chatAuth, (_req, res) => {
+  res.status(410).json({ error: 'Global event feed retired; use an owned conversation stream' });
 });
-
-// Unified conversation-scoped Server-Sent Events endpoint
-app.get('/stream/:conversationId', (req, res) => {
-  const { conversationId } = req.params;
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive'
-  });
-
-  if (!conversationStreams.has(conversationId)) {
-    conversationStreams.set(conversationId, new Set());
-  }
-
-  const clients = conversationStreams.get(conversationId);
-  clients.add(res);
-
-  req.on('close', () => {
-    clients.delete(res);
-    if (clients.size === 0) {
-      conversationStreams.delete(conversationId);
-    }
-  });
-});
-
-function sendConversationEvent(conversationId, event, data) {
-  const clients = conversationStreams.get(conversationId);
-  if (!clients) return;
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  clients.forEach(res => res.write(payload));
-}
+app.get('/stream/:conversationId', chatAuth, asyncHandler(conversationStreams.open));
 
 function broadcast(event, data, conversationId) {
-  if (conversationId) {
-    sendConversationEvent(conversationId, event, data);
-    return;
-  }
-  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  sseClients.forEach(res => res.write(payload));
+  if (conversationId) conversationStreams.send(conversationId, event, data);
+  // Generic transaction broadcasts have no recipient authorization contract.
+  // Keep producers callable, but never expose them through a global feed.
 }
 global.broadcast = broadcast;
-
-// Helpers to emit token and message events
-function emitToken(conversationId, id, token) {
-  sendConversationEvent(conversationId, 'token', { id, token });
-}
-
-function emitMessage(conversationId, message) {
-  sendConversationEvent(conversationId, 'message', { message });
-}
-
-global.emitToken = emitToken;
-global.emitMessage = emitMessage;
+global.emitToken = (conversationId, id, token) => conversationStreams.send(conversationId, 'token', { id, token });
+global.emitMessage = (conversationId, message) => conversationStreams.send(conversationId, 'message', { message });
 
 // Middleware
 app.use(authMiddleware);
