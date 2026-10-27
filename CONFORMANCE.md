@@ -42,6 +42,25 @@ Adopts the covenant scale (LBTAS, v2 floor) and carries its own record instance.
 
 ## Product-specific notes (last, per the ordering rule)
 
+### Bounded application reads (A16)
+
+Conversation pages retain the account/owner boundary documented in
+`backend/docs/conversation-ownership.md`. The user directory allowlists local
+public fields and sharing-opted-in coarse location; it is not an account
+export. Cursors encrypt private scan positions and bind the account/query.
+`backend/__tests__/collectionPagination.test.js` and the real DynamoDB check
+`backend/scripts/check-collection-pagination.js` exercise these boundaries.
+
+Federation export is an explicitly read-only application view, using a
+separate read-only credential. Account rows, local dialog narrative and
+scalar ratings are omitted. Scheduled paths inspect pages without importing
+summaries, rewriting canonical records or advancing synchronization time.
+Source provenance/conflict policy and safe manual import remain open work;
+no witnessed-federation or full-stack privacy conformance is asserted. See
+`backend/docs/collection-pagination.md` for exact omissions, compatibility
+changes, configuration, rollout dependencies and residuals. Existing record,
+covenant and economy status claims above remain unchanged.
+
 The reference economy. Its operator/federation model is the named reference for the substrate's frontend-as-operator design target.
 
 Private application chat uses the verified backend account `userId` as an

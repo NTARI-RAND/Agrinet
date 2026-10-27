@@ -1,43 +1,35 @@
 const express = require("express");
 const router = express.Router();
 const dynamodbClient = require("../lib/dynamodbClient");
-const axios = require("axios");
+const { inspectExport } = require('../sync/exportPages');
+const { scanItems } = require('../lib/collectionPage');
 
 router.get("/federation/status", async (req, res) => {
   try {
-    const { Items = [] } = await dynamodbClient
-      .scan({ TableName: "NodeRegistry" })
-      .promise();
-
-    const checks = await Promise.all(
-      Items.map(async (node) => {
-        const url = node.nodeUrl;
-        try {
-          const { data } = await axios.get(`${url}/federation/export`, {
-            timeout: 5000,
-          });
-          return {
-            node: url,
-            status: "ONLINE",
-            listings: data.listings?.length || 0,
-            transactions: data.transactions?.length || 0,
-            users: data.users?.length || 0,
-            lastSync: node.lastSyncAt,
-          };
-        } catch (err) {
-          return {
-            node: url,
-            status: "OFFLINE",
-            error: err.message,
-            listings: 0,
-            transactions: 0,
-            users: 0,
-            lastSync: node.lastSyncAt,
-          };
-        }
-      })
-    );
-    res.json({ federationHealth: checks });
+    const checks = [];
+    for await (const node of scanItems(dynamodbClient, { TableName: 'NodeRegistry' })) {
+      const url = node.nodeUrl || node.url;
+      try {
+        const counts = await inspectExport(url);
+        checks.push({
+          node: url,
+          status: "ONLINE",
+          ...counts,
+          lastSync: node.lastSyncAt,
+        });
+      } catch (err) {
+        checks.push({
+          node: url,
+          status: "OFFLINE",
+          error: err.message,
+          listings: 0,
+          transactions: 0,
+          users: 0,
+          lastSync: node.lastSyncAt,
+        });
+      }
+    }
+    res.json({ federationHealth: checks, exportMode: 'read-only', usersExported: false });
   } catch (err) {
     res.status(500).json({ error: "Failed to validate federation status" });
   }

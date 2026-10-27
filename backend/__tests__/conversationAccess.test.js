@@ -96,10 +96,22 @@ describe('private conversation HTTP boundary', () => {
     expect(result.body.ownerId).toBe('alice');
     expect(mockTables.Conversations.get(result.body.id).ownerId).toBe('alice');
   });
+  async function allConversations(userId, apiKey) {
+    const rows = [];
+    let cursor;
+    do {
+      let call = request(app).get('/conversations').set('Authorization', authorization(userId));
+      if (apiKey) call = call.set('x-api-key', apiKey);
+      if (cursor) call = call.query({ cursor });
+      const result = await call;
+      expect(result.status).toBe(200);
+      rows.push(...result.body);
+      cursor = result.headers['x-next-cursor'];
+    } while (cursor);
+    return rows;
+  }
   test('listing traverses empty filtered pages without exposing foreign or legacy chats', async () => {
-    const result = await request(app).get('/conversations').set('Authorization', authorization('alice'));
-    expect(result.status).toBe(200);
-    expect(result.body.map(item => item.id)).toEqual(['mine']);
+    expect((await allConversations('alice')).map(item => item.id)).toEqual(['mine']);
   });
   test.each(['foreign', 'legacy', 'missing'])('all ID routes conceal %s and have no message side effects', async id => {
     for (const [method, url, body] of [
@@ -129,7 +141,7 @@ describe('private conversation HTTP boundary', () => {
     const result = await request(app).get('/conversations').set('x-api-key', process.env.API_KEY)
       .set('Authorization', authorization('alice'));
     expect(result.status).toBe(200);
-    expect(result.body.map(item => item.id)).toEqual(['mine']);
+    expect((await allConversations('alice', process.env.API_KEY)).map(item => item.id)).toEqual(['mine']);
   });
   test('the rightful owner can read, rename, pin, send, list and delete', async () => {
     const auth = authorization('alice');

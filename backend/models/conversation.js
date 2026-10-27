@@ -1,6 +1,7 @@
 const { randomUUID } = require('crypto');
 let docClient = require('../lib/dynamodbClient');
 const Message = require('./message');
+const { scanPage } = require('../lib/collectionPage');
 
 const CONVERSATION_TABLE_NAME = process.env.CONVERSATION_TABLE_NAME || 'Conversations';
 
@@ -32,6 +33,15 @@ async function list(ownerId) {
     cursor = res.LastEvaluatedKey;
   } while (cursor);
   return items;
+}
+
+async function listPage(ownerId, limit, start) {
+  if (typeof ownerId !== 'string' || !ownerId.trim()) throw new Error('Conversation owner required');
+  return scanPage(docClient, {
+    TableName: CONVERSATION_TABLE_NAME,
+    FilterExpression: 'ownerId = :ownerId',
+    ExpressionAttributeValues: { ':ownerId': ownerId },
+  }, limit, start);
 }
 
 async function getOwned(id, ownerId) {
@@ -85,4 +95,4 @@ function setDocClient(client) {
   docClient = client;
 }
 
-module.exports = { create, list, getOwned, rename, remove, pin, setDocClient };
+module.exports = { create, list, listPage, getOwned, rename, remove, pin, setDocClient };

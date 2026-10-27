@@ -1,4 +1,5 @@
 const Conversation = require('../models/conversation');
+const { collectionPage, pageError } = require('../lib/collectionPage');
 
 exports.create = async (req, res) => {
   const { title } = req.body;
@@ -7,8 +8,12 @@ exports.create = async (req, res) => {
 };
 
 exports.list = async (req, res) => {
-  const convos = await Conversation.list(req.user.userId);
-  res.json(convos);
+  try {
+    const page = collectionPage(req.query, ['conversations', req.user.userId]);
+    const { items, next } = await Conversation.listPage(req.user.userId, page.limit, page.state?.start);
+    page.finish(res, next && { start: next });
+    res.json(items);
+  } catch (error) { pageError(res, error, 'Failed to fetch conversations'); }
 };
 
 exports.get = (req, res) => res.json(req.conversation);
