@@ -1,5 +1,6 @@
 import { reducer } from './chatReducer.mjs';
-import React, { createContext, useContext, useReducer } from 'react';
+import React, { createContext, useContext, useEffect, useReducer } from 'react';
+import { accountClient } from './api';
 
 /**
  * @typedef {import('./types').Message} Message
@@ -53,8 +54,13 @@ const StoreContext = createContext();
  */
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  useEffect(() => {
+    const reset = () => dispatch({ type: 'RESET_ACCOUNT' });
+    accountClient.changes.addEventListener('change', reset);
+    return () => accountClient.changes.removeEventListener('change', reset);
+  }, []);
   return (
-    <StoreContext.Provider value={{ state, dispatch }}>
+    <StoreContext.Provider key={state.accountVersion || 0} value={{ state, dispatch }}>
       {children}
     </StoreContext.Provider>
   );

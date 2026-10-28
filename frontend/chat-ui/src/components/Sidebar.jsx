@@ -5,7 +5,7 @@
  *   GET /messages/{conversationId}    -> [{ id, role, content }]
  *   POST /conversations/{id}/pin      -> body: { pinned: boolean }
  *
- * All requests include an 'x-api-key' header and expect JSON responses.
+ * Private chat requests use the current backend account bearer and expect JSON.
  * Errors are caught and logged to the console without user-facing feedback.
  */
 import React, { useEffect, useState } from 'react';

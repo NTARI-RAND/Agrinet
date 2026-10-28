@@ -44,6 +44,22 @@ Adopts the covenant scale (LBTAS, v2 floor) and carries its own record instance.
 
 The reference economy. Its operator/federation model is the named reference for the substrate's frontend-as-operator design target.
 
+Private application chat uses the verified backend account `userId` as an
+immutable conversation owner. Conversation/message routes and attachment
+downloads enforce that boundary; shared integration keys supply no participant
+identity. Legacy ownerless rows remain inaccessible pending explicit operator
+assignment. Bindings: `backend/middleware/chatAuth.js`,
+`conversationOwner.js`, `attachmentOwner.js`, the conditional conversation
+model writes, and `backend/__tests__/conversationAccess.test.js`. This does not
+promote private chat to a sealed commons dialog or change the in-review ledger
+claims above. SSE uses the same verified owner identity before stream headers,
+implemented in `backend/lib/conversationStreams.js` and checked by
+`backend/__tests__/conversationStreams.test.js`. The unrestricted global feed
+is retired. Streams expire with the account token and close on local parent
+deletion; cross-replica invalidation remains a named residual. See
+`backend/docs/conversation-ownership.md` for migration and client
+integration limits.
+
 ### Browser garden planner
 
 The Next.js `/garden-planner` page is a member-local planning aid, not a ledger

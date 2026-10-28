@@ -30,7 +30,7 @@ This document describes the component-level architecture and user-experience flo
 
 ## 4. Sidebar (Left Panel)
 - **Component**: `Sidebar` with nested `ChatList` entries.
-- **API notes**: Comments in [`src/components/Sidebar.jsx`](src/components/Sidebar.jsx) outline conversation/message endpoints, expected JSON, and `x-api-key` usage.
+- **API notes**: Comments in [`src/components/Sidebar.jsx`](src/components/Sidebar.jsx) outline conversation/message endpoints and expected JSON. Private chat uses a backend account bearer supplied through `setAccountToken`; shared keys grant no private-chat access. SSE uses streaming fetch with Authorization headers, not native EventSource query credentials. See [`authenticated-streams.md`](../../backend/docs/authenticated-streams.md) for lifecycle and integration limits.
 - **New Chat**: Clears `messages[]` and establishes a new conversation identifier.
 - **History**: Loaded from `/conversations` and displayed as `ConversationCard` items with lazy‑loaded pagination.
 - **Pinned Chats**: Items marked with `pinned: true` render in a dedicated section.
