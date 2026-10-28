@@ -47,3 +47,21 @@ The reference economy. Its operator/federation model is the named reference for 
 ### Operator-local location data
 
 Location persistence uses the separate `Locations` table, never the commons record or generic Users federation payloads. `backend/controllers/locationController.js` requires a verified account JWT for owner writes/reloads and explicit boolean consent for discovery. Public discovery emits an allowlisted location DTO and encrypted pagination cursors. `backend/scripts/check-locations.js` binds these claims to real DynamoDB storage checks. See [deployment, privacy semantics and residual limits](docs/location-api.md). This does not promote any in-review ledger binding or fix legacy user/federation account-security gaps.
+
+### Browser garden planner
+
+The Next.js `/garden-planner` page is a member-local planning aid, not a ledger
+or a new protocol implementation. It reuses the existing square-foot gardening
+utility for spacing, adjacent-crop rules, and fixed maturity estimates. The UI
+states the limits of those estimates.
+
+Saving is explicit and browser-local; versioned JSON export/import provides a
+portable editable copy without account or vendor services. The format contains
+only version, planting date, and crop layout. It is not sent to the shared record
+or federation. No settlement, covenant, reputation, identity, or governance
+binding changes, and the in-review statuses above remain in review.
+
+`frontend/tests/gardenPlanner.test.cjs` checks crop totals, leap-day harvest
+dates, adjacent-crop conflicts, resize impact, portable round-tripping, invalid
+imports, and storage errors. This is feature verification, not a claim that the
+delegated JFA invariants are now enforced by this repository.
