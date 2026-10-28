@@ -50,3 +50,21 @@ not sealed dialog or commons entries; they store hashes and message references,
 not narrative. This does not promote any in-review binding above. See
 [`backend/docs/retry-safe-messages.md`](backend/docs/retry-safe-messages.md) for
 the guard, deployment requirements, crash limits, and executable checks.
+
+### Browser garden planner
+
+The Next.js `/garden-planner` page is a member-local planning aid, not a ledger
+or a new protocol implementation. It reuses the existing square-foot gardening
+utility for spacing, adjacent-crop rules, and fixed maturity estimates. The UI
+states the limits of those estimates.
+
+Saving is explicit and browser-local; versioned JSON export/import provides a
+portable editable copy without account or vendor services. The format contains
+only version, planting date, and crop layout. It is not sent to the shared record
+or federation. No settlement, covenant, reputation, identity, or governance
+binding changes, and the in-review statuses above remain in review.
+
+`frontend/tests/gardenPlanner.test.cjs` checks crop totals, leap-day harvest
+dates, adjacent-crop conflicts, resize impact, portable round-tripping, invalid
+imports, and storage errors. This is feature verification, not a claim that the
+delegated JFA invariants are now enforced by this repository.
