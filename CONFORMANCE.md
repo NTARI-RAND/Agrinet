@@ -44,6 +44,13 @@ Adopts the covenant scale (LBTAS, v2 floor) and carries its own record instance.
 
 The reference economy. Its operator/federation model is the named reference for the substrate's frontend-as-operator design target.
 
+The application message API supports optional retry receipts, scoped to the
+authenticated caller and conversation. These are private operational metadata,
+not sealed dialog or commons entries; they store hashes and message references,
+not narrative. This does not promote any in-review binding above. See
+[`backend/docs/retry-safe-messages.md`](backend/docs/retry-safe-messages.md) for
+the guard, deployment requirements, crash limits, and executable checks.
+
 ### Browser garden planner
 
 The Next.js `/garden-planner` page is a member-local planning aid, not a ledger
