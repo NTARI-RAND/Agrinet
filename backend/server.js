@@ -128,6 +128,11 @@ function emitMessage(conversationId, message) {
 global.emitToken = emitToken;
 global.emitMessage = emitMessage;
 
+// Registration and login must be reachable before a client has credentials.
+if (!minimal) {
+  tryMount('/api/auth', './routes/authRoutes');
+}
+
 // Middleware
 app.use(authMiddleware);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -137,7 +142,6 @@ let runFederationSync;
 if (!minimal) {
   [
     ['/', './routes/api'],
-    ['/api/auth', './routes/authRoutes'],
     ['/api/keys', './routes/keyRoutes'],
     ['/api/contracts', './routes/contracts'],
     ['/api/admin', './routes/admin'],
