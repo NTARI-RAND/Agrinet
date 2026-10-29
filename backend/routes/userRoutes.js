@@ -1,5 +1,6 @@
 const express = require('express');
 const bcrypt = require('../utils/bcrypt');
+const { randomUUID } = require('crypto');
 const router = express.Router();
 const docClient = require('../lib/dynamodbClient');
 const { USER_TABLE_NAME, createUserItem } = require('../models/user');
@@ -41,14 +42,22 @@ router.post('/', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const item = createUserItem({
       ...rest,
+      id: randomUUID(),
       password: hashedPassword,
       verified: false,
       reputationScore: 0
     });
-    await docClient.put({ TableName: USER_TABLE_NAME, Item: item }).promise();
+    await docClient.put({
+      TableName: USER_TABLE_NAME,
+      Item: item,
+      ConditionExpression: 'attribute_not_exists(id)'
+    }).promise();
     const { password: _pwd, ...user } = item;
     res.status(201).json({ message: 'User created', user });
   } catch (err) {
+    if (err.code === 'ConditionalCheckFailedException') {
+      return res.status(409).json({ error: 'User already exists' });
+    }
     // Log the error for debugging
     console.error('Error creating user:', err);
     // Provide more specific error information if available
