@@ -92,6 +92,7 @@ router.post('/:id/pin', rateLimit({
   message: { error: 'Too many requests, please try again later' }
 }), asyncHandler(owner), asyncHandler(ctrl.pin));
 
+router.get('/:id/attachments/:name', auth, require('../middleware/chatRateLimit')(120), asyncHandler(owner), asyncHandler(require('../middleware/conversationAttachment')));
 router.get('/:id', auth, require('../middleware/chatRateLimit')(120), asyncHandler(owner), ctrl.get);
 
 module.exports = router;

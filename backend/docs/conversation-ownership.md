@@ -23,7 +23,8 @@ The separate status of those mechanisms in CONFORMANCE.md remains accurate.
 
 ## Existing data and deployment
 
-Back up Conversations and Messages before rollout. Existing rows without an
+Back up Conversations and Messages before rollout. Legacy conversations were a
+shared pool, not account-owned records. Existing rows without an
 owner remain stored but inaccessible; the application never grants them to
 the first caller or guesses an owner from `from`. An operator must establish
 the rightful existing account through independent evidence before making an
@@ -40,15 +41,40 @@ their owned message/conversation reference no longer exists.
 
 The deployment needs DynamoDB GetItem/Scan/PutItem/UpdateItem/DeleteItem access
 to the configured conversation table and the existing message access, now
-including Scan for attachment-reference lookup. Scans require no new index
-or table. They prioritize correct isolation; an indexed attachment lookup is
-a possible measured follow-up, not supplied by this change.
+including Query for conversation-scoped attachment lookup and Scan for legacy
+`/uploads/:name` compatibility. New downloads use
+`/conversations/:id/attachments/:name`, checking ownership before querying only
+that conversation partition, including continuation pages. No new index or
+table is required. New files use UUID names, safe extensions and exclusive
+writes; original names remain in message metadata.
 
-**Roll out together with the authenticated-stream companion PR (A2).** A1
-closes REST and attachment access; unauthenticated SSE remains a separate
-existing path until A2 lands. Other open hardening work, including admin,
-user/federation authorization and attachment write containment, remains
+**Roll out #191 together with the authenticated-stream companion PR #192.**
+#191 closes REST and attachment access; unauthenticated SSE remains a separate
+existing path until #192 lands. Other open hardening work, including admin,
+user/federation authorization, remains
 separate and must be assessed before exposing public signup.
+
+Operators can count ownerless conversations without changing records:
+
+```sh
+aws dynamodb scan --table-name "$CONVERSATION_TABLE_NAME" --select COUNT \
+  --filter-expression 'attribute_not_exists(ownerId)' --consistent-read
+```
+
+Use the deployment's table name and normal read credentials. Include every
+page when counting through an SDK; a filtered page can be empty and still have
+a continuation key. This count does not establish ownership or migrate data.
+
+## Request limits
+
+Authenticated conversation and message routers each allow 120 requests per
+minute per account. Legacy uploads allow 60 requests per minute. Limits run
+after account verification and before database work; a renewed token for the
+same user does not reset the budget. IP subnet keys are the fallback when no
+account identity is available. Rejected requests return 429 and Retry-After.
+These budgets are configured at route registration through `chatRateLimit`.
+The in-memory counters are local to one server process; multi-process deployments
+need a shared express-rate-limit store to enforce a deployment-wide budget.
 
 ## Browser integration
 
@@ -58,7 +84,10 @@ the existing backend `/api/auth/login` response and pass its token to the
 exported `setAccountToken(token)` in `frontend/chat-ui/src/api.js`. Call
 `setAccountToken(null)` on logout. Tokens stay in memory; the adapter uses
 Authorization headers, never query strings or browser storage. Account changes
-clear chat state and discard in-flight responses from the old account.
+clear chat state and discard in-flight responses from the old account. Setting
+the same token again preserves state. Missing or rejected account credentials
+show “Sign in to use chat”; a 401 clears the expired token. Trusted-origin
+preflights permit Authorization, x-api-key and Idempotency-Key.
 
 Do not substitute an Amplify/Cognito token without an approved backend identity
 binding. PR #183 separately makes backend login/registration publicly
