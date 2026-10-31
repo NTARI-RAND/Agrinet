@@ -61,3 +61,21 @@ test('authorization failures stop reconnecting and no token means no request', a
   assert.equal(denied.readyState, 2);
   assert.equal(requests, 1);
 });
+
+test('oversized frames close permanently instead of repeatedly reconnecting', async () => {
+  const { createAccountClient } = await import('./src/accountClient.mjs');
+  const { authenticatedStream } = await import('./src/authenticatedStream.mjs');
+  const client = createAccountClient();
+  client.setToken('alice');
+  let requests = 0;
+  const stream = authenticatedStream(client, '/stream/mine', { retryMs: 1, fetchImpl: async () => {
+    requests++;
+    return new Response('data: ' + 'x'.repeat(1024 * 1024), { headers: { 'Content-Type': 'text/event-stream' } });
+  } });
+  try {
+    await once(stream, 'error');
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(stream.readyState, 2);
+    assert.equal(requests, 1);
+  } finally { stream.close(); }
+});

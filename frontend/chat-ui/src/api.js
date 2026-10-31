@@ -10,8 +10,8 @@ async function request(method, path, body) {
   return accountClient.request(method, path.startsWith('/') ? path : `/${path}`, body);
 }
 
-export async function downloadAttachment(file) {
-  const blob = await accountClient.attachment(file.path);
+export async function downloadAttachment(file, conversationId) {
+  const blob = await accountClient.attachment(file.path, conversationId);
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = objectUrl;

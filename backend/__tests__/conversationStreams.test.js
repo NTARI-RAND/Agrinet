@@ -30,7 +30,7 @@ describe('production conversation SSE boundary', () => {
   async function open(path, headers = {}) {
     const controller = new AbortController();
     controllers.push(controller);
-    return fetch(base + path, { headers, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(1500)]) });
+    return fetch(base + path, { headers, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(4000)]) });
   }
   beforeAll(async () => {
     process.env.MINIMAL_SERVER = 'false';
@@ -101,7 +101,7 @@ describe('production conversation SSE boundary', () => {
     expect((await reader.read()).done).toBe(true);
   });
   test('a connection closes when its account token expires', async () => {
-    const response = await open('/stream/mine', { Authorization: bearer('alice', 1) });
+    const response = await open('/stream/mine', { Authorization: `Bearer ${jwt.sign({ userId: 'alice', exp: Math.ceil(Date.now() / 1000) + 1 }, process.env.JWT_SECRET)}` });
     expect(response.status).toBe(200);
     const read = await response.body.getReader().read();
     expect(read.done).toBe(true);
@@ -136,4 +136,21 @@ describe('production conversation SSE boundary', () => {
     expect(response.status).toBe(404);
     expect(response.headers.get('content-type')).not.toContain('text/event-stream');
   });
+  test('retired global feed returns 410 without account credentials', async () => {
+    const response = await open('/events');
+    expect(response.status).toBe(410);
+  });
+  test('stream opening requests have an account budget before ownership reads', async () => {
+    const auth = { Authorization: bearer('stream-rate-fixture') };
+    const first = await open('/stream/missing', auth);
+    expect(first.status).toBe(404);
+    expect(first.headers.get('ratelimit-limit')).not.toBeNull();
+    const limit = Number(first.headers.get('ratelimit-limit'));
+    for (let i = 1; i < limit; i++) expect((await open('/stream/missing', auth)).status).toBe(404);
+    const blocked = await open('/stream/missing', auth);
+    expect(blocked.status).toBe(429);
+    expect(Number(blocked.headers.get('retry-after'))).toBeGreaterThan(0);
+    expect((await open('/stream/missing', { Authorization: bearer('other-stream-user') })).status).toBe(404);
+  });
+
 });

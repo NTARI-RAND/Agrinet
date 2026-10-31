@@ -1,6 +1,6 @@
 # Authenticated conversation streams
 
-This change depends on conversation ownership (A1). Deploy both changes
+This change depends on conversation ownership (#191). Deploy both changes
 together. The existing backend account JWT must be supplied as
 `Authorization: Bearer <token>`; its verified `userId` must own the requested
 conversation. Tokens must have a finite future expiry, as backend login tokens
@@ -12,8 +12,8 @@ the same 404 response. Successful streams preserve the existing `token` and
 `message` payloads, disable caching, and request that reverse proxies disable
 buffering. Authorization errors are JSON responses, never open SSE connections.
 
-The unrestricted `GET /events` feed is retired: authenticated requests receive
-410 and unauthenticated requests fail account authentication. No current chat
+The unrestricted `GET /events` feed is retired: all requests receive 410
+without account authentication. No current chat
 component uses it. Generic transaction broadcast producers remain callable,
 but their events are no longer exposed to arbitrary subscribers. Reintroducing
 transaction events needs a specific recipient-authorization contract; this PR
@@ -31,6 +31,16 @@ changes are not pushed to existing sockets here. Tokens remain the existing
 signed bearer capability until expiry; no server-wide JWT revocation system
 is introduced.
 
+## Resource limits
+
+Stream opening requests allow 60 attempts per minute per verified account,
+before the ownership lookup. Open streams are separately capped at five per
+account across all conversations, including pending ownership reads. Renewing a
+token for the same account does not reset either budget. Excess attempts return
+429. Idempotent cleanup releases capacity on disconnect, errors, expiry,
+ownership failure, and deletion (including pending connections). Counters are
+process-local; deployments with multiple replicas need shared enforcement.
+
 ## Browser transport
 
 Native EventSource cannot attach Authorization headers. The chat adapter now
@@ -39,9 +49,10 @@ listeners and `close()`. It parses UTF-8 SSE token/message frames across chunk
 and CRLF boundaries. It retries transient network disconnects after one second,
 with fresh account authorization, and stops on failed HTTP authorization or an
 invalid content type. There is no replay guarantee or Last-Event-ID contract.
-Buffering has a defensive 1 MiB text limit; oversized responses are cancelled.
+Buffering has a defensive 1 MiB text limit; oversized responses are cancelled
+and stop permanently rather than entering a reconnect loop.
 
-Call A1's `setAccountToken(token)` after the host application's existing login,
+Call #191's `setAccountToken(token)` after the host application's existing login,
 and `setAccountToken(null)` on logout. Every account change closes existing
 streams immediately and remounts private chat state. Old frames are not
 dispatched after closure. Credentials stay in headers and memory, never URLs,

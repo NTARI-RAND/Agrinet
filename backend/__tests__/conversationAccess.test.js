@@ -168,4 +168,28 @@ describe('private conversation HTTP boundary', () => {
     expect(mockTables.Messages.get('secret').content).toBe('private');
     expect(mockTables.Conversations.get('foreign').title).toBe('Bobs private chat');
   });
+  test.each(['unreferenced', 'deleted'])('conceals an %s attachment reference', async state => {
+    if (state === 'unreferenced') mockTables.Messages.clear();
+    else mockTables.Conversations.delete('foreign');
+    const response = await request(app).get(attachment).set('Authorization', authorization('bob'));
+    expect(response.status).toBe(404);
+  });
+  test('scoped attachment reads query only the owned conversation', async () => {
+    const response = await request(app).get('/conversations/foreign/attachments/' + filename).set('Authorization', authorization('bob'));
+    expect(response.status).toBe(200);
+    expect(response.body.toString()).toBe('private attachment');
+    expect(mockMessageReads).toBe(1);
+    const denied = await request(app).get('/conversations/foreign/attachments/' + filename).set('Authorization', authorization('alice'));
+    expect(denied.status).toBe(404);
+    expect(mockMessageReads).toBe(1);
+  });
+  test('trusted chat preflight permits the integration header and denies unknown origins', async () => {
+    const response = await request(app).options('/conversations').set('Origin', 'https://www.ntari.org')
+      .set('Access-Control-Request-Method', 'GET').set('Access-Control-Request-Headers', 'authorization,x-api-key,idempotency-key');
+    expect(response.status).toBe(204);
+    expect(response.headers['access-control-allow-headers'].toLowerCase()).toContain('x-api-key');
+    const denied = await request(app).options('/conversations').set('Origin', 'https://evil.example');
+    expect(denied.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
 });
