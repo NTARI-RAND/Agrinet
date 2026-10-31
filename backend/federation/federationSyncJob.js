@@ -1,50 +1,20 @@
-const axios = require("axios");
-const dynamodbClient = require("../lib/dynamodbClient");
-const { NODE_REGISTRY_TABLE_NAME } = require("./models/nodeRegistry");
+const dynamodbClient = require('../lib/dynamodbClient');
+const { NODE_REGISTRY_TABLE_NAME } = require('./models/nodeRegistry');
+const { scanItems } = require('../lib/collectionPage');
+const { inspectExport } = require('../sync/exportPages');
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5000";
-
-const runFederationSync = async () => {
-   // Scan all nodes from DynamoDB table
-  const { Items: nodes } = await dynamodbClient
-    .scan({ TableName: NODE_REGISTRY_TABLE_NAME })
-    .promise();
-/*
-const { getAllNodes, saveNode } = require("./models/nodeRegistry");
-
-const runFederationSync = async () => {
-  const nodes = await getAllNodes();
-*/
-  for (const node of nodes) {
+async function runFederationSync() {
+  for await (const node of scanItems(dynamodbClient, { TableName: NODE_REGISTRY_TABLE_NAME })) {
+    const url = node.url || node.nodeUrl;
     try {
-      // Fetch federation/export data from the node
-      const { data } = await axios.get(`${node.url}/federation/export`);
-      
-      // Update lastSyncAt in DynamoDB for this node
-      await axios.post(`${BACKEND_URL}/import`, data);
-
-      await dynamodbClient
-        .update({
-          TableName: NODE_REGISTRY_TABLE_NAME,
-          Key: { url: node.url },
-          UpdateExpression: "set lastSyncAt = :time",
-          ExpressionAttributeValues: {
-            ":time": new Date().toISOString(),
-          },
-        })
-        .promise();
-
-      //node.lastSyncAt = new Date().toISOString();
-      //await saveNode(node);
-
-      console.log(`✅ Synced with ${node.url}`);
-    } catch (err) {
-      console.error(`❌ Failed to sync with ${node.url}`);
+      const counts = await inspectExport(url);
+      // Redacted summaries cannot replace canonical records or local narrative.
+      console.info('Federation export inspected; automatic import disabled', { peer: url, counts });
+    } catch (error) {
+      console.error('Federation export inspection failed; no sync recorded', { peer: url, error: error.message });
     }
   }
-};
+}
 
-// Run every 6 hours
-setInterval(runFederationSync, 6 * 60 * 60 * 1000); // 6 hours
-
+setInterval(() => runFederationSync().catch(() => console.error('Federation registry scan failed')), 6 * 60 * 60 * 1000);
 module.exports = runFederationSync;

@@ -28,6 +28,12 @@ Clients that consume both HTTP and SSE should reconcile using message IDs.
 
 ## Contract
 
+On this branch, private chat routes require the owning account's bearer token.
+An API key alone cannot send or replay a private message. The retry service
+retains its API-key receipt format, but its credential-scope tests and the
+`--api-key` storage check exercise a separate service harness, not permission
+to access private chats. JWT storage checks use the production ownership path.
+
 Keys contain 1–128 printable ASCII characters, without spaces. Scope is the
 conversation plus the authenticated JWT `userId`, or the accepted API credential.
 It is never the caller-supplied `from` label. All clients sharing an API credential

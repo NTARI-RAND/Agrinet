@@ -3,34 +3,52 @@ const bcrypt = require('../utils/bcrypt');
 const router = express.Router();
 const docClient = require('../lib/dynamodbClient');
 const { USER_TABLE_NAME, createUserItem } = require('../models/user');
+const account = require('../middleware/chatAuth');
+const requestRateLimit = require('../middleware/requestRateLimit');
+const { collectionPage, scanPage, pageError } = require('../lib/collectionPage');
 
-// GET /users - fetch all users, omit sensitive data
-router.get('/', async (req, res) => {
-  const params = {
-    TableName: USER_TABLE_NAME
-  };
-
-  const filters = [];
-  const values = {};
-  if (req.query.role) {
-    filters.push('role = :role');
-    values[':role'] = req.query.role;
-  }
-  if (req.query.location) {
-    filters.push('location = :location');
-    values[':location'] = req.query.location;
-  }
-  if (filters.length) {
-    params.FilterExpression = filters.join(' AND ');
-    params.ExpressionAttributeValues = values;
-  }
-
+// GET /users - bounded directory, never account or private location records
+router.get('/', requestRateLimit(), account, requestRateLimit(), async (req, res) => {
   try {
-    const data = await docClient.scan(params).promise();
-    const users = (data.Items || []).map(({ password, ...rest }) => rest);
+    for (const name of ['role', 'location']) {
+      if (req.query[name] !== undefined && typeof req.query[name] !== 'string') {
+        return res.status(400).json({ error: 'Filters must be single strings' });
+      }
+    }
+    const page = collectionPage(req.query, ['users', req.user.userId, req.query.role || '', req.query.location || '']);
+    const params = {
+      TableName: USER_TABLE_NAME,
+      ProjectionExpression: '#id, #username, #role, #location, #privacy',
+      ExpressionAttributeNames: { '#id': 'id', '#username': 'username', '#role': 'role', '#location': 'location', '#privacy': 'locationPrivacy' },
+    };
+
+    const filters = [];
+    const values = {};
+    if (req.query.role) {
+      filters.push('#role = :role');
+      values[':role'] = req.query.role;
+    }
+    if (req.query.location) {
+      filters.push('#location = :location AND #privacy = :public');
+      values[':location'] = req.query.location;
+      values[':public'] = true;
+    }
+    if (filters.length) {
+      params.FilterExpression = filters.join(' AND ');
+      params.ExpressionAttributeValues = values;
+    }
+
+    const { items, next } = await scanPage(docClient, params, page.limit, page.state?.start);
+    const users = items.map(item => ({
+      ...(typeof item.id === 'string' && { id: item.id }),
+      ...(typeof item.username === 'string' && { username: item.username }),
+      ...(typeof item.role === 'string' && { role: item.role }),
+      ...(item.locationPrivacy === true && typeof item.location === 'string' && { location: item.location }),
+    }));
+    page.finish(res, next && { start: next });
     res.json(users);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch users' });
+    pageError(res, err, 'Failed to fetch users');
   }
 });
 

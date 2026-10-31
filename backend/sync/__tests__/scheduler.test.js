@@ -26,6 +26,7 @@ describe('scheduler', () => {
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
+    process.env.FEDERATION_PEER_KEYS = JSON.stringify({ 'https://node.example': 'read-key' });
     jest.useFakeTimers();
   });
 
@@ -33,10 +34,10 @@ describe('scheduler', () => {
     jest.useRealTimers();
   });
 
-  test('syncFromPeers upserts data and updates lastSyncAt', async () => {
+  test('syncFromPeers inspects without mutating canonical records or lastSyncAt', async () => {
     const dynamodbClient = require('../../lib/dynamodbClient');
     dynamodbClient.scan.mockReturnValue({
-      promise: () => Promise.resolve({ Items: [{ nodeUrl: 'http://node1' }] }),
+      promise: () => Promise.resolve({ Items: [{ nodeUrl: 'https://node.example' }] }),
     });
     dynamodbClient.update.mockReturnValue({ promise: () => Promise.resolve() });
 
@@ -45,8 +46,9 @@ describe('scheduler', () => {
       data: {
         listings: [{ _id: 'l1', updatedAt: '2024-01-01T00:00:00.000Z' }],
         transactions: [{ _id: 't1', updatedAt: '2024-01-01T00:00:00.000Z' }],
-        users: [{ _id: 'u1', updatedAt: '2024-01-01T00:00:00.000Z' }],
+        users: [],
       },
+      headers: { 'x-pagination': 'cursor-v1' },
     });
 
     const listingMock = require('../../marketplace/models/listings');
@@ -59,17 +61,11 @@ describe('scheduler', () => {
     const { syncFromPeers } = require('../scheduler');
     await syncFromPeers();
 
-    expect(listingMock.create).toHaveBeenCalledTimes(1);
-    expect(transactionMock.create).toHaveBeenCalledTimes(1);
-    expect(userMock.create).toHaveBeenCalledTimes(1);
-
-    expect(dynamodbClient.update).toHaveBeenCalledTimes(1);
-    const params = dynamodbClient.update.mock.calls[0][0];
-    const lastSyncAt = params.ExpressionAttributeValues[':lastSyncAt'];
-    // Check that lastSyncAt is a valid ISO string and close to now
-    const lastSyncDate = new Date(lastSyncAt);
-    expect(lastSyncDate.toISOString()).toBe(lastSyncAt);
-    expect(Math.abs(Date.now() - lastSyncDate.getTime())).toBeLessThan(5000); // within 5 seconds
+    expect(axios.get).toHaveBeenCalledTimes(1);
+    expect(listingMock.create).not.toHaveBeenCalled();
+    expect(transactionMock.create).not.toHaveBeenCalled();
+    expect(userMock.create).not.toHaveBeenCalled();
+    expect(dynamodbClient.update).not.toHaveBeenCalled();
   });
 
   test('schedules syncFromPeers at interval', () => {
