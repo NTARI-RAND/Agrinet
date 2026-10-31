@@ -26,9 +26,10 @@ async function sendMessage(
   };
 
   if (file && file.data) {
-    const filename = Date.now() + '_' + file.name;
+    const extension = path.extname(file.name || '');
+    const filename = randomUUID() + (/^\.[a-zA-Z0-9]{1,10}$/.test(extension) ? extension : '');
     const filePath = path.join(UPLOAD_DIR, filename);
-    fs.writeFileSync(filePath, Buffer.from(file.data, 'base64'));
+    fs.writeFileSync(filePath, Buffer.from(file.data, 'base64'), { flag: 'wx' });
     msg.file = {
       path: '/uploads/' + filename,
       originalname: file.name,
@@ -90,4 +91,22 @@ async function findByAttachmentPath(filePath) {
   return items;
 }
 
-module.exports = { sendMessage, listMessages, getMessage, removeByConversation, findByAttachmentPath, setDocClient };
+async function findConversationAttachment(conversationId, filePath) {
+  let cursor;
+  do {
+    const page = await docClient.query({
+      TableName: MESSAGE_TABLE_NAME,
+      KeyConditionExpression: 'conversationId = :cid',
+      FilterExpression: '#file.#path = :filePath',
+      ExpressionAttributeNames: { '#file': 'file', '#path': 'path' },
+      ExpressionAttributeValues: { ':cid': conversationId, ':filePath': filePath },
+      Limit: 100,
+      ...(cursor && { ExclusiveStartKey: cursor }),
+    }).promise();
+    if (page.Items?.some(message => message.file?.path === filePath)) return true;
+    cursor = page.LastEvaluatedKey;
+  } while (cursor);
+  return false;
+}
+
+module.exports = { sendMessage, listMessages, getMessage, removeByConversation, findByAttachmentPath, findConversationAttachment, setDocClient };

@@ -16,7 +16,7 @@ import { useStore } from '../store';
  * @typedef {import('../types').Message} Message
  */
 
-import { get, post } from '../api';
+import { accountClient, get, post } from '../api';
 
 /**
  * Sidebar containing conversation list and controls.
@@ -27,6 +27,7 @@ export default function Sidebar() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!accountClient.getToken()) { setLoading(false); return; }
     const load = async () => {
       try {
         const data = await get('/conversations');
@@ -89,6 +90,10 @@ export default function Sidebar() {
   const pinned = state.conversations.filter((c) => c.pinned);
   /** @type {Conversation[]} */
   const others = state.conversations.filter((c) => !c.pinned);
+
+  if (!accountClient.getToken()) {
+    return <aside className="farm-pane" role="status">Sign in to use chat.</aside>;
+  }
 
   return (
     <aside

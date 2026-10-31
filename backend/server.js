@@ -36,7 +36,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'x-api-key']
 }));
 // -----------------------------------------
 
@@ -132,7 +132,7 @@ global.emitMessage = emitMessage;
 
 // Middleware
 app.use(authMiddleware);
-app.use('/uploads', chatAuth, asyncHandler(require('./middleware/attachmentOwner')), express.static(path.join(__dirname, 'uploads'), {
+app.use('/uploads', chatAuth, require('./middleware/chatRateLimit')(60), asyncHandler(require('./middleware/attachmentOwner')), express.static(path.join(__dirname, 'uploads'), {
   dotfiles: 'deny', index: false,
   setHeaders(res) {
     res.setHeader('Content-Disposition', 'attachment');
