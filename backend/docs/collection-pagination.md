@@ -16,6 +16,20 @@ account or federation security gaps are closed.
 
 ## HTTP contract
 
+`GET /users` and attachment downloads each have an independent limit of
+1,000 requests per minute. A guard before account authentication uses the
+account already verified by outer middleware, or an IP fallback. A separate
+budget after account authentication enforces 1,000 requests per account even
+when an API key accompanies the bearer token. Excess requests return HTTP 429
+with `Retry-After`. Existing ownership, response fields and pagination remain
+unchanged below the limit. Conversation and federation routes are unchanged.
+
+Budgets are local to each server process and reset on restart. Multiple
+instances need a shared limiter store for a deployment-wide budget. Proxy
+trust settings are unchanged. The disposable storage-check HTTP server also
+limits authentication attempts to 1,000 per minute per IP before verifying
+credentials, and its acceptance check verifies exhaustion of that budget.
+
 JSON response shapes remain arrays for conversations/users and
 `{listings: [], transactions: [], users: []}` for federation export.
 Pagination metadata is carried in response headers:

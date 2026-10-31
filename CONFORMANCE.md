@@ -75,6 +75,13 @@ claims above. SSE requires the companion authenticated-stream change before
 rollout. See `backend/docs/conversation-ownership.md` for migration and client
 integration limits.
 
+The application message API supports optional retry receipts, scoped to the
+authenticated caller and conversation. These are private operational metadata,
+not sealed dialog or commons entries; they store hashes and message references,
+not narrative. This does not promote any in-review binding above. See
+[`backend/docs/retry-safe-messages.md`](backend/docs/retry-safe-messages.md) for
+the guard, deployment requirements, crash limits, and executable checks.
+
 ### Browser garden planner
 
 The Next.js `/garden-planner` page is a member-local planning aid, not a ledger

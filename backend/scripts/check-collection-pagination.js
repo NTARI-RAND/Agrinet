@@ -6,6 +6,19 @@ const { DynamoDBDocument, PutCommand, GetCommand } = require('@aws-sdk/lib-dynam
 const express = require('express');
 const jwt = require('jsonwebtoken');
 
+async function checkAuthenticationBudget(base) {
+  for (let i = 0; i < 1001; i++) {
+    const response = await fetch(`${base}/users`, { headers: { Authorization: 'Bearer invalid' } });
+    await response.text();
+    if (response.status === 429) {
+      assert.ok(Number(response.headers.get('retry-after')) > 0);
+      return;
+    }
+    assert.equal(response.status, 401);
+  }
+  assert.fail('verification server authentication attempts must be rate limited');
+}
+
 async function main() {
   const endpoint = new URL(process.env.DYNAMODB_ENDPOINT);
   if (!['127.0.0.1', 'localhost', '[::1]'].includes(endpoint.hostname)) throw new Error('DynamoDB Local loopback endpoint required');
@@ -50,7 +63,7 @@ async function main() {
     };
     const app = express();
     app.use(express.json());
-    app.use(require('../middleware/authMiddleware'));
+    app.use(require('../middleware/requestRateLimit')(), require('../middleware/authMiddleware'));
     app.use('/conversations', require('../routes/conversationRoutes'));
     app.use('/users', require('../routes/userRoutes'));
     app.use('/federation', require('../federation/federationRoutes'));
@@ -110,6 +123,7 @@ async function main() {
     assert.ok((await store.send(new GetCommand({ TableName: tables.Transactions, Key: { id: 't0' } }))).Item.dialogNotes.length > 100000);
     assert.ok(scans.some(params => params.ExclusiveStartKey));
     assert.ok(scans.every(params => params.Limit > 0 && params.Limit <= 100));
+    await checkAuthenticationBudget(base);
     console.log('PASS: real DynamoDB 1 MiB continuation, ownership, private projections, filters, browser adapter, read-only exports and unchanged local records');
   } finally {
     if (server) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });

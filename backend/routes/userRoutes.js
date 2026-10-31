@@ -4,10 +4,11 @@ const router = express.Router();
 const docClient = require('../lib/dynamodbClient');
 const { USER_TABLE_NAME, createUserItem } = require('../models/user');
 const account = require('../middleware/chatAuth');
+const requestRateLimit = require('../middleware/requestRateLimit');
 const { collectionPage, scanPage, pageError } = require('../lib/collectionPage');
 
 // GET /users - bounded directory, never account or private location records
-router.get('/', account, async (req, res) => {
+router.get('/', requestRateLimit(), account, requestRateLimit(), async (req, res) => {
   try {
     for (const name of ['role', 'location']) {
       if (req.query[name] !== undefined && typeof req.query[name] !== 'string') {
