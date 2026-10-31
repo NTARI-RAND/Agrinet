@@ -49,7 +49,7 @@ function memoryDatabase() {
   };
 }
 
-let db, app, originalClient, originalEnv, aiCalls, emitted;
+let db, app, legacyControllerApp, originalClient, originalEnv, aiCalls, emitted;
 const payload = { from: 'user', to: 'ai', content: 'When should I plant tomatoes?', type: 'text' };
 
 function makeApp() {
@@ -60,7 +60,7 @@ function makeApp() {
 }
 
 function send({ key = 'send-1', body = payload, user = 'grower-1', conversation = 'conversation-1', apiKey } = {}) {
-  let pending = request(app).post(`/messages/${conversation}`);
+  let pending = request(apiKey ? legacyControllerApp : app).post(`/messages/${conversation}`);
   if (apiKey) pending = pending.set('X-API-Key', apiKey);
   else pending = pending.set('Authorization', `Bearer ${jwt.sign({ userId: user }, process.env.JWT_SECRET)}`);
   if (key !== undefined && key !== null) pending = pending.set('Idempotency-Key', key);
@@ -74,6 +74,9 @@ beforeEach(() => {
   process.env.JWT_SECRET = 'test-only-message-retry-secret';
   process.env.API_KEY = 'test-only-api-key';
   db = memoryDatabase();
+  db.tables.set('Conversations', new Map([
+    ['conversation-1', 'grower-1'], ['conversation-2', 'grower-2'], ['conversation-3', 'grower-1'],
+  ].map(([id, ownerId]) => [JSON.stringify([null, id]), { id, ownerId }])));
   originalClient = { ...docClient };
   Object.assign(docClient, db);
   Message.setDocClient(docClient);
@@ -85,6 +88,11 @@ beforeEach(() => {
     return (async function* () { yield { choices: [{ delta: { content: 'Plant after the last frost.' } }] }; })();
   } } } });
   app = makeApp();
+  // Preserve controller-level legacy receipt-format coverage. Production chat
+  // routes separately require an account token and an owned conversation.
+  legacyControllerApp = express();
+  legacyControllerApp.use(express.json(), require('../middleware/authMiddleware'));
+  legacyControllerApp.post('/messages/:conversationId', require('../utils/asyncHandler')(require('../controllers/communication_controller').sendMessage));
 });
 
 afterEach(() => {
@@ -120,8 +128,8 @@ test('reusing a key with different content conflicts without creating another me
 
 test('keys are isolated by authenticated caller and conversation, never by body.from', async () => {
   const first = await send();
-  const otherUser = await send({ user: 'grower-2' });
-  const otherConversation = await send({ conversation: 'conversation-2' });
+  const otherUser = await send({ user: 'grower-2', conversation: 'conversation-2' });
+  const otherConversation = await send({ conversation: 'conversation-3' });
   assert.equal(otherUser.status, 201);
   assert.equal(otherConversation.status, 201);
   assert.notEqual(otherUser.body.message.id, first.body.message.id);
@@ -268,12 +276,13 @@ test('an invalid API-key header cannot alter a verified JWT retry scope', async 
 });
 
 test('authentication failures and JWTs without a stable user ID create no receipts', async () => {
-  assert.equal((await request(app).post('/messages/conversation-1').set('Idempotency-Key', 'key').send(payload)).status, 403);
+  assert.equal((await request(app).post('/messages/conversation-1').set('Idempotency-Key', 'key').send(payload)).status, 401);
   const noIdentity = await request(app).post('/messages/conversation-1')
     .set('Authorization', `Bearer ${jwt.sign({ role: 'member' }, process.env.JWT_SECRET)}`)
     .set('Idempotency-Key', 'key').send(payload);
-  assert.equal(noIdentity.status, 400);
-  assert.equal(db.tables.size, 0);
+  assert.equal(noIdentity.status, 401);
+  assert.equal(db.tables.has('MessageSends'), false);
+  assert.equal(messages().length, 0);
 });
 
 test('deleting a conversation never lets an old retry resurrect its messages or retained narrative', async () => {
@@ -331,18 +340,21 @@ test('failure to record completion leaves a durable pending receipt instead of r
 
 test('attachment retries reuse one file and do not call an AI responder', async (t) => {
   const filename = `retry-${randomUUID()}.txt`;
+  let storedPath;
   const uploads = path.join(__dirname, '../uploads');
   t.after(() => {
-    for (const file of fs.readdirSync(uploads).filter(name => name.endsWith(filename))) fs.unlinkSync(path.join(uploads, file));
+    if (storedPath) fs.rmSync(storedPath, { force: true });
   });
   const body = { from: 'user', to: 'buyer', type: 'file',
     file: { name: filename, type: 'text/plain', data: Buffer.from('Pickup instructions').toString('base64') } };
+  const before = new Set(fs.readdirSync(uploads));
   const first = await send({ body });
+  storedPath = first.body.message?.file && path.join(__dirname, '..', first.body.message.file.path);
   const replay = await send({ body });
   assert.equal(first.status, 201);
   assert.deepEqual(replay.body, first.body);
   assert.equal(fs.readFileSync(path.join(__dirname, '..', first.body.message.file.path), 'utf8'), 'Pickup instructions');
-  assert.equal(fs.readdirSync(uploads).filter(name => name.endsWith(filename)).length, 1);
+  assert.equal(fs.readdirSync(uploads).filter(name => !before.has(name)).length, 1);
   assert.equal(messages().length, 1);
   assert.equal(aiCalls, 0);
 });
@@ -390,4 +402,14 @@ test('browser preflight permits the idempotency header on the existing allowed o
   } finally {
     if (priorMinimal === undefined) delete process.env.MINIMAL_SERVER; else process.env.MINIMAL_SERVER = priorMinimal;
   }
+});
+
+
+test('production chat routes reject API-key-only sends before retry storage or AI work', async () => {
+  const response = await request(app).post('/messages/conversation-1')
+    .set('X-API-Key', process.env.API_KEY).set('Idempotency-Key', 'send-1').send(payload);
+  assert.equal(response.status, 401);
+  assert.equal(db.tables.has('MessageSends'), false);
+  assert.equal(messages().length, 0);
+  assert.equal(aiCalls, 0);
 });
