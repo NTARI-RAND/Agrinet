@@ -18,6 +18,24 @@ async function checkPrivateAccess(send, target, apiCaller) {
   assert.equal((await send(target, { user: 'another-grower' })).status, 404);
 }
 
+async function createTables(client, definitions, created) {
+  for (const [name, composite] of definitions) {
+    await client.send(new CreateTableCommand({ TableName: name, BillingMode: 'PAY_PER_REQUEST',
+      AttributeDefinitions: composite ? [{ AttributeName: 'conversationId', AttributeType: 'S' }, { AttributeName: 'id', AttributeType: 'S' }]
+        : [{ AttributeName: 'id', AttributeType: 'S' }],
+      KeySchema: composite ? [{ AttributeName: 'conversationId', KeyType: 'HASH' }, { AttributeName: 'id', KeyType: 'RANGE' }]
+        : [{ AttributeName: 'id', KeyType: 'HASH' }],
+    }));
+    created.push(name);
+  }
+}
+
+async function stopWorkers(workers, stop) {
+  for (const target of workers) {
+    if (target.child.exitCode === null && target.child.signalCode === null) await stop(target);
+  }
+}
+
 async function main() {
   const endpoint = process.env.DYNAMODB_TEST_ENDPOINT;
   if (!endpoint || !['localhost', '127.0.0.1', '[::1]'].includes(new URL(endpoint).hostname)) {
@@ -85,15 +103,7 @@ async function main() {
   }
 
   try {
-    for (const [name, composite] of [[messages, true], [receipts, false], [conversations, false]]) {
-      await client.send(new CreateTableCommand({ TableName: name, BillingMode: 'PAY_PER_REQUEST',
-        AttributeDefinitions: composite ? [{ AttributeName: 'conversationId', AttributeType: 'S' }, { AttributeName: 'id', AttributeType: 'S' }]
-          : [{ AttributeName: 'id', AttributeType: 'S' }],
-        KeySchema: composite ? [{ AttributeName: 'conversationId', KeyType: 'HASH' }, { AttributeName: 'id', KeyType: 'RANGE' }]
-          : [{ AttributeName: 'id', KeyType: 'HASH' }],
-      }));
-      created.push(name);
-    }
+    await createTables(client, [[messages, true], [receipts, false], [conversations, false]], created);
     await seedConversations(client, conversations);
     const firstWorker = await worker(true);
     const secondWorker = await worker(false);
@@ -129,9 +139,7 @@ async function main() {
     assert.equal(afterCrash.Count, 3);
     console.log('PASS: process death leaves a pending receipt and does not duplicate a message or AI invocation.');
   } finally {
-    for (const target of workers) {
-      if (target.child.exitCode === null && target.child.signalCode === null) await stop(target);
-    }
+    await stopWorkers(workers, stop);
     for (const name of created.reverse()) await client.send(new DeleteTableCommand({ TableName: name }));
     client.destroy();
   }
