@@ -44,6 +44,10 @@ Adopts the covenant scale (LBTAS, v2 floor) and carries its own record instance.
 
 The reference economy. Its operator/federation model is the named reference for the substrate's frontend-as-operator design target.
 
+### Operator-local location data
+
+Location persistence uses the separate `Locations` table, never the commons record or generic Users federation payloads. `backend/controllers/locationController.js` requires a verified account JWT for owner writes/reloads and explicit boolean consent for discovery. Public discovery emits an allowlisted location DTO and encrypted pagination cursors. `backend/scripts/check-locations.js` binds these claims to real DynamoDB storage checks. See [deployment, privacy semantics and residual limits](docs/location-api.md). This does not promote any in-review ledger binding or fix legacy user/federation account-security gaps.
+
 The application message API supports optional retry receipts, scoped to the
 authenticated caller and conversation. These are private operational metadata,
 not sealed dialog or commons entries; they store hashes and message references,

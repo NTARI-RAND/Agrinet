@@ -291,6 +291,19 @@ test('deleting a conversation never lets an old retry resurrect its messages or 
   assert.equal(aiCalls, 1);
 });
 
+
+test('a missing persisted assistant reply cannot replay a partial success', async () => {
+  const first = await send();
+  assert.equal(first.status, 201);
+  const [replyKey] = [...db.tables.get('Messages')].find(([, row]) => row.id === first.body.reply.id);
+  db.tables.get('Messages').delete(replyKey);
+  const retry = await send();
+  assert.equal(retry.status, 410);
+  assert.equal(retry.body.code, 'message_send_removed');
+  assert.equal(messages().length, 1);
+  assert.equal(aiCalls, 1);
+});
+
 test('a missing receipt table refuses keyed sends before any message or AI work', async () => {
   const put = docClient.put;
   docClient.put = params => params.TableName === 'MessageSends'
