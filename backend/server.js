@@ -36,7 +36,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'x-api-key']
 }));
 // -----------------------------------------
 
@@ -64,10 +64,10 @@ const server = http.createServer(app);
 
 // Account-scoped streams share the same owner check as message reads/sends.
 const conversationStreams = require('./lib/conversationStreams');
-app.get('/events', chatAuth, (_req, res) => {
+app.get('/events', (_req, res) => {
   res.status(410).json({ error: 'Global event feed retired; use an owned conversation stream' });
 });
-app.get('/stream/:conversationId', chatAuth, asyncHandler(conversationStreams.open));
+app.get('/stream/:conversationId', chatAuth, require('./middleware/chatRateLimit')(60), asyncHandler(conversationStreams.open));
 
 function broadcast(event, data, conversationId) {
   if (conversationId) conversationStreams.send(conversationId, event, data);
@@ -80,7 +80,7 @@ global.emitMessage = (conversationId, message) => conversationStreams.send(conve
 
 // Middleware
 app.use(authMiddleware);
-app.use('/uploads', chatAuth, asyncHandler(require('./middleware/attachmentOwner')), express.static(path.join(__dirname, 'uploads'), {
+app.use('/uploads', chatAuth, require('./middleware/chatRateLimit')(60), asyncHandler(require('./middleware/attachmentOwner')), express.static(path.join(__dirname, 'uploads'), {
   dotfiles: 'deny', index: false,
   setHeaders(res) {
     res.setHeader('Content-Disposition', 'attachment');
