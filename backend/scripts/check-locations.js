@@ -21,7 +21,7 @@ const jwt = require('jsonwebtoken');
 const express = require('express');
 const auth = require('../middleware/authMiddleware');
 const app = express();
-app.use(express.json(), auth);
+app.use(express.json(), require('../middleware/requestRateLimit')(), auth);
 app.use('/api/location', require('../routes/locationRoutes'));
 const body = (privacy = false, coordinates = 'geoLat_0.0,geoLong_0.0') => ({ coordinates, locationType: 'farm', privacy });
 
@@ -136,6 +136,20 @@ test('location persistence and discovery against DynamoDB Local', async t => {
       await admin.send(new DeleteTableCommand({ TableName: process.env.LOCATION_TABLE_NAME }));
       assert.equal((await request('/private', { owner: 'private', payload: body() })).status, 500);
       assert.equal((await request('/' + search)).status, 500);
+    });
+    await check('the verification server bounds authentication attempts', async () => {
+      let limited = false;
+      for (let i = 0; i < 1001; i++) {
+        const response = await fetch(base, { headers: { Authorization: 'Bearer invalid' } });
+        await response.text();
+        if (response.status === 429) {
+          assert.ok(Number(response.headers.get('retry-after')) > 0);
+          limited = true;
+          break;
+        }
+        assert.equal(response.status, 401);
+      }
+      assert.ok(limited, 'authentication attempts must be rate limited');
     });
   } finally {
     await new Promise(resolve => server.close(resolve));

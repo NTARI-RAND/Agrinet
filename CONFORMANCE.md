@@ -48,6 +48,13 @@ The reference economy. Its operator/federation model is the named reference for 
 
 Location persistence uses the separate `Locations` table, never the commons record or generic Users federation payloads. `backend/controllers/locationController.js` requires a verified account JWT for owner writes/reloads and explicit boolean consent for discovery. Public discovery emits an allowlisted location DTO and encrypted pagination cursors. `backend/scripts/check-locations.js` binds these claims to real DynamoDB storage checks. See [deployment, privacy semantics and residual limits](docs/location-api.md). This does not promote any in-review ledger binding or fix legacy user/federation account-security gaps.
 
+The application message API supports optional retry receipts, scoped to the
+authenticated caller and conversation. These are private operational metadata,
+not sealed dialog or commons entries; they store hashes and message references,
+not narrative. This does not promote any in-review binding above. See
+[`backend/docs/retry-safe-messages.md`](backend/docs/retry-safe-messages.md) for
+the guard, deployment requirements, crash limits, and executable checks.
+
 ### Browser garden planner
 
 The Next.js `/garden-planner` page is a member-local planning aid, not a ledger

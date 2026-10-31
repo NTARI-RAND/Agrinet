@@ -17,6 +17,7 @@ exports.requireOwner = (req, res, next) => {
     const owner = jwt.verify(header.slice(7), process.env.JWT_SECRET, { algorithms: ['HS256'] });
     if (typeof owner.userId !== 'string' || !owner.userId) throw new Error('Missing account');
     if (owner.userId !== req.params.id) return res.status(403).json({ error: 'Location belongs to another account' });
+    req.user = owner;
     next();
   } catch {
     return res.status(401).json({ error: 'A valid account token is required' });

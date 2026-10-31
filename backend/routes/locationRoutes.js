@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const locationController = require('../controllers/locationController');
+const requestRateLimit = require('../middleware/requestRateLimit');
 
 router.use((_req, res, next) => {
   res.set('Cache-Control', 'no-store');
@@ -9,8 +10,10 @@ router.use((_req, res, next) => {
 });
 
 // Update coordinates for a user
-router.post('/:id', locationController.requireOwner, locationController.setLocation);
-router.get('/:id', locationController.requireOwner, locationController.getLocation);
+const ownerLimit = requestRateLimit();
+const accountLimit = requestRateLimit();
+router.post('/:id', ownerLimit, locationController.requireOwner, accountLimit, locationController.setLocation);
+router.get('/:id', ownerLimit, locationController.requireOwner, accountLimit, locationController.getLocation);
 
 // Retrieve public locations filtered by geofence
 router.get('/', locationController.getPublicLocations);

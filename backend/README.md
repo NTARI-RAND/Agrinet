@@ -106,6 +106,11 @@ Endpoints (used by the Chat UI):
   - `token`: `{ id, token }`
   - `message`: `{ message }`
 
+Message sending supports an optional `Idempotency-Key` header so a lost response
+can be retried without another message, upload, broadcast, or AI invocation.
+See [retry-safe messages](docs/retry-safe-messages.md) for the client contract,
+required receipt table/permissions, failure handling, and integration checks.
+
 Server emitters (global):
 - `emitToken(conversationId, id, token)`
 - `emitMessage(conversationId, message)`

@@ -32,6 +32,10 @@ Coordinates use the existing AgriNet decimal-string format. Latitude is inclusiv
 
 The save response includes `message`, `id`, `coordinates`, `privacy`, and optional `locationType`. Owner reload returns the same location fields without `message`; an unsaved location returns 404. Responses use `Cache-Control: no-store`. Invalid values return 400, missing/invalid account tokens 401, other owners 403, and storage failures 500.
 
+Owner reads and writes share a limit of 1,000 requests per minute. A guard before owner authentication uses the account already verified by outer middleware, or an IP fallback. A separate budget after owner authentication enforces 1,000 requests per account even when an API key accompanies the bearer token. Excess requests return HTTP 429 with `Retry-After`. Ownership, privacy and response fields remain unchanged below the limit; discovery is unchanged.
+
+Budgets are local to each server process and reset on restart. Multiple instances need a shared limiter store for a deployment-wide budget. Proxy trust settings are unchanged; arbitrary forwarded headers cannot select another budget.
+
 ## Bounded discovery
 
 `GET /api/location?lat=17.18113&long=48.11553&radius=10&type=farm`
@@ -53,3 +57,5 @@ node --test scripts/check-locations.js
 ```
 
 `DYNAMODB_ENDPOINT` may select another loopback endpoint. The check refuses remote hosts, supplies dummy credentials, creates a uniquely named table, and deletes it on completion. It verifies durable writes, owner reload/access denial, explicit publication/withdrawal, exact safe response fields, coordinate/radius validation, multiple pages, cursor tampering/query binding, and honest storage failures. CI runs this check against a digest-pinned DynamoDB Local image.
+
+The disposable HTTP server also limits authentication attempts to 1,000 per minute per IP before verifying credentials. The check verifies budget exhaustion without bypassing authentication or throttling in test mode.
