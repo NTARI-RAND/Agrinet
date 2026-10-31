@@ -51,6 +51,13 @@ async function listMessages(conversationId) {
   return res.Items || [];
 }
 
+async function getMessage(conversationId, id) {
+  const { Item } = await docClient.get({
+    TableName: MESSAGE_TABLE_NAME, Key: { conversationId, id }, ConsistentRead: true,
+  }).promise();
+  return Item || null;
+}
+
 async function removeByConversation(conversationId) {
   const messages = await listMessages(conversationId);
   if (!messages.length) return;
@@ -83,4 +90,4 @@ async function findByAttachmentPath(filePath) {
   return items;
 }
 
-module.exports = { sendMessage, listMessages, removeByConversation, findByAttachmentPath, setDocClient };
+module.exports = { sendMessage, listMessages, getMessage, removeByConversation, findByAttachmentPath, setDocClient };
