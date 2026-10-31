@@ -12,7 +12,7 @@ export default function MessageBubble({ message, index = 0 }) {
   const [downloadError, setDownloadError] = useState('');
   const download = async () => {
     setDownloadError('');
-    try { await downloadAttachment(message.file); }
+    try { await downloadAttachment(message.file, message.conversationId); }
     catch (error) { setDownloadError(error.message); }
   };
   const isUser = message.role === 'user' || message.sender === 'user' || message.from === 'user';
