@@ -1,0 +1,690 @@
+diff --git a/backend/package.json b/backend/package.json
+index 1111111..2222222 100644
+--- a/backend/package.json
++++ b/backend/package.json
+@@
+   "dependencies": {
+     "@aws-sdk/client-dynamodb": "^3.583.0",
+     "@aws-sdk/lib-dynamodb": "^3.1152.0",
+     "axios": "^1.20.0",
+     "bcryptjs": "^3.0.2",
+     "bullmq": "^5.12.0",
+     "cors": "^2.8.5",
+     "dotenv": "^16.4.7",
+     "express": "^4.21.2",
++    "express-rate-limit": "^8.0.0",
+     "franc": "^6.1.0",
+     "jsonwebtoken": "^9.0.2",
+     "openai": "^4.76.0",
+     "stripe": "^18.5.0",
+     "twilio": "^4.21.0"
+   },
+
+diff --git a/backend/middleware/rateLimit.js b/backend/middleware/rateLimit.js
+new file mode 100644
+--- /dev/null
++++ b/backend/middleware/rateLimit.js
+@@
++const rateLimit = require('express-rate-limit');
++
++const createUserRateLimiter = ({ windowMs, max, message }) =>
++  rateLimit({
++    windowMs,
++    max,
++    standardHeaders: true,
++    legacyHeaders: false,
++    keyGenerator: (req) => req.user?.userId || req.ip,
++    message: { error: message || 'Too many requests' },
++    handler: (req, res) => {
++      res.status(429).json({ error: message || 'Too many requests' });
++    }
++  });
++
++const userChatRateLimit = createUserRateLimiter({
++  windowMs: 60 * 1000,
++  max: 60,
++  message: 'Too many chat requests for this user'
++});
++
++const uploadRateLimit = createUserRateLimiter({
++  windowMs: 60 * 1000,
++  max: 20,
++  message: 'Too many upload requests for this user'
++});
++
++const streamRateLimit = createUserRateLimiter({
++  windowMs: 60 * 1000,
++  max: 20,
++  message: 'Too many stream connections for this user'
++});
++
++const userStreamCounts = new Map();
++
++function enforceUserStreamLimit(req, res, next) {
++  const userId = req.user?.userId || req.ip;
++  const count = userStreamCounts.get(userId) || 0;
++
++  if (count >= 3) {
++    return res.status(429).json({ error: 'Too many open streams for this user' });
++  }
++
++  userStreamCounts.set(userId, count + 1);
++
++  res.on('close', () => {
++    const current = userStreamCounts.get(userId) || 0;
++    if (current <= 1) {
++      userStreamCounts.delete(userId);
++    } else {
++      userStreamCounts.set(userId, current - 1);
++    }
++  });
++
++  next();
++}
++
++module.exports = {
++  createUserRateLimiter,
++  userChatRateLimit,
++  uploadRateLimit,
++  streamRateLimit,
++  enforceUserStreamLimit
++};
++
+*** End Patch
++
++diff --git a/backend/models/user.js b/backend/models/user.js
++index 1111111..2222222 100644
++--- a/backend/models/user.js
+++++ b/backend/models/user.js
++@@
++ const USER_TABLE_NAME = "Users";
++
++ function sanitizeUserForPublic(user = {}) {
++   const { password, verificationCode, ...safeUser } = user;
++   return safeUser;
++ }
++
++ function createUserItem({
++   id, // You should generate a unique id for each user (e.g., uuid)
++   username,
++   email,
++   phone,
++   password,
++   verified = false,
++   verificationCode,
++   location,
++   coordinates, // { lat, long }
++   locationType, // 'farm' | 'production' | 'delivery'
++   locationPrivacy = false,
++   role = "consumer",
++   reputationScore = 0,
++   reputationWeight = 0
++ }) {
++   const item = {
++     id, // Partition key for DynamoDB table
++     username,
++     email,
++     phone,
++     password,
++     verified,
++     location,
++     locationPrivacy,
++     role,
++     reputationScore,
++     reputationWeight
++   };
++
++   if (verificationCode !== undefined) item.verificationCode = verificationCode;
++   if (coordinates !== undefined) item.coordinates = coordinates;
++   if (locationType !== undefined) item.locationType = locationType;
++
++   return item;
++ }
++
++ module.exports = {
++   USER_TABLE_NAME,
++   createUserItem,
++   sanitizeUserForPublic
++ };
++
+*** End Patch
++
++diff --git a/backend/routes/userRoutes.js b/backend/routes/userRoutes.js
++index 1111111..2222222 100644
++--- a/backend/routes/userRoutes.js
+++++ b/backend/routes/userRoutes.js
++@@
++ const express = require('express');
++ const bcrypt = require('../utils/bcrypt');
++ const { randomUUID } = require('crypto');
++ const router = express.Router();
++ const docClient = require('../lib/dynamodbClient');
++ const { USER_TABLE_NAME, createUserItem, sanitizeUserForPublic } = require('../models/user');
++
++ // GET /users - fetch all users, omit sensitive data
++ router.get('/', async (req, res) => {
++   const params = {
++     TableName: USER_TABLE_NAME
++   };
++
++   const filters = [];
++   const values = {};
++   if (req.query.role) {
++     filters.push('role = :role');
++     values[':role'] = req.query.role;
++   }
++   if (req.query.location) {
++     filters.push('location = :location');
++     values[':location'] = req.query.location;
++   }
++   if (filters.length) {
++     params.FilterExpression = filters.join(' AND ');
++     params.ExpressionAttributeValues = values;
++   }
++
++   try {
++     const data = await docClient.scan(params).promise();
++     const users = (data.Items || []).map(sanitizeUserForPublic);
++     res.json(users);
++   } catch (err) {
++     res.status(500).json({ error: 'Failed to fetch users' });
++   }
++ });
++
++ // POST /users - create a new user
++ router.post('/', async (req, res) => {
++   try {
++     const { password, id, ...rest } = req.body;
++
++     if (!req.user || req.user.role !== 'admin') {
++       return res.status(403).json({ error: 'Admin access required to create users' });
++     }
++
++     if (typeof password !== 'string' || password.length < 8) {
++       return res.status(400).json({ error: 'Password is required and must be at least 8 characters' });
++     }
++
++     if (id) {
++       return res.status(400).json({ error: 'Client-generated user ids are not allowed' });
++     }
++
++     const hashedPassword = await bcrypt.hash(password, 10);
++     const item = createUserItem({
++       id: randomUUID(),
++       ...rest,
++       password: hashedPassword,
++       verified: false,
++       reputationScore: 0
++     });
++
++     await docClient.put({
++       TableName: USER_TABLE_NAME,
++       Item: item,
++       ConditionExpression: 'attribute_not_exists(id)'
++     }).promise();
++
++     const user = sanitizeUserForPublic(item);
++     res.status(201).json({ message: 'User created', user });
++   } catch (err) {
++     console.error('Error creating user:', err);
++     if (err.code === 'ConditionalCheckFailedException') {
++       return res.status(409).json({ error: 'User already exists' });
++     }
++     if (err.code === 'ValidationException') {
++       return res.status(400).json({ error: 'Validation error', details: err.message });
++     }
++     res.status(500).json({ error: err.message || 'Failed to create user' });
++   }
++ });
++
++ module.exports = router;
++
+*** End Patch
++
++diff --git a/backend/routes/admin.js b/backend/routes/admin.js
++index 1111111..2222222 100644
++--- a/backend/routes/admin.js
+++++ b/backend/routes/admin.js
++@@
++ const express = require("express");
++ const docClient = require("../lib/dynamodbClient");
++ const { USER_TABLE_NAME, sanitizeUserForPublic } = require("../models/user");
++ const { KEY_TABLE_NAME } = require("../models/key");
++ const router = express.Router();
++
++ // Get all users
++ router.get("/users", async (req, res) => {
++     try {
++         const data = await docClient
++             .scan({ TableName: USER_TABLE_NAME })
++             .promise();
++         const users = (data.Items || []).map(sanitizeUserForPublic);
++         res.json(users);
++     } catch (err) {
++         res.status(500).json({ error: "Failed to fetch users" });
++     }
++ });
++
++ // Get key usage logs
++ router.get("/keys", async (req, res) => {
++     try {
++         const { Items: keys = [] } = await docClient.scan({ TableName: KEY_TABLE_NAME }).promise();
++         res.json(keys);
++     } catch (err) {
++         res.status(500).json({ error: "Failed to fetch keys" });
++     }
++ });
++
++ module.exports = router;
++
+*** End Patch
++
++diff --git a/backend/routes/federationRoutes.js b/backend/routes/federationRoutes.js
++index 1111111..2222222 100644
++--- a/backend/routes/federationRoutes.js
+++++ b/backend/routes/federationRoutes.js
++@@
++ const express = require('express');
++ const router = express.Router();
++ const docClient = require('../lib/dynamodbClient');
++ const { LISTING_TABLE_NAME } = require('../models/listing');
++ const { TRANSACTION_TABLE_NAME } = require('../models/transaction');
++ const { USER_TABLE_NAME, sanitizeUserForPublic } = require('../models/user');
++ const { importFederatedData } = require('../sync/importHelper');
++
++ // Export core objects
++ router.get('/export', async (req, res) => {
++   try {
++     if (!req.user || req.user.role !== 'admin') {
++       return res.status(403).json({ error: 'Admin access required' });
++     }
++
++     const listingsRes = await docClient.scan({ TableName: LISTING_TABLE_NAME }).promise();
++     const transactionsRes = await docClient.scan({ TableName: TRANSACTION_TABLE_NAME }).promise();
++     const usersRes = await docClient
++       .scan({
++         TableName: USER_TABLE_NAME,
++         ProjectionExpression: 'id, username, location, coordinates, locationType, locationPrivacy, reputationScore, reputationWeight'
++       })
++       .promise();
++
++     res.json({
++       listings: listingsRes.Items || [],
++       transactions: transactionsRes.Items || [],
++       users: (usersRes.Items || []).map(sanitizeUserForPublic)
++     });
++   } catch (error) {
++     res.status(500).json({ error: 'Export error' });
++   }
++ });
++
++ // Import core objects
++ router.post('/import', async (req, res) => {
++   try {
++     if (!req.user || req.user.role !== 'admin') {
++       return res.status(403).json({ error: 'Admin access required' });
++     }
++
++     await importFederatedData(req.body);
++
++     res.json({ message: 'Data imported successfully' });
++   } catch (error) {
++     res.status(500).json({ error: 'Import error' });
++   }
++ });
++
++ module.exports = router;
++
+*** End Patch
++
++diff --git a/backend/sync/importHelper.js b/backend/sync/importHelper.js
++index 1111111..2222222 100644
++--- a/backend/sync/importHelper.js
+++++ b/backend/sync/importHelper.js
++@@
++ const docClient = require('../lib/dynamodbClient');
++ const { LISTING_TABLE_NAME } = require('../models/listing');
++ const { TRANSACTION_TABLE_NAME } = require('../models/transaction');
++ const { USER_TABLE_NAME } = require('../models/user');
++
++ function sanitizeImportedUser(user) {
++   if (!user || typeof user !== 'object') {
++     throw new Error('Invalid user entry in federated import');
++   }
++
++   const {
++     id,
++     username,
++     email,
++     phone,
++     location,
++     coordinates,
++     locationType,
++     locationPrivacy,
++     reputationScore,
++     reputationWeight,
++     password,
++     verificationCode,
++     verified,
++     role,
++     ...rest
++   } = user;
++
++   if (!id) {
++     throw new Error('User import requires a user id');
++   }
++
++   const cleaned = {
++     id,
++     username,
++     email,
++     phone,
++     location,
++     coordinates,
++     locationType,
++     locationPrivacy,
++     reputationScore,
++     reputationWeight,
++     ...rest
++   };
++
++   delete cleaned.password;
++   delete cleaned.verificationCode;
++   delete cleaned.verified;
++   delete cleaned.role;
++
++   return cleaned;
++ }
++
++ async function importFederatedData(data) {
++   for (const listing of data.listings || []) {
++     await docClient.put({ TableName: LISTING_TABLE_NAME, Item: listing }).promise();
++   }
++   for (const transaction of data.transactions || []) {
++     await docClient.put({ TableName: TRANSACTION_TABLE_NAME, Item: transaction }).promise();
++   }
++   for (const user of data.users || []) {
++     const cleanedUser = sanitizeImportedUser(user);
++
++     const existing = await docClient.get({
++       TableName: USER_TABLE_NAME,
++       Key: { id: cleanedUser.id }
++     }).promise();
++
++     if (existing && existing.Item) {
++       throw new Error(`Refusing to overwrite existing user id: ${cleanedUser.id}`);
++     }
++
++     await docClient.put({
++       TableName: USER_TABLE_NAME,
++       Item: cleanedUser,
++       ConditionExpression: 'attribute_not_exists(id)'
++     }).promise();
++   }
++   return { success: true };
++ }
++
++ module.exports = { importFederatedData };
++
+*** End Patch
++
++diff --git a/backend/server.js b/backend/server.js
++index 1111111..2222222 100644
++--- a/backend/server.js
+++++ b/backend/server.js
++@@
++ const path = require("path");
++ const authMiddleware = require("./middleware/authMiddleware");
++ const {
++   userChatRateLimit,
++   uploadRateLimit,
++   streamRateLimit,
++   enforceUserStreamLimit
++ } = require("./middleware/rateLimit");
++
++ // Load environment variables
++ dotenv.config();
++@@
++ // Middleware
++ app.use(authMiddleware);
++ app.use('/uploads', uploadRateLimit, express.static(path.join(__dirname, 'uploads')));
++ app.use('/conversations', userChatRateLimit);
++ app.use('/messages', userChatRateLimit);
++
++ app.get('/stream/:conversationId', streamRateLimit, enforceUserStreamLimit, (req, res) => {
++   const { conversationId } = req.params;
++   res.writeHead(200, {
++     'Content-Type': 'text/event-stream',
++     'Cache-Control': 'no-cache',
++     Connection: 'keep-alive'
++   });
++
++   if (!conversationStreams.has(conversationId)) {
++     conversationStreams.set(conversationId, new Set());
++   }
++
++   const clients = conversationStreams.get(conversationId);
++   clients.add(res);
++
++   req.on('close', () => {
++     clients.delete(res);
++     if (clients.size === 0) {
++       conversationStreams.delete(conversationId);
++     }
++   });
++ });
+-
+-// Routes
++
++// Routes
+*** End Patch
++
++diff --git a/backend/routes/__tests__/userRoutes.test.js b/backend/routes/__tests__/userRoutes.test.js
++index 1111111..2222222 100644
++--- a/backend/routes/__tests__/userRoutes.test.js
+++++ b/backend/routes/__tests__/userRoutes.test.js
++@@
++ const request = require('supertest');
++ const express = require('express');
++ const bcrypt = require('bcryptjs');
++
++ jest.mock('../../lib/dynamodbClient', () => ({
++   scan: jest.fn(),
++   put: jest.fn(),
++   get: jest.fn()
++ }));
++
++ const docClient = require('../../lib/dynamodbClient');
++ const userRoutes = require('../userRoutes');
++
++ describe('userRoutes', () => {
++   let app;
++   beforeEach(() => {
++     app = express();
++     app.use(express.json());
++     app.use((req, _res, next) => {
++       req.user = { role: 'admin', userId: 'admin-1' };
++       next();
++     });
++     app.use('/users', userRoutes);
++     docClient.scan.mockReset();
++     docClient.put.mockReset();
++     docClient.get.mockReset();
++   });
++
++   describe('GET /users', () => {
++     it('returns users without passwords', async () => {
++       docClient.scan.mockReturnValue({
++         promise: () => Promise.resolve({
++           Items: [
++             { id: '1', username: 'john', password: 'hash', role: 'consumer', location: 'NY', verificationCode: 'abc' }
++           ]
++         })
++       });
++
++       const res = await request(app).get('/users');
++       expect(res.status).toBe(200);
++       expect(res.body).toEqual([
++         { id: '1', username: 'john', role: 'consumer', location: 'NY' }
++       ]);
++       expect(res.body[0].password).toBeUndefined();
++       expect(res.body[0].verificationCode).toBeUndefined();
++     });
++
++     it('applies role and location filters', async () => {
++       docClient.scan.mockReturnValue({ promise: () => Promise.resolve({ Items: [] }) });
++
++       await request(app).get('/users?role=farmer&location=Texas');
++
++       expect(docClient.scan).toHaveBeenCalledWith(
++         expect.objectContaining({
++           FilterExpression: 'role = :role AND location = :location',
++           ExpressionAttributeValues: { ':role': 'farmer', ':location': 'Texas' }
++         })
++       );
++     });
++   });
++
++   describe('POST /users', () => {
++     it('creates user with hashed password and defaults', async () => {
++       docClient.put.mockReturnValue({ promise: () => Promise.resolve({}) });
++
++       const res = await request(app)
++         .post('/users')
++         .send({
++           username: 'alice',
++           email: 'a@b.com',
++           password: 'secretsecret',
++           role: 'producer',
++           location: 'CA'
++         });
++
++       expect(res.status).toBe(201);
++       expect(res.body.user).toMatchObject({
++         username: 'alice',
++         email: 'a@b.com',
++         role: 'producer',
++         location: 'CA',
++         verified: false,
++         reputationScore: 0
++       });
++       expect(res.body.user.password).toBeUndefined();
++       expect(res.body.user.id).toBeDefined();
++
++       const params = docClient.put.mock.calls[0][0];
++       const stored = params.Item;
++       expect(stored.verified).toBe(false);
++       expect(stored.reputationScore).toBe(0);
++       expect(await bcrypt.compare('secretsecret', stored.password)).toBe(true);
++       expect(params.ConditionExpression).toBe('attribute_not_exists(id)');
++     });
++
++     it('rejects client supplied ids', async () => {
++       const res = await request(app)
++         .post('/users')
++         .send({
++           id: 'malicious-id',
++           username: 'mallory',
++           email: 'm@b.com',
++           password: 'secretsecret'
++         });
++
++       expect(res.status).toBe(400);
++       expect(res.body.error).toMatch(/ids are not allowed/i);
++     });
++
++     it('rejects non-admins', async () => {
++       app = express();
++       app.use(express.json());
++       app.use((req, _res, next) => {
++         req.user = { role: 'consumer', userId: 'u-1' };
++         next();
++       });
++       app.use('/users', userRoutes);
++
++       const res = await request(app)
++         .post('/users')
++         .send({
++           username: 'mallory',
++           email: 'm@b.com',
++           password: 'secretsecret'
++         });
++
++       expect(res.status).toBe(403);
++       expect(res.body.error).toMatch(/admin access required/i);
++     });
++   });
++ });
++
+*** End Patch
++
++diff --git a/backend/sync/__tests__/importHelper.test.js b/backend/sync/__tests__/importHelper.test.js
++index 1111111..2222222 100644
++--- a/backend/sync/__tests__/importHelper.test.js
+++++ b/backend/sync/__tests__/importHelper.test.js
++@@
++ const { test } = require('node:test');
++ const assert = require('node:assert/strict');
++ const docClient = require('../../lib/dynamodbClient');
++ const { importFederatedData } = require('../importHelper');
++
++ test('empty federation import succeeds without writes', async () => {
++   docClient.put = () => { throw new Error('unexpected write'); };
++   docClient.get = () => { throw new Error('unexpected read'); };
++   assert.deepEqual(await importFederatedData({}), { success: true });
++ });
++
++ test('federation import strips auth fields and refuses overwrites', async () => {
++   docClient.get = async ({ Key }) => ({ Item: { id: Key.id, username: 'existing' } });
++   docClient.put = async () => {};
++
++   await assert.rejects(
++     () => importFederatedData({
++       users: [{
++         id: 'u1',
++         username: 'alice',
++         password: 'secret',
++         verificationCode: 'code-123',
++         role: 'admin',
++         email: 'a@b.com'
++       }]
++     }),
++     /Refusing to overwrite existing user id: u1/
++   );
++ });
++
++ test('federation import preserves sanitized users when they do not exist', async () => {
++   docClient.get = async () => ({});
++   const writes = [];
++   docClient.put = async (params) => {
++     writes.push(params);
++   };
++
++   const result = await importFederatedData({
++     users: [{
++       id: 'u2',
++       username: 'bob',
++       email: 'bob@example.com',
++       password: 'hash',
++       verificationCode: 'abc',
++       role: 'consumer'
++     }]
++   });
++
++   assert.deepEqual(result, { success: true });
++   assert.equal(writes.length, 1);
++   assert.deepEqual(writes[0].Item, {
++     id: 'u2',
++     username: 'bob',
++     email: 'bob@example.com'
++   });
++   assert.equal(writes[0].ConditionExpression, 'attribute_not_exists(id)');
++ });
++
++ test('federation import propagates storage errors', async () => {
++   docClient.get = async () => ({});
++   docClient.put = () => ({ promise: async () => { throw new Error('write failed'); } });
++   await assert.rejects(importFederatedData({ users: [{ id: 'u3' }] }), /write failed/);
++ });
++
+*** End Patch
