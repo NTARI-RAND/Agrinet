@@ -14,6 +14,7 @@ try {
 }
 const path = require("path");
 const authMiddleware = require("./middleware/authMiddleware");
+const errorHandler = require("./middleware/errorHandler");
 
 // Load environment variables
 dotenv.config();
@@ -29,7 +30,10 @@ app.use(cors({
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('CORS not allowed for this origin'));
+      const err = new Error('CORS not allowed for this origin');
+      err.status = 403;
+      err.expose = true;
+      callback(err);
     }
   },
   credentials: true,
@@ -163,6 +167,8 @@ if (!minimal) {
     console.warn(`Federation sync disabled: ${err.message}`);
   }
 }
+
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 if (require.main === module) {
