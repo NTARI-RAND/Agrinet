@@ -2,7 +2,7 @@ const { randomUUID } = require('node:crypto');
 const { getRedisClient } = require('./rateLimit');
 
 const localReservations = new Map();
-const RESERVATION_TTL_MS = 24 * 60 * 60 * 1000;
+const RESERVATION_TTL_MS = 8 * 24 * 60 * 60 * 1000;
 
 const ACQUIRE_SCRIPT = [
   "redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', ARGV[1])",
