@@ -1,7 +1,7 @@
 const axios = require('axios');
 const dynamodbClient = require('../lib/dynamodbClient');
 const { NODE_REGISTRY_TABLE_NAME } = require('./models/nodeRegistry');
-const { createPeerHeaders } = require('../middleware/federationPeerAuth');
+const { createPeerHeaders, verifyPeerResponse } = require('../middleware/federationPeerAuth');
 const { importFederatedData } = require('../sync/importHelper');
 
 const runFederationSync = async () => {
@@ -36,9 +36,25 @@ const runFederationSync = async () => {
       const headers = createPeerHeaders({
         nodeId: localNodeId, secret: localSecret, method: 'GET', path: exportPath
       });
-      const { data } = await axios.get(new URL(exportPath, node.url).toString(), {
+      const peerUrl = new URL(node.url);
+      if (peerUrl.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(peerUrl.hostname)) {
+        throw new Error('Federation peers must use HTTPS');
+      }
+      const response = await axios.get(new URL(exportPath, peerUrl).toString(), {
         headers, timeout: 15000
       });
+      const responseBody = JSON.stringify(response.data);
+      if (!verifyPeerResponse({
+        headers: response.headers,
+        expectedNodeId: node.nodeId,
+        secret: localSecret,
+        method: 'GET',
+        path: exportPath,
+        body: responseBody
+      })) {
+        throw new Error('Federation peer response signature is invalid');
+      }
+      const data = response.data;
 
       // Source identity comes from the locally managed NodeRegistry record whose
       // peer credential is configured above, never from fields in the response body.
