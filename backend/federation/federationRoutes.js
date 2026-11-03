@@ -5,7 +5,7 @@ const { LISTING_TABLE_NAME } = require('../models/listing');
 const { TRANSACTION_TABLE_NAME } = require('../models/transaction');
 const { USER_TABLE_NAME } = require('../models/user');
 const { importFederatedData } = require('../sync/importHelper');
-const { requireFederationPeer } = require('../middleware/federationPeerAuth');
+const { requireFederationPeer, createPeerResponseHeaders } = require('../middleware/federationPeerAuth');
 const { federationRateLimit } = require('../middleware/rateLimit');
 
 const pick = (item, fields) => Object.fromEntries(
@@ -42,7 +42,17 @@ router.get('/export', async (_req, res) => {
       'id', 'contractId', 'consumerId', 'producerId', 'rating', 'status'
     ]));
 
-    return res.json({ listings, transactions, users });
+    const payload = JSON.stringify({ listings, transactions, users });
+    const peers = JSON.parse(process.env.FEDERATION_PEERS_JSON || '{}');
+    const secret = peers[_req.federationPeer.nodeId];
+    const nodeId = process.env.FEDERATION_LOCAL_NODE_ID || process.env.NODE_ID;
+    if (!nodeId || typeof secret !== 'string' || secret.length < 32) {
+      return res.status(503).json({ error: 'Federation response signing is not configured' });
+    }
+    res.set(createPeerResponseHeaders({
+      nodeId, secret, method: 'GET', path: '/federation/export', body: payload
+    }));
+    return res.type('application/json').send(payload);
   } catch {
     return res.status(500).json({ error: 'Export failed' });
   }
