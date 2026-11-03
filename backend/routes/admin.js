@@ -6,6 +6,14 @@ const requireAdmin = require('../middleware/requireAdmin');
 const { userWriteRateLimit } = require('../middleware/rateLimit');
 const router = express.Router();
 
+function sanitizeKeyForAdmin(key = {}) {
+  const safe = {};
+  for (const field of ['id', 'userId', 'issuedAt', 'usageCount', 'expiresAt']) {
+    if (key[field] !== undefined) safe[field] = key[field];
+  }
+  return safe;
+}
+
 // Every route in this module requires a verified administrator account token.
 router.use(requireAdmin);
 router.use(userWriteRateLimit);
@@ -30,7 +38,7 @@ router.get('/keys', async (_req, res) => {
       ProjectionExpression: '#id, userId, issuedAt, usageCount, expiresAt',
       ExpressionAttributeNames: { '#id': 'id' }
     }).promise();
-    res.json(keys);
+    res.json(keys.map(sanitizeKeyForAdmin));
   } catch {
     res.status(500).json({ error: 'Failed to fetch keys' });
   }
