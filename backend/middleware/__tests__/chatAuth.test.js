@@ -14,7 +14,7 @@ describe('private chat authentication', () => {
 
   function app() {
     const server = express();
-    server.get('/private', chatAuth, rateLimit({ windowMs: 60000, limit: 60, keyGenerator: req => req.user?.userId || ipKeyGenerator(req.ip) }), (req, res) => res.json({ userId: req.user.userId }));
+    server.get('/private', rateLimit({ windowMs: 60000, limit: 300, keyGenerator: req => ipKeyGenerator(req.ip) }), chatAuth, rateLimit({ windowMs: 60000, limit: 60, keyGenerator: req => req.user?.userId || ipKeyGenerator(req.ip) }), (req, res) => res.json({ userId: req.user.userId }));
     return server;
   }
 
