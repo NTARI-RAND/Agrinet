@@ -2,6 +2,7 @@ const express = require('express');
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const chatAuth = require('../chatAuth');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
 describe('private chat authentication', () => {
   const prior = process.env.JWT_SECRET;
@@ -13,7 +14,7 @@ describe('private chat authentication', () => {
 
   function app() {
     const server = express();
-    server.get('/private', chatAuth, (req, res) => res.json({ userId: req.user.userId }));
+    server.get('/private', chatAuth, rateLimit({ windowMs: 60000, limit: 60, keyGenerator: req => req.user?.userId || ipKeyGenerator(req.ip) }), (req, res) => res.json({ userId: req.user.userId }));
     return server;
   }
 
