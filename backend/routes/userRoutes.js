@@ -43,8 +43,8 @@ router.post('/', userWriteRateLimit, requireAdmin, async (req, res) => {
     const { username, email, phone, password, locationType, locationPrivacy, role } = body;
     if (typeof username !== 'string' || !username.trim() ||
         typeof email !== 'string' || !email.trim() ||
-        typeof password !== 'string' || password.length < 12) {
-      return res.status(400).json({ error: 'Username, email, and a password of at least 12 characters are required' });
+        typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({ error: 'Username, email, and a password of at least 8 characters are required' });
     }
     if (locationPrivacy !== undefined && typeof locationPrivacy !== 'boolean') {
       return res.status(400).json({ error: 'locationPrivacy must be a boolean' });
