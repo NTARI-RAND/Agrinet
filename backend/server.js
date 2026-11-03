@@ -28,9 +28,7 @@ global.emitToken = (conversationId, id, token) => sendConversationEvent(conversa
 global.emitMessage = (conversationId, message) => sendConversationEvent(conversationId, 'message', { message });
 app.use(authMiddleware);
 app.use(apiRateLimit);
-app.use('/uploads', apiRateLimit, express.static(path.join(__dirname, 'uploads')));
-app.use('/conversations', chatRateLimit);
-app.use('/messages', chatRateLimit);
+// Private uploads are disabled until conversation-owner authorization is deployed (#191).\napp.use('/uploads', (_req, res) => res.status(410).json({ error: 'Attachment downloads are temporarily unavailable pending owner authorization' }));
 app.use('/api/location', locationRateLimit);
 let runFederationSync;
 if (!minimal) {
