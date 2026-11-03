@@ -27,6 +27,8 @@ global.emitToken = (conversationId, id, token) => sendConversationEvent(conversa
 global.emitMessage = (conversationId, message) => sendConversationEvent(conversationId, 'message', { message });
 // Federation authenticates with per-peer HMAC credentials, independently of browser API keys.
 if (!minimal) tryMount('/federation', './federation/federationRoutes');
+// Public account creation/login have their own IP throttles and do not require the browser integration key.
+if (!minimal) tryMount('/api/auth', './routes/authRoutes');
 app.use(authMiddleware);
 app.use(apiRateLimit);
 // Private uploads are disabled until conversation-owner authorization is deployed (#191).
@@ -34,7 +36,7 @@ app.use('/uploads', (_req, res) => res.status(410).json({ error: 'Attachment dow
 app.use('/api/location', locationRateLimit);
 let runFederationSync;
 if (!minimal) {
-  [['/', './routes/api'], ['/api/auth', './routes/authRoutes'], ['/api/keys', './routes/keyRoutes'], ['/api/contracts', './routes/contracts'], ['/api/admin', './routes/admin'], ['/api/marketplace', './marketplace/marketplace_routes'], ['/users', './routes/userRoutes'], ['/products', './routes/products'], ['/broadcast', './routes/broadcastRoutes'], ['/sms', './routes/smsRoutes'], ['/cart', './routes/cartRoutes'], ['/orders', './routes/orderRoutes'], ['/subscriptions', './routes/subscriptionRoutes'], ['/conversations', './routes/conversationRoutes'], ['/messages', './routes/communicationRoutes'], ['/inventory', './routes/inventoryRoutes'], ['/api/location', './routes/locationRoutes'], ['/trends', './trends/trendsRoutes']].forEach(([route, mod]) => tryMount(route, mod));
+  [['/', './routes/api'], ['/api/keys', './routes/keyRoutes'], ['/api/contracts', './routes/contracts'], ['/api/admin', './routes/admin'], ['/api/marketplace', './marketplace/marketplace_routes'], ['/users', './routes/userRoutes'], ['/products', './routes/products'], ['/broadcast', './routes/broadcastRoutes'], ['/sms', './routes/smsRoutes'], ['/cart', './routes/cartRoutes'], ['/orders', './routes/orderRoutes'], ['/subscriptions', './routes/subscriptionRoutes'], ['/conversations', './routes/conversationRoutes'], ['/messages', './routes/communicationRoutes'], ['/inventory', './routes/inventoryRoutes'], ['/api/location', './routes/locationRoutes'], ['/trends', './trends/trendsRoutes']].forEach(([route, mod]) => tryMount(route, mod));
   try { runFederationSync = require('./federation/federationSyncJob'); } catch (err) { console.warn('Federation sync disabled: ' + err.message); }
 }
 const PORT = process.env.PORT || 5000;
