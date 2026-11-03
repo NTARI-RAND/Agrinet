@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const auth = require('../middleware/authMiddleware');
+const auth = require('../middleware/chatAuth');
 const ctrl = require('../controllers/conversation_controller');
 const asyncHandler = require('../utils/asyncHandler');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
