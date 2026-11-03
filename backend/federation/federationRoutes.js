@@ -13,7 +13,7 @@ const pick = (item, fields) => Object.fromEntries(
 );
 
 // Browser API keys and ordinary member tokens are never federation credentials.
-router.use(federationRateLimit, requireFederationPeer);
+router.use(requireFederationPeer, federationRateLimit);
 
 router.get('/export', async (_req, res) => {
   try {
