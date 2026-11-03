@@ -13,11 +13,10 @@ const chatLimiter = rateLimit({
   keyGenerator: req => req.user?.userId ? 'account:' + req.user.userId : 'ip:' + ipKeyGenerator(req.ip),
   message: { error: 'Too many requests, please try again later' }
 });
-router.use(auth, chatLimiter);
-router.post('/', asyncHandler(ctrl.create));
-router.get('/', asyncHandler(ctrl.list));
-router.put('/:id', asyncHandler(ctrl.rename));
-router.delete('/:id', asyncHandler(ctrl.remove));
-router.post('/:id/pin', asyncHandler(ctrl.pin));
+router.post('/', auth, chatLimiter, asyncHandler(ctrl.create));
+router.get('/', auth, chatLimiter, asyncHandler(ctrl.list));
+router.put('/:id', auth, chatLimiter, asyncHandler(ctrl.rename));
+router.delete('/:id', auth, chatLimiter, asyncHandler(ctrl.remove));
+router.post('/:id/pin', auth, chatLimiter, asyncHandler(ctrl.pin));
 
 module.exports = router;
