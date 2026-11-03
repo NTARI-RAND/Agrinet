@@ -220,7 +220,7 @@ test('an invalid API-key header cannot alter a verified JWT retry scope', async 
 });
 
 test('authentication failures and JWTs without a stable user ID create no receipts', async () => {
-  assert.equal((await request(app).post('/messages/conversation-1').set('Idempotency-Key', 'key').send(payload)).status, 403);
+  assert.equal((await request(app).post('/messages/conversation-1').set('Idempotency-Key', 'key').send(payload)).status, 401);
   const noIdentity = await request(app).post('/messages/conversation-1')
     .set('Authorization', `Bearer ${jwt.sign({ role: 'member' }, process.env.JWT_SECRET)}`)
     .set('Idempotency-Key', 'key').send(payload);
