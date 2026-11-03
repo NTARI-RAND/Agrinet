@@ -14,8 +14,8 @@ router.post('/register', async (req, res) => {
     const { username, email, phone, password } = req.body || {};
     if (typeof username !== 'string' || !username.trim() ||
         typeof email !== 'string' || !email.trim() ||
-        typeof password !== 'string' || password.length < 12) {
-      return res.status(400).json({ error: 'Username, email, and a password of at least 12 characters are required' });
+        typeof password !== 'string' || password.length < 8) {
+      return res.status(400).json({ error: 'Username, email, and a password of at least 8 characters are required' });
     }
     const user = createUserItem({
       id: randomUUID(), username: username.trim(), email: email.trim().toLowerCase(),
