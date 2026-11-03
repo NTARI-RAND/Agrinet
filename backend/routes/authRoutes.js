@@ -5,11 +5,22 @@ const { USER_TABLE_NAME, createUserItem, sanitizeUserForAuth } = require('../mod
 const docClient = require('../lib/dynamodbClient');
 const { randomUUID } = require('node:crypto');
 const router = express.Router();
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+
+const authRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => ipKeyGenerator(req.ip),
+  message: { error: 'Too many authentication attempts. Try again later.' }
+});
+
 try { require('dotenv').config(); } catch { /* Environment may be supplied by the process. */ }
 
 router.get('/test', (_req, res) => res.status(200).json({ message: 'Auth routes are working!' }));
 
-router.post('/register', async (req, res) => {
+router.post('/register', authRateLimit, async (req, res) => {
   try {
     const { username, email, phone, password } = req.body || {};
     if (typeof username !== 'string' || !username.trim() ||
@@ -35,7 +46,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', authRateLimit, async (req, res) => {
   try {
     const { email, password } = req.body || {};
     if (typeof email !== 'string' || typeof password !== 'string') {
