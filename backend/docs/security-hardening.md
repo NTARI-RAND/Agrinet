@@ -30,7 +30,7 @@ Exports use explicit field allowlists. The location feature's exact owner coordi
 
 ## Distributed request and connection limits
 
-express-rate-limit is used for API, user writes, location, chat, stream and federation traffic. Authenticated requests are keyed by req.user.userId; authenticated peers by req.federationPeer.nodeId; application-key traffic without a user identity falls back to source IP.
+express-rate-limit is used for API, user writes, location, chat, stream and federation traffic. Chat routes require an account JWT (`chatAuth`); the shared browser/API key is explicitly rejected for private chat. Authenticated requests are keyed by req.user.userId; authenticated peers by req.federationPeer.nodeId; application-key traffic without a user identity falls back to source IP.
 
 When REDIS_URL is configured, request counters and concurrent-stream reservations use Redis and are shared across instances. In a multi-instance deployment, set RATE_LIMIT_REDIS_REQUIRED=true so the service refuses to start without the shared store. Without Redis, counters and stream slots are process-local and suitable only for a documented single-instance deployment.
 
