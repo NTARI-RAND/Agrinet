@@ -42,6 +42,8 @@ function createRequestLimiter({ prefix, windowMs = 60000, limit = 60, message = 
     legacyHeaders: false,
     ...(redis ? { store: new RedisRateLimitStore(redis, prefix) } : {}),
     keyGenerator: req => {
+      const peerId = req.federationPeer?.nodeId;
+      if (typeof peerId === 'string' && peerId) return 'peer:' + peerId;
       const userId = req.user?.userId;
       return typeof userId === 'string' && userId
         ? 'account:' + userId
