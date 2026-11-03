@@ -20,16 +20,17 @@ const server = http.createServer(app);
 app.get('/events', (_req, res) => res.status(410).json({ error: 'Global event stream retired; use authenticated conversation streams' }));
 app.get('/stream/:conversationId', streamRateLimit, (_req, res) => res.status(410).json({ error: 'Conversation streaming is temporarily unavailable pending owner-authenticated stream support' }));
 const conversationStreams = new Map();
-function sendConversationEvent(conversationId, event, data) { const clients = conversationStreams.get(conversationId); if (!clients) return; const payload = 'event: ' + event + '\\ndata: ' + JSON.stringify(data) + '\\n\\n'; clients.forEach(res => res.write(payload)); }
+function sendConversationEvent(conversationId, event, data) { const clients = conversationStreams.get(conversationId); if (!clients) return; const payload = 'event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n'; clients.forEach(res => res.write(payload)); }
 function broadcast(event, data, conversationId) { if (conversationId) sendConversationEvent(conversationId, event, data); }
 global.broadcast = broadcast;
 global.emitToken = (conversationId, id, token) => sendConversationEvent(conversationId, 'token', { id, token });
 global.emitMessage = (conversationId, message) => sendConversationEvent(conversationId, 'message', { message });
+// Federation authenticates with per-peer HMAC credentials, independently of browser API keys.
 if (!minimal) tryMount('/federation', './federation/federationRoutes');
-
 app.use(authMiddleware);
 app.use(apiRateLimit);
-// Private uploads are disabled until conversation-owner authorization is deployed (#191).\napp.use('/uploads', (_req, res) => res.status(410).json({ error: 'Attachment downloads are temporarily unavailable pending owner authorization' }));
+// Private uploads are disabled until conversation-owner authorization is deployed (#191).
+app.use('/uploads', (_req, res) => res.status(410).json({ error: 'Attachment downloads are temporarily unavailable pending owner authorization' }));
 app.use('/api/location', locationRateLimit);
 let runFederationSync;
 if (!minimal) {
