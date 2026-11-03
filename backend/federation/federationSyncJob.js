@@ -6,17 +6,15 @@ const { importFederatedData } = require('../sync/importHelper');
 
 const runFederationSync = async () => {
   const localNodeId = process.env.FEDERATION_LOCAL_NODE_ID || process.env.NODE_ID;
-  const localSecret = process.env.FEDERATION_LOCAL_PEER_SECRET;
-  if (!localNodeId || !localSecret || localSecret.length < 32) {
-    console.error('Federation sync skipped: local peer credentials are not configured');
+  if (!localNodeId) {
+    console.error('Federation sync skipped: FEDERATION_LOCAL_NODE_ID or NODE_ID is not configured');
     return;
   }
-
-  let peerSecrets;
+  let outboundSecrets;
   try {
-    peerSecrets = JSON.parse(process.env.FEDERATION_PEERS_JSON || '{}');
+    outboundSecrets = JSON.parse(process.env.FEDERATION_OUTBOUND_PEERS_JSON || '{}');
   } catch {
-    console.error('Federation sync skipped: FEDERATION_PEERS_JSON is invalid');
+    console.error('Federation sync skipped: FEDERATION_OUTBOUND_PEERS_JSON is invalid');
     return;
   }
 
@@ -27,14 +25,15 @@ const runFederationSync = async () => {
   for (const node of nodes) {
     try {
       // A peer must be present in the operator's authenticated peer registry.
-      if (!node.nodeId || typeof peerSecrets[node.nodeId] !== 'string' || peerSecrets[node.nodeId].length < 32) {
+      const peerSecret = node.nodeId ? outboundSecrets[node.nodeId] : null;
+      if (!node.nodeId || typeof peerSecret !== 'string' || peerSecret.length < 32) {
         console.error('Federation sync skipped for an unconfigured peer');
         continue;
       }
 
       const exportPath = '/federation/export';
       const headers = createPeerHeaders({
-        nodeId: localNodeId, secret: localSecret, method: 'GET', path: exportPath
+        nodeId: localNodeId, secret: peerSecret, method: 'GET', path: exportPath
       });
       const peerUrl = new URL(node.url);
       if (peerUrl.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(peerUrl.hostname)) {
@@ -47,7 +46,7 @@ const runFederationSync = async () => {
       if (!verifyPeerResponse({
         headers: response.headers,
         expectedNodeId: node.nodeId,
-        secret: localSecret,
+        secret: peerSecret,
         method: 'GET',
         path: exportPath,
         body: responseBody
