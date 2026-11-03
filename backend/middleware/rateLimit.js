@@ -61,5 +61,6 @@ module.exports = {
   locationRateLimit: createRequestLimiter({ prefix: 'agrinet:location', limit: 30, message: 'Too many location requests' }),
   chatRateLimit: createRequestLimiter({ prefix: 'agrinet:chat', limit: 60, message: 'Too many chat requests' }),
   streamRateLimit: createRequestLimiter({ prefix: 'agrinet:stream', limit: 20, message: 'Too many stream requests' }),
+  federationAttemptRateLimit: createRequestLimiter({ prefix: 'agrinet:federation-attempt', limit: 20, message: 'Too many federation authentication attempts' }),
   federationRateLimit: createRequestLimiter({ prefix: 'agrinet:federation', limit: 30, message: 'Too many federation requests' })
 };
