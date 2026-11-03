@@ -52,6 +52,7 @@ function createRequestLimiter({ prefix, windowMs = 60000, limit = 60, message = 
 }
 
 module.exports = {
+  createRequestLimiter,
   apiRateLimit: createRequestLimiter({ prefix: 'agrinet:api', limit: 120 }),
   userWriteRateLimit: createRequestLimiter({ prefix: 'agrinet:user-write', limit: 20, message: 'Too many user-management requests' }),
   locationRateLimit: createRequestLimiter({ prefix: 'agrinet:location', limit: 30, message: 'Too many location requests' }),
