@@ -5,9 +5,9 @@ try { cors = require('cors'); } catch { cors = () => (_req, _res, next) => next(
 let dotenv;
 try { dotenv = require('dotenv'); } catch { dotenv = { config: () => {} }; }
 const path = require('path');
+dotenv.config();
 const authMiddleware = require('./middleware/authMiddleware');
 const { apiRateLimit, chatRateLimit, streamRateLimit, locationRateLimit } = require('./middleware/rateLimit');
-dotenv.config();
 const minimal = process.env.MINIMAL_SERVER === 'true';
 const app = express();
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || 'https://www.ntari.org').split(',').map(origin => origin.trim()).filter(Boolean);
