@@ -1,14 +1,14 @@
 const express = require('express');
 const request = require('supertest');
 
-jest.mock('../lib/dynamodbClient', () => ({
+jest.mock('../../lib/dynamodbClient', () => ({
   scan: jest.fn(),
   put: jest.fn()
 }));
 
-const docClient = require('../lib/dynamodbClient');
-const federationRoutes = require('../federation/federationRoutes');
-const { createPeerHeaders, verifyPeerResponse } = require('../middleware/federationPeerAuth');
+const docClient = require('../../lib/dynamodbClient');
+const federationRoutes = require('../federationRoutes');
+const { createPeerHeaders, verifyPeerResponse } = require('../../middleware/federationPeerAuth');
 
 describe('federation route security', () => {
   const oldEnv = {
