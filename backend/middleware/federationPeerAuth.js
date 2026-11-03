@@ -84,4 +84,34 @@ function requireFederationPeer(req, res, next) {
   }
 }
 
-module.exports = { requireFederationPeer, createPeerHeaders };
+function createPeerResponseHeaders({ nodeId, secret, method, path, body }) {
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const digest = crypto.createHash('sha256').update(body).digest('hex');
+  const payload = [timestamp, 'RESPONSE:' + method.toUpperCase(), path.split('?')[0], digest].join('.');
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+  return {
+    'x-federation-response-node-id': nodeId,
+    'x-federation-response-timestamp': timestamp,
+    'x-federation-response-signature': signature
+  };
+}
+
+function verifyPeerResponse({ headers, expectedNodeId, secret, method, path, body }) {
+  const nodeId = headers['x-federation-response-node-id'];
+  const timestamp = headers['x-federation-response-timestamp'];
+  const signature = headers['x-federation-response-signature'];
+  const seconds = Math.floor(Date.now() / 1000);
+  if (nodeId !== expectedNodeId || !timestamp || !/^\\d{10}$/.test(timestamp) ||
+      Math.abs(seconds - Number(timestamp)) > MAX_CLOCK_SKEW_SECONDS) return false;
+  const digest = crypto.createHash('sha256').update(body).digest('hex');
+  const payload = [timestamp, 'RESPONSE:' + method.toUpperCase(), path.split('?')[0], digest].join('.');
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+  return safeEqualHex(signature, expected);
+}
+
+module.exports = {
+  requireFederationPeer,
+  createPeerHeaders,
+  createPeerResponseHeaders,
+  verifyPeerResponse
+};
