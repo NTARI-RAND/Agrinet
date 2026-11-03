@@ -224,7 +224,7 @@ test('authentication failures and JWTs without a stable user ID create no receip
   const noIdentity = await request(app).post('/messages/conversation-1')
     .set('Authorization', `Bearer ${jwt.sign({ role: 'member' }, process.env.JWT_SECRET)}`)
     .set('Idempotency-Key', 'key').send(payload);
-  assert.equal(noIdentity.status, 400);
+  assert.equal(noIdentity.status, 401);
   assert.equal(db.tables.size, 0);
 });
 
