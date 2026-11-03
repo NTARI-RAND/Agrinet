@@ -3,9 +3,9 @@ const router = express.Router();
 const auth = require('../middleware/authMiddleware');
 const ctrl = require('../controllers/conversation_controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { chatRateLimit } = require('../middleware/rateLimit');
+const chatRateLimit = require('../middleware/chatRateLimit');
 
-router.use(auth, chatRateLimit);
+router.use(auth, chatRateLimit(120));
 router.post('/', asyncHandler(ctrl.create));
 router.get('/', asyncHandler(ctrl.list));
 router.put('/:id', asyncHandler(ctrl.rename));
