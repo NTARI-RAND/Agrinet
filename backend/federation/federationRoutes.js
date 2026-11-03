@@ -6,14 +6,14 @@ const { TRANSACTION_TABLE_NAME } = require('../models/transaction');
 const { USER_TABLE_NAME } = require('../models/user');
 const { importFederatedData } = require('../sync/importHelper');
 const { requireFederationPeer, createPeerResponseHeaders } = require('../middleware/federationPeerAuth');
-const { federationRateLimit } = require('../middleware/rateLimit');
+const { federationAttemptRateLimit, federationRateLimit } = require('../middleware/rateLimit');
 
 const pick = (item, fields) => Object.fromEntries(
   fields.filter(field => item[field] !== undefined).map(field => [field, item[field]])
 );
 
 // Browser API keys and ordinary member tokens are never federation credentials.
-router.use(requireFederationPeer, federationRateLimit);
+router.use(federationAttemptRateLimit, requireFederationPeer, federationRateLimit);
 
 router.get('/export', async (_req, res) => {
   try {
