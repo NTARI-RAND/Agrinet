@@ -27,10 +27,10 @@ router.get('/export', async (_req, res) => {
       }).promise()
     ]);
 
-    const nodeId = process.env.NODE_ID;
+    const configuredNodeId = process.env.FEDERATION_LOCAL_NODE_ID || process.env.NODE_ID;
     const users = (usersRes.Items || []).map(user => ({
       ...pick(user, ['id', 'username', 'reputationScore', 'reputationWeight']),
-      originNodeId: typeof user.originNodeId === 'string' ? user.originNodeId : nodeId,
+      originNodeId: typeof user.originNodeId === 'string' ? user.originNodeId : configuredNodeId,
       originUserId: typeof user.originUserId === 'string' ? user.originUserId : user.id
     }));
 
@@ -45,12 +45,12 @@ router.get('/export', async (_req, res) => {
     const payload = JSON.stringify({ listings, transactions, users });
     const peers = JSON.parse(process.env.FEDERATION_PEERS_JSON || '{}');
     const secret = peers[_req.federationPeer.nodeId];
-    const nodeId = process.env.FEDERATION_LOCAL_NODE_ID || process.env.NODE_ID;
-    if (!nodeId || typeof secret !== 'string' || secret.length < 32) {
+    const responseNodeId = process.env.FEDERATION_LOCAL_NODE_ID || process.env.NODE_ID;
+    if (!responseNodeId || typeof secret !== 'string' || secret.length < 32) {
       return res.status(503).json({ error: 'Federation response signing is not configured' });
     }
     res.set(createPeerResponseHeaders({
-      nodeId, secret, method: 'GET', path: '/federation/export', body: payload
+      nodeId: responseNodeId, secret, method: 'GET', path: '/federation/export', body: payload
     }));
     return res.type('application/json').send(payload);
   } catch {
