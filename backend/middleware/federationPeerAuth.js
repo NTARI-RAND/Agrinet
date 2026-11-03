@@ -101,7 +101,7 @@ function verifyPeerResponse({ headers, expectedNodeId, secret, method, path, bod
   const timestamp = headers['x-federation-response-timestamp'];
   const signature = headers['x-federation-response-signature'];
   const seconds = Math.floor(Date.now() / 1000);
-  if (nodeId !== expectedNodeId || !timestamp || !/^\\d{10}$/.test(timestamp) ||
+  if (nodeId !== expectedNodeId || !timestamp || !/^[0-9]{10}$/.test(timestamp) ||
       Math.abs(seconds - Number(timestamp)) > MAX_CLOCK_SKEW_SECONDS) return false;
   const digest = crypto.createHash('sha256').update(body).digest('hex');
   const payload = [timestamp, 'RESPONSE:' + method.toUpperCase(), path.split('?')[0], digest].join('.');
