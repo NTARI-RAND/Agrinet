@@ -6,7 +6,7 @@ let dotenv;
 try { dotenv = require('dotenv'); } catch { dotenv = { config: () => {} }; }
 dotenv.config();
 const authMiddleware = require('./middleware/authMiddleware');
-const { apiRateLimit, chatRateLimit, streamRateLimit, locationRateLimit } = require('./middleware/rateLimit');
+const { apiRateLimit, streamRateLimit, locationRateLimit } = require('./middleware/rateLimit');
 const minimal = process.env.MINIMAL_SERVER === 'true';
 const app = express();
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || 'https://www.ntari.org').split(',').map(origin => origin.trim()).filter(Boolean);
@@ -33,7 +33,7 @@ app.use(apiRateLimit);
 app.use('/api/location', locationRateLimit);
 let runFederationSync;
 if (!minimal) {
-  [['/', './routes/api'], ['/api/auth', './routes/authRoutes'], ['/api/keys', './routes/keyRoutes'], ['/api/contracts', './routes/contracts'], ['/api/admin', './routes/admin'], ['/api/marketplace', './marketplace/marketplace_routes'], ['/users', './routes/userRoutes'], ['/products', './routes/products'], ['/broadcast', './routes/broadcastRoutes'], ['/sms', './routes/smsRoutes'], ['/cart', './routes/cartRoutes'], ['/orders', './routes/orderRoutes'], ['/subscriptions', './routes/subscriptionRoutes'], ['/conversations', './routes/conversationRoutes'], ['/messages', './routes/communicationRoutes'], ['/inventory', './routes/inventoryRoutes'], ['/api/location', './routes/locationRoutes'], ['/federation', './federation/federationRoutes'], ['/trends', './trends/trendsRoutes']].forEach(([route, mod]) => tryMount(route, mod));
+  [['/', './routes/api'], ['/api/auth', './routes/authRoutes'], ['/api/keys', './routes/keyRoutes'], ['/api/contracts', './routes/contracts'], ['/api/admin', './routes/admin'], ['/api/marketplace', './marketplace/marketplace_routes'], ['/users', './routes/userRoutes'], ['/products', './routes/products'], ['/broadcast', './routes/broadcastRoutes'], ['/sms', './routes/smsRoutes'], ['/cart', './routes/cartRoutes'], ['/orders', './routes/orderRoutes'], ['/subscriptions', './routes/subscriptionRoutes'], ['/conversations', './routes/conversationRoutes'], ['/messages', './routes/communicationRoutes'], ['/inventory', './routes/inventoryRoutes'], ['/api/location', './routes/locationRoutes'], ['/trends', './trends/trendsRoutes']].forEach(([route, mod]) => tryMount(route, mod));
   try { runFederationSync = require('./federation/federationSyncJob'); } catch (err) { console.warn('Federation sync disabled: ' + err.message); }
 }
 const PORT = process.env.PORT || 5000;
