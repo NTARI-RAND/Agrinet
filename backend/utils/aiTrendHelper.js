@@ -4,6 +4,28 @@ const { LISTING_TABLE_NAME } = require('../models/listing');
 const { TRANSACTION_TABLE_NAME } = require('../models/transaction');
 const { translateMessage, translateTerm } = require('./translation');
 
+// Producer fields that may leave /trends, as an allowlist: credentials, contact
+// details, role, verification state and location are never returned.
+const PUBLIC_PRODUCER_FIELDS = ['id', 'username', 'locationType', 'reputationScore', 'reputationWeight'];
+
+function toPublicProducer(user = {}) {
+  const safe = {};
+  for (const field of PUBLIC_PRODUCER_FIELDS) {
+    if (user[field] !== undefined) safe[field] = user[field];
+  }
+  return safe;
+}
+
+// Region filters still match on location, so under one, producers with
+// locationPrivacy set are left out. Any truthy value counts as private, as
+// setLocation's `privacy` flag implies; getPublicLocations reads it the other
+// way, so that meaning is to be confirmed.
+function publicProducers(items = [], region) {
+  return items
+    .filter(u => !(region && u.locationPrivacy))
+    .map(toPublicProducer);
+}
+
 /**
  * Generate localized AI insights for marketplace trends.
  * @param {string} region - Region or locale identifier used for data filtering.
@@ -51,9 +73,11 @@ async function generateAIInsight(region, locale = 'en') {
     userParams.ExpressionAttributeValues[':r'] = region;
   }
   const usersRes = await docClient.scan(userParams).promise();
-  const topUsers = usersRes.Items.sort((a, b) => b.reputationScore - a.reputationScore).slice(0, 3);
-  if (topUsers.length > 0) {
-    const names = topUsers.map(u => u.name || u.email).join(', ');
+  const topUsers = publicProducers(usersRes.Items, region)
+    .sort((a, b) => b.reputationScore - a.reputationScore)
+    .slice(0, 3);
+  const names = topUsers.map(u => u.username).filter(Boolean).join(', ');
+  if (names) {
     insights.push(
       translateMessage('top_rated_producers', locale, {
         names,
@@ -90,4 +114,4 @@ async function generateAIInsight(region, locale = 'en') {
   return insights;
 }
 
-module.exports = { generateAIInsight };
+module.exports = { generateAIInsight, publicProducers };
