@@ -30,6 +30,7 @@ describe('scheduler', () => {
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     jest.useRealTimers();
   });
 
@@ -80,5 +81,38 @@ describe('scheduler', () => {
     require('../scheduler');
     expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 30 * 60 * 1000);
     setIntervalSpy.mock.calls[0][0]();
+  });
+
+  test('contains a failed NodeRegistry scan and syncs on the next scheduled run', async () => {
+    const dynamodbClient = require('../../lib/dynamodbClient');
+    const axios = require('axios');
+    const setIntervalSpy = jest.spyOn(global, 'setInterval');
+    const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    const THIRTY_MINUTES = 30 * 60 * 1000;
+    require('../scheduler');
+    const scheduledSync = setIntervalSpy.mock.calls.find(([, ms]) => ms === THIRTY_MINUTES)[0];
+    dynamodbClient.scan.mockReturnValueOnce({
+      promise: () => Promise.reject(new Error('Requested resource not found')),
+    });
+
+    await expect(scheduledSync()).resolves.toBeUndefined();
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy.mock.calls[0].every((arg) => typeof arg === 'string')).toBe(true);
+
+    dynamodbClient.scan.mockReturnValueOnce({
+      promise: () => Promise.resolve({ Items: [{ nodeUrl: 'http://down' }, { nodeUrl: 'http://up' }] }),
+    });
+    dynamodbClient.update.mockReturnValue({ promise: () => Promise.resolve() });
+    axios.get.mockImplementation((url) => (url.startsWith('http://down')
+      ? Promise.reject(new Error('fail'))
+      : Promise.resolve({ data: {} })));
+
+    await jest.advanceTimersByTimeAsync(THIRTY_MINUTES);
+
+    expect(dynamodbClient.scan).toHaveBeenCalledTimes(2);
+    expect(dynamodbClient.update).toHaveBeenCalledTimes(1);
+    expect(dynamodbClient.update.mock.calls[0][0].Key).toEqual({ nodeUrl: 'http://up' });
   });
 });
