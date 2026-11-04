@@ -54,7 +54,7 @@ function createRes() {
 test('issueKey returns seven keys when provided userId', async () => {
   activeKeys.length = 0;
   for (let i = 0; i < 7; i++) {
-    const req = { body: { userId: 'user1' } };
+    const req = { user: { userId: 'user1' }, body: {} };
     const res = createRes();
     await issueKey(req, res);
     assert.equal(res.statusCode, 201);
@@ -63,7 +63,7 @@ test('issueKey returns seven keys when provided userId', async () => {
   assert.equal(activeKeys.length, 7);
 
   // 8th key should fail
-  const req = { body: { userId: 'user1' } };
+  const req = { user: { userId: 'user1' }, body: {} };
   const res = createRes();
   await issueKey(req, res);
   assert.equal(res.statusCode, 400);
@@ -100,7 +100,7 @@ test('issueKey responds with error when userId missing', async () => {
   const req = { body: {} };
   const res = createRes();
   await issueKey(req, res);
-  assert.equal(res.statusCode, 500);
+  assert.equal(res.statusCode, 401);
   assert.ok(res.body.error);
 });
 
