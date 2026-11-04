@@ -6,9 +6,17 @@ const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:5000";
 
 const runFederationSync = async () => {
    // Scan all nodes from DynamoDB table
-  const { Items: nodes } = await dynamodbClient
-    .scan({ TableName: NODE_REGISTRY_TABLE_NAME })
-    .promise();
+  let nodes;
+  try {
+    const { Items } = await dynamodbClient
+      .scan({ TableName: NODE_REGISTRY_TABLE_NAME })
+      .promise();
+    nodes = Items || [];
+  } catch (err) {
+    // Keep the server running; the next scheduled run tries the scan again.
+    console.error("❌ Federation sync skipped, NodeRegistry scan failed:", err.message);
+    return;
+  }
 /*
 const { getAllNodes, saveNode } = require("./models/nodeRegistry");
 
