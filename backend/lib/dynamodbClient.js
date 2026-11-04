@@ -8,7 +8,7 @@ const client = DynamoDBDocument.from(new DynamoDBClient({
 
 // Keep the request interface used by existing models while using the supported SDK.
 module.exports = Object.fromEntries(
-  ['get', 'put', 'update', 'delete', 'query', 'scan', 'batchWrite'].map((method) => [
+  ['get', 'put', 'update', 'delete', 'query', 'scan', 'batchWrite', 'transactWrite'].map((method) => [
     method, (params) => ({ promise: async () => {
       try {
         return await client[method](params);

@@ -3,6 +3,7 @@ const bcrypt = require('../utils/bcrypt');
 const router = express.Router();
 const docClient = require('../lib/dynamodbClient');
 const { USER_TABLE_NAME, createUserItem } = require('../models/user');
+const { normalizeEmail, createUserWithEmail } = require('../models/userEmail');
 
 // GET /users - fetch all users, omit sensitive data
 router.get('/', async (req, res) => {
@@ -38,14 +39,19 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { password, ...rest } = req.body;
+    const email = normalizeEmail(rest.email);
+    if (!email) return res.status(400).json({ error: 'Email is required' });
     const hashedPassword = await bcrypt.hash(password, 10);
     const item = createUserItem({
       ...rest,
+      email,
       password: hashedPassword,
       verified: false,
       reputationScore: 0
     });
-    await docClient.put({ TableName: USER_TABLE_NAME, Item: item }).promise();
+    if (!(await createUserWithEmail(item))) {
+      return res.status(409).json({ error: 'User already exists' });
+    }
     const { password: _pwd, ...user } = item;
     res.status(201).json({ message: 'User created', user });
   } catch (err) {

@@ -51,6 +51,11 @@ not narrative. This does not promote any in-review binding above. See
 [`backend/docs/retry-safe-messages.md`](backend/docs/retry-safe-messages.md) for
 the guard, deployment requirements, crash limits, and executable checks.
 
+The `UserEmails` table maps each account email to one user id so registration
+can refuse a duplicate and login can find the account. It is private account
+metadata, not part of the commons, the federation export, or the record. No
+binding changes; see [`backend/README.md`](backend/README.md) for the rollout.
+
 ### Browser garden planner
 
 The Next.js `/garden-planner` page is a member-local planning aid, not a ledger
