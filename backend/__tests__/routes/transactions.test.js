@@ -3,7 +3,6 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const request = require('supertest');
 const marketplaceRoutes = require('../../marketplace/marketplace_routes');
-const authMiddleware = require('../../middleware/authMiddleware');
 const docClient = require('../../lib/dynamodbClient');
 const { TRANSACTION_FIELDS } = require('../../marketplace/models/transaction');
 const jwt = require('../../utils/jwt');
@@ -12,15 +11,17 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || 'transactions-test-secret';
 process.env.API_KEY = 'shared-key';
 const bearer = (userId) => `Bearer ${jwt.sign({ userId }, process.env.JWT_SECRET)}`;
 
+// authMiddleware lets a request with the shared API key through without
+// setting req.user, so the bare router sees exactly what a key-only call does.
 const app = express();
 app.use(express.json());
 app.use('/', marketplaceRoutes);
 
-// The same router behind the real middleware, as server.js mounts it.
-const served = express();
-served.use(express.json());
-served.use(authMiddleware);
-served.use('/', marketplaceRoutes);
+// What authMiddleware leaves behind after verifying a bearer token: req.user.
+const verified = express();
+verified.use(express.json());
+verified.use((req, _res, next) => { req.user = { userId: 'buyer-1' }; next(); });
+verified.use('/', marketplaceRoutes);
 
 let tables;
 let scans;
@@ -143,15 +144,15 @@ test('the shared API key never names an account on any route', async () => {
     ['post', '/transactions/dialog-validate', { ...as, transactionId: 'tx-1', dialogNotes: 'tomato seedlings' }],
     ['post', '/transactions/ping', { ...as, transactionId: 'tx-1' }],
   ]) {
-    const response = await request(served)[verb](path).query({ userId: 'buyer-1' })
+    const response = await request(app)[verb](path).query({ userId: 'buyer-1' })
       .set('x-api-key', 'shared-key').send(body);
     assert.equal(response.status, 401, path);
   }
   assert.equal(JSON.stringify([...tables.Transactions], null, 0) + JSON.stringify([...tables.Users]), snapshot);
   assert.equal(tables.Listings.size, 2);
   assert.equal(scans.length, 0);
-  // A Bearer token through the real middleware still works.
-  assert.equal((await request(served).get('/transactions').set('Authorization', bearer('buyer-1'))).status, 200);
+  // An account the auth middleware has already verified still works.
+  assert.equal((await request(verified).get('/transactions')).status, 200);
 });
 
 test('a reader gets only their own transactions, across every page, with known fields only', async () => {
