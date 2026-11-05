@@ -60,14 +60,28 @@ async function getMessage(conversationId, id) {
 }
 
 async function removeByConversation(conversationId) {
-  const messages = await listMessages(conversationId);
-  if (!messages.length) return;
-  const deletes = messages.map((m) => ({
-    DeleteRequest: { Key: { conversationId: m.conversationId, id: m.id } },
-  }));
-  await docClient
-    .batchWrite({ RequestItems: { [MESSAGE_TABLE_NAME]: deletes } })
-    .promise();
+  let cursor;
+  do {
+    const page = await docClient.query({
+      TableName: MESSAGE_TABLE_NAME,
+      KeyConditionExpression: 'conversationId = :cid',
+      ExpressionAttributeValues: { ':cid': conversationId },
+      ...(cursor && { ExclusiveStartKey: cursor }),
+    }).promise();
+    const messages = page.Items || [];
+    for (let start = 0; start < messages.length; start += 25) {
+      const deletes = messages.slice(start, start + 25).map(message => ({
+        DeleteRequest: { Key: { conversationId, id: message.id } },
+      }));
+      const result = await docClient.batchWrite({
+        RequestItems: { [MESSAGE_TABLE_NAME]: deletes },
+      }).promise();
+      if (result?.UnprocessedItems?.[MESSAGE_TABLE_NAME]?.length) {
+        throw new Error('Message deletion incomplete; retry conversation deletion');
+      }
+    }
+    cursor = page.LastEvaluatedKey;
+  } while (cursor);
 }
 
 function setDocClient(client) {
