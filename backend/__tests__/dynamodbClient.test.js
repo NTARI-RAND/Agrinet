@@ -11,9 +11,16 @@ test('DynamoDB adapter marshals records and preserves conditional error codes', 
     res.setHeader('Content-Type', 'application/x-amz-json-1.0');
     if (requests.length === 1) res.end('{}');
     else if (requests.length === 2) res.end(JSON.stringify({ Item: { id: { S: 'item' }, count: { N: '2' } } }));
-    else {
+    else if (requests.length === 3) {
       res.statusCode = 400;
       res.end(JSON.stringify({ __type: 'ConditionalCheckFailedException', message: 'missing item' }));
+    } else {
+      res.statusCode = 400;
+      res.end(JSON.stringify({
+        __type: 'TransactionCanceledException',
+        message: 'cancelled',
+        CancellationReasons: [{ Code: 'ConditionalCheckFailed' }, { Code: 'None' }],
+      }));
     }
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -41,4 +48,13 @@ test('DynamoDB adapter marshals records and preserves conditional error codes', 
   await assert.rejects(client.update({ TableName: 'Items', Key: { id: 'missing' } }).promise(), {
     code: 'ConditionalCheckFailedException',
   });
+  await assert.rejects(client.transactWrite({ TransactItems: [
+    { Put: { TableName: 'Claims', Item: { id: 'item' }, ConditionExpression: 'attribute_not_exists(id)' } },
+    { Put: { TableName: 'Items', Item: { id: 'item' } } },
+  ] }).promise(), (error) => {
+    assert.equal(error.code, 'TransactionCanceledException');
+    assert.equal(error.CancellationReasons[0].Code, 'ConditionalCheckFailed');
+    return true;
+  });
+  assert.deepEqual(requests[3].TransactItems[0].Put.Item, { id: { S: 'item' } });
 });

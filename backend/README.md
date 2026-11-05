@@ -81,7 +81,7 @@ Domain routes (when not in minimal mode):
 
 ## Data Model (DynamoDB tables)
 
-- `Users`, `Keys`
+- `Users`, `UserEmails`, `Keys`
 - `Listings`, `Contracts`, `Transactions`
 - `Conversations`, `Messages`
 - `Notifications`
@@ -91,6 +91,33 @@ Domain routes (when not in minimal mode):
 Each model file exports a `*_TABLE_NAME` and an item builder, e.g.:
 - `models/user.js` → `USER_TABLE_NAME`, `createUserItem()`
 - `models/transaction.js` → `TRANSACTION_TABLE_NAME`, `createTransactionItem()`
+
+`UserEmails` (`models/userEmail.js`) holds one `{ email, userId }` item per
+account email, trimmed and lower-cased. `/api/auth/register` and `POST /users`
+write the claim and the user in one transaction, so a second account with the
+same email gets `409`; login reads the claim instead of scanning `Users`.
+`USER_EMAIL_TABLE_NAME` defaults to `UserEmails`. Before deploying, create the
+table and claim the emails of existing accounts:
+
+```sh
+aws dynamodb create-table \
+  --table-name UserEmails \
+  --attribute-definitions AttributeName=email,AttributeType=S \
+  --key-schema AttributeName=email,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST
+node scripts/claim-user-emails.js
+```
+
+Grant the backend `GetItem` and `PutItem` on `UserEmails`; the script also
+scans `Users`. Run the script again after the deploy to claim accounts
+registered in between. It only adds claims. An email shared by several existing
+accounts gets a claim that names no account (`needsReview: true`), and the
+script prints their ids: no new account can register that email, and none of
+the listed accounts can log in until an operator decides which one owns it and
+replaces the claim with `{ email, userId }`. Rows marked as imported from a
+federation peer (`sourceNodeId`) are never claimed. Rows imported before peers
+were marked carry no such field, so check where each listed id came from before
+choosing an owner, and run the script only as part of this rollout.
 
 ## Chat & Streaming
 
