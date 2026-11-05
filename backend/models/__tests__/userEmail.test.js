@@ -46,14 +46,33 @@ test('claims normalised emails from every scan page and is safe to re-run', asyn
   assert.deepEqual(await claimExistingEmails(), { claimed: 0, alreadyClaimed: 2, needsReview: [] });
 });
 
-test('leaves an email shared by several accounts unclaimed and reports their ids', async () => {
+test('holds an email shared by several accounts for review and reports their ids', async () => {
   const db = withUsers([
     { id: 'u1', email: 'john@example.com' },
     { id: 'u2', email: 'JOHN@example.com ' },
   ]);
 
   assert.deepEqual(await claimExistingEmails(), { claimed: 0, alreadyClaimed: 0, needsReview: [['u1', 'u2']] });
-  assert.equal(db.tables.UserEmails.size, 0);
+  assert.deepEqual([...db.tables.UserEmails.values()], [{ email: 'john@example.com', needsReview: true }]);
+  // A new registration cannot take the held email, and login finds no owner.
+  assert.equal(await createUserWithEmail({ id: 'u3', email: 'John@example.com' }), false);
+  assert.equal(db.tables.Users.has('u3'), false);
+  assert.equal(await findUserByEmail('john@example.com'), undefined);
+  // A re-run reports the same accounts and leaves the hold in place.
+  assert.deepEqual(await claimExistingEmails(), { claimed: 0, alreadyClaimed: 0, needsReview: [['u1', 'u2']] });
+  assert.deepEqual([...db.tables.UserEmails.values()], [{ email: 'john@example.com', needsReview: true }]);
+});
+
+test('never claims an email for a user row imported from a federation peer', async () => {
+  const db = withUsers([
+    { id: 'u1', email: 'dana@example.com', sourceNodeId: 'peer-1' },
+    { id: 'u2', email: 'erin@example.com' },
+    { id: 'u3', email: 'erin@example.com', sourceNodeId: 'peer-1' },
+  ]);
+
+  assert.deepEqual(await claimExistingEmails(), { claimed: 1, alreadyClaimed: 0, needsReview: [] });
+  assert.equal(db.tables.UserEmails.has('dana@example.com'), false);
+  assert.deepEqual(db.tables.UserEmails.get('erin@example.com'), { email: 'erin@example.com', userId: 'u2' });
 });
 
 test('reports an email already claimed by a different account', async () => {

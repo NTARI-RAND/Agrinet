@@ -39,7 +39,8 @@ async function findUserByEmail(email) {
     Key: { email: key },
     ConsistentRead: true,
   }).promise();
-  if (!claim) return undefined;
+  // A claim held for review names no account, so nobody logs in with it.
+  if (!claim?.userId) return undefined;
   const { Item: user } = await docClient.get({
     TableName: USER_TABLE_NAME,
     Key: { id: claim.userId },
@@ -49,8 +50,10 @@ async function findUserByEmail(email) {
 }
 
 // Claims the emails of accounts created before UserEmails existed. Safe to re-run;
-// Users rows are never changed. An email held by more than one account is left
-// unclaimed, so none of them can log in until an operator decides which owns it.
+// Users rows are never changed, and rows imported from a federation peer
+// (sourceNodeId) are never claimed. An email held by more than one account gets a
+// claim naming no account: registration cannot take it, and none of them can log
+// in until an operator replaces it with the owner's userId.
 async function claimExistingEmails() {
   const owners = new Map();
   let ExclusiveStartKey;
@@ -58,24 +61,22 @@ async function claimExistingEmails() {
     const page = await docClient.scan({ TableName: USER_TABLE_NAME, ExclusiveStartKey }).promise();
     for (const user of page.Items || []) {
       const key = normalizeEmail(user.email);
-      if (key) owners.set(key, [...(owners.get(key) || []), user.id]);
+      if (key && !user.sourceNodeId) owners.set(key, [...(owners.get(key) || []), user.id]);
     }
     ExclusiveStartKey = page.LastEvaluatedKey;
   } while (ExclusiveStartKey);
 
   const report = { claimed: 0, alreadyClaimed: 0, needsReview: [] };
   for (const [email, ids] of owners) {
-    if (ids.length > 1) {
-      report.needsReview.push(ids);
-      continue;
-    }
+    const shared = ids.length > 1;
     try {
       await docClient.put({
         TableName: USER_EMAIL_TABLE_NAME,
-        Item: { email, userId: ids[0] },
+        Item: shared ? { email, needsReview: true } : { email, userId: ids[0] },
         ConditionExpression: 'attribute_not_exists(email)',
       }).promise();
-      report.claimed++;
+      if (shared) report.needsReview.push(ids);
+      else report.claimed++;
     } catch (error) {
       if (error.code !== 'ConditionalCheckFailedException') throw error;
       const { Item } = await docClient.get({
@@ -83,8 +84,8 @@ async function claimExistingEmails() {
         Key: { email },
         ConsistentRead: true,
       }).promise();
-      if (Item?.userId === ids[0]) report.alreadyClaimed++;
-      else report.needsReview.push([Item?.userId, ids[0]]);
+      if (!shared && Item?.userId === ids[0]) report.alreadyClaimed++;
+      else report.needsReview.push([...new Set([Item?.userId, ...ids].filter(Boolean))]);
     }
   }
   return report;

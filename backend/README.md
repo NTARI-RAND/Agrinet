@@ -111,12 +111,13 @@ node scripts/claim-user-emails.js
 Grant the backend `GetItem` and `PutItem` on `UserEmails`; the script also
 scans `Users`. Run the script again after the deploy to claim accounts
 registered in between. It only adds claims. An email shared by several existing
-accounts is left unclaimed and the script prints their ids: none of them can log
-in until an operator decides which account owns the email and puts that claim.
-The script counts every `Users` row, including user rows imported from
-federation peers, so check where each listed id came from before choosing an
-owner. Run it only as part of this rollout; a later run would also claim the
-emails of peer rows imported since.
+accounts gets a claim that names no account (`needsReview: true`), and the
+script prints their ids: no new account can register that email, and none of
+the listed accounts can log in until an operator decides which one owns it and
+replaces the claim with `{ email, userId }`. Rows marked as imported from a
+federation peer (`sourceNodeId`) are never claimed. Rows imported before peers
+were marked carry no such field, so check where each listed id came from before
+choosing an owner, and run the script only as part of this rollout.
 
 ## Chat & Streaming
 
