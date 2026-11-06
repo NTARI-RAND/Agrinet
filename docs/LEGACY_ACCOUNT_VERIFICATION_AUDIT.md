@@ -3,19 +3,18 @@
 Reviewed on 2026-11-06 against upstream `main` at
 `9373310afff24ca3294367e6308702446876bc2a`.
 
-## Disposition of workspace backlog item 07
+## Legacy verification support boundary
 
-Retire the conditional legacy-verification candidate for this source snapshot.
 No supported in-repository caller was found for either `registerUser` or
 `verifyUser` in `backend/controllers/user_controller.js`. The server does not
 mount this controller. There is therefore no demonstrated reachable verification
-lookup defect to repair under item 07's conditional scope.
+lookup defect to repair in the inspected application.
 
 This is a reachability finding, not a claim that account verification works or
 that all identity security requirements are satisfied. Leave the legacy module
 in place; removing it could affect an undocumented external consumer. An external
-consumer or an explicit maintainer decision to support these helpers would reopen
-the candidate and require an agreed account-lookup/migration contract.
+consumer or an explicit maintainer decision to support these helpers would require
+a new review and an agreed account-lookup/migration contract.
 
 ## Evidence
 
@@ -76,9 +75,9 @@ If legacy support is established later, reconcile these account contracts first.
 
 ## Contribution and acceptance boundary
 
-This document follows item 07's explicit alternative: establish reachability,
-then retire the conditional candidate with evidence when no supported caller is
-found. Lookup-beyond-first-page, uniqueness and ambiguous-account behavior checks
+This review establishes reachability before proposing a lookup change. No
+supported caller was found, so no legacy lookup change is proposed.
+Lookup-beyond-first-page, uniqueness and ambiguous-account behavior checks
 apply only if a supported legacy path is retained; they are not claimed passing
 or implemented by this disposition.
 
