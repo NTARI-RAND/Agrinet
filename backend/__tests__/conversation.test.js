@@ -8,6 +8,7 @@ test('removing a conversation deletes its messages', async () => {
   const tables = { Conversations: [], Messages: [] };
   const mockClient = {
     put: ({ TableName, Item }) => ({ promise: async () => { tables[TableName].push(Item); } }),
+    get: ({ TableName, Key }) => ({ promise: async () => ({ Item: tables[TableName].find(item => item.id === Key.id) }) }),
     scan: ({ TableName }) => ({ promise: async () => ({ Items: tables[TableName] }) }),
     update: ({ TableName, Key, UpdateExpression, ExpressionAttributeValues }) => ({
       promise: async () => {
@@ -36,10 +37,10 @@ test('removing a conversation deletes its messages', async () => {
   Conversation.setDocClient(mockClient);
   Message.setDocClient(mockClient);
 
-  await mockClient.put({ TableName: 'Conversations', Item: { id: '1', title: 'seed', pinned: false, createdAt: new Date().toISOString() } }).promise();
+  await mockClient.put({ TableName: 'Conversations', Item: { id: '1', ownerId: 'owner', title: 'seed', pinned: false, createdAt: new Date().toISOString() } }).promise();
   await mockClient.put({ TableName: 'Messages', Item: { id: 'm1', conversationId: '1', content: 'hi' } }).promise();
 
-  await Conversation.remove('1');
+  await Conversation.remove('1', 'owner');
   const msgs = await Message.listMessages('1');
   assert.equal(msgs.length, 0);
 });
