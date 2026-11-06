@@ -1,6 +1,7 @@
 const request = require('supertest');
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 jest.mock('../../lib/dynamodbClient', () => ({
   scan: jest.fn(),
@@ -15,6 +16,7 @@ describe('userRoutes', () => {
   beforeEach(() => {
     app = express();
     app.use(express.json());
+    process.env.JWT_SECRET = 'directory-test-key';
     app.use('/users', userRoutes);
     docClient.scan.mockReset();
     docClient.put.mockReset();
@@ -30,10 +32,10 @@ describe('userRoutes', () => {
         })
       });
 
-      const res = await request(app).get('/users');
+      const res = await request(app).get('/users').set('Authorization', `Bearer ${jwt.sign({ userId: 'test' }, process.env.JWT_SECRET)}`);
       expect(res.status).toBe(200);
       expect(res.body).toEqual([
-        { id: '1', username: 'john', role: 'consumer', location: 'NY' }
+        { id: '1', username: 'john', role: 'consumer' }
       ]);
       expect(res.body[0].password).toBeUndefined();
     });
@@ -41,12 +43,12 @@ describe('userRoutes', () => {
     it('applies role and location filters', async () => {
       docClient.scan.mockReturnValue({ promise: () => Promise.resolve({ Items: [] }) });
 
-      await request(app).get('/users?role=farmer&location=Texas');
+      await request(app).get('/users?role=farmer&location=Texas').set('Authorization', `Bearer ${jwt.sign({ userId: 'test' }, process.env.JWT_SECRET)}`);
 
       expect(docClient.scan).toHaveBeenCalledWith(
         expect.objectContaining({
-          FilterExpression: 'role = :role AND location = :location',
-          ExpressionAttributeValues: { ':role': 'farmer', ':location': 'Texas' }
+          FilterExpression: '#role = :role AND #location = :location AND #privacy = :public',
+          ExpressionAttributeValues: { ':role': 'farmer', ':location': 'Texas', ':public': true }
         })
       );
     });

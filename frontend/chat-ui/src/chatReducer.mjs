@@ -1,4 +1,5 @@
 const handlers = {
+  RESET_ACCOUNT: (state) => ({ ...state, messages: [], conversations: [], currentConversation: null, aiThinking: false, accountVersion: (state.accountVersion || 0) + 1 }),
   ADD_MESSAGE: (state, action) => ({ ...state, messages: [...state.messages, action.message] }),
   UPSERT_MESSAGE(state, action) {
     const index = state.messages.findIndex((message) => message.id === action.message.id);

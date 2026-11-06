@@ -1,6 +1,8 @@
 const jwt = require('../utils/jwt');
+const { validExportKey } = require('../federation/exportAuth');
 
 module.exports = (req, res, next) => {
+  if (req.method === 'GET' && /^\/federation\/export\/?$/.test(req.path) && validExportKey(req)) return next();
   const apiKey = req.headers['x-api-key'];
   const validKey = process.env.API_KEY || process.env.WIX_API_KEY;
   if (apiKey && apiKey === validKey) {

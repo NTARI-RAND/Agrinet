@@ -14,6 +14,9 @@ try {
 }
 const path = require("path");
 const authMiddleware = require("./middleware/authMiddleware");
+const chatAuth = require('./middleware/chatAuth');
+const requestRateLimit = require('./middleware/requestRateLimit');
+const asyncHandler = require('./utils/asyncHandler');
 
 // Load environment variables
 dotenv.config();
@@ -34,7 +37,8 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'x-federation-key'],
+  exposedHeaders: ['X-Pagination', 'X-Next-Cursor', 'X-Page-Limit', 'X-Federation-Omissions']
 }));
 // -----------------------------------------
 
@@ -130,7 +134,14 @@ global.emitMessage = emitMessage;
 
 // Middleware
 app.use(authMiddleware);
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', requestRateLimit(), chatAuth, requestRateLimit(), asyncHandler(require('./middleware/attachmentOwner')), express.static(path.join(__dirname, 'uploads'), {
+  dotfiles: 'deny', index: false,
+  setHeaders(res) {
+    res.setHeader('Content-Disposition', 'attachment');
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+  },
+}));
 
 // Routes
 let runFederationSync;

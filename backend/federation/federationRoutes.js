@@ -3,22 +3,36 @@ const router = express.Router();
 const docClient = require('../lib/dynamodbClient');
 const { LISTING_TABLE_NAME } = require('../models/listing');
 const { TRANSACTION_TABLE_NAME } = require('../models/transaction');
-const { USER_TABLE_NAME } = require('../models/user');
 const { importFederatedData } = require('../sync/importHelper');
+const { collectionPage, scanPage, pageError } = require('../lib/collectionPage');
+const exportFields = require('./exportFields');
+const { validExportKey } = require('./exportAuth');
 
 // Export route for peer sync
 router.get('/export', async (req, res) => {
+  // A member JWT is not operator permission to bulk-export application data.
+  if (!validExportKey(req)) return res.status(403).json({ error: 'Read-only federation export key required' });
   try {
-    const listingsRes = await docClient.scan({ TableName: LISTING_TABLE_NAME }).promise();
-    const transactionsRes = await docClient.scan({ TableName: TRANSACTION_TABLE_NAME }).promise();
-    const usersRes = await docClient.scan({ TableName: USER_TABLE_NAME }).promise();
-    res.json({
-      listings: listingsRes.Items || [],
-      transactions: transactionsRes.Items || [],
-      users: usersRes.Items || []
-    });
+    const page = collectionPage(req.query, ['federation-export']);
+    const result = { listings: [], transactions: [], users: [] };
+    const next = {};
+    for (const [name, table, allowed, present] of [
+      ['listings', LISTING_TABLE_NAME, exportFields.listingFields, exportFields.listing],
+      ['transactions', TRANSACTION_TABLE_NAME, exportFields.transactionFields, exportFields.transaction],
+    ]) {
+      if (page.state && page.state[name] === null) { next[name] = null; continue; }
+      const names = Object.fromEntries(allowed.map((field, i) => [`#f${i}`, field]));
+      const data = await scanPage(docClient, {
+        TableName: table, ProjectionExpression: Object.keys(names).join(', '), ExpressionAttributeNames: names,
+      }, page.limit, page.state?.[name]);
+      result[name] = data.items.map(present);
+      next[name] = data.next;
+    }
+    page.finish(res, Object.values(next).some(Boolean) ? next : null);
+    res.set('X-Federation-Omissions', 'users, dialogNotes, ratings');
+    res.json(result);
   } catch (err) {
-    res.status(500).json({ error: 'Export failed' });
+    pageError(res, err, 'Export failed');
   }
 });
 

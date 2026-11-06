@@ -1,0 +1,48 @@
+name: Collection pagination regression
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/chat-ui/**'
+      - '.github/workflows/collection-pagination.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  collection-pagination:
+    runs-on: ubuntu-latest
+    services:
+      dynamodb:
+        image: amazon/dynamodb-local@sha256:6ada631ec7aa5fc83446855eb17233e3dad184fec47477e8140c6c569cfe0c86
+        ports:
+          - 18001:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm test
+        working-directory: backend
+      - run: npm ci
+        working-directory: frontend/chat-ui
+      - run: npm test
+        working-directory: frontend/chat-ui
+      - run: npm run build
+        working-directory: frontend/chat-ui
+      - name: Wait for DynamoDB Local
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --silent --output /dev/null http://127.0.0.1:18001; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - run: node scripts/check-collection-pagination.js
+        working-directory: backend
+        env:
+          DYNAMODB_ENDPOINT: http://127.0.0.1:18001

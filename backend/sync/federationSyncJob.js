@@ -1,18 +1,15 @@
-const axios = require("axios");
-const { getAllNodes, saveNode } = require("../models/nodeRegistry");
-const { importFederatedData } = require("./importHelper");
+const { getAllNodes } = require('../models/nodeRegistry');
+const { inspectExport } = require('./exportPages');
 
+// Legacy entry point: inspection only. Never pass privacy-filtered summaries
+// to the unconditional canonical-record importer.
 async function runFederationSync() {
-  const nodes = await getAllNodes();
-  for (const node of nodes) {
+  for (const node of await getAllNodes()) {
     try {
-      const { data } = await axios.get(`${node.url}/federation/export`);
-      await importFederatedData(data);
-      node.lastSyncAt = new Date().toISOString();
-      await saveNode(node);
-      console.log(`✅ Synced with ${node.url}`);
-    } catch (err) {
-      console.error(`❌ Failed to sync with ${node.url}: ${err.message}`);
+      const counts = await inspectExport(node.url || node.nodeUrl);
+      console.info('Federation export inspected; automatic import disabled', { counts });
+    } catch (error) {
+      console.error('Federation export inspection failed; no sync recorded', error.message);
     }
   }
 }
