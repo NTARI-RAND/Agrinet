@@ -16,11 +16,10 @@ async function generateResponse({ conversationId, message, chatHistory }) {
       if (!token) continue;
       streamedTokens = true;
       content += token;
-      if (global.emitToken) {
-        global.emitToken(conversationId, responseId, token);
-      }
       if (global.broadcast) {
         global.broadcast('token', { id: responseId, token }, conversationId);
+      } else if (global.emitToken) {
+        global.emitToken(conversationId, responseId, token);
       }
     }
   } catch (error) {

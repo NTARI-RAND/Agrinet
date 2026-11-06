@@ -14,9 +14,7 @@ function broadcastMessage(conversationId, msg, options = {}) {
     tokens.forEach((token) => {
       global.broadcast('token', { id: msg.id, token }, conversationId);
     });
-  }
-
-  if (emitTokens && global.emitToken) {
+  } else if (emitTokens && global.emitToken) {
     tokens.forEach((token) => {
       global.emitToken(conversationId, msg.id, token);
     });
@@ -24,8 +22,7 @@ function broadcastMessage(conversationId, msg, options = {}) {
 
   if (global.broadcast) {
     global.broadcast('message', { type: 'message', message: msg }, conversationId);
-  }
-  if (global.emitMessage) {
+  } else if (global.emitMessage) {
     global.emitMessage(conversationId, msg);
   }
 }
