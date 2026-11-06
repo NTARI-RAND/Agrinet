@@ -22,7 +22,12 @@ account already verified by outer middleware, or an IP fallback. A separate
 budget after account authentication enforces 1,000 requests per account even
 when an API key accompanies the bearer token. Excess requests return HTTP 429
 with `Retry-After`. Existing ownership, response fields and pagination remain
-unchanged below the limit. Conversation and federation routes are unchanged.
+unchanged below the limit. Message reads and sends (`GET` and `POST`
+`/messages/:conversationId`) use the same two-guard policy with a separate
+1,000-request budget shared across methods and conversation IDs for each
+account. The guards run before ownership lookups, message storage and AI
+responses. Adding an API key or refreshing a token does not reset an account's
+budget. Conversation and federation routes are unchanged.
 
 Budgets are local to each server process and reset on restart. Multiple
 instances need a shared limiter store for a deployment-wide budget. Proxy
