@@ -93,19 +93,24 @@ describe('inventory controller', () => {
     expect(res.body).toEqual(updated);
   });
 
-  test('imports external inventory preserving supplied fields', async () => {
+  test('imports external inventory through model normalization', async () => {
     const items = ['tomatoes', 'beans'].map(id => ({
       id, name: id, category: 'fresh', stock: 12, unit: 'kg', seasons: ['summer'],
       price: 3, batch: 'harvest-1', lot: 'field-2', externalId: `external-${id}`,
       createdAt: '2025-12-01T00:00:00.000Z', updatedAt: timestamp
     }));
-    axios.get.mockResolvedValue({ data: items });
+    axios.get.mockResolvedValue({ data: [...items, { id: 'kale', name: 'Kale', note: 'x' }] });
 
     await controller.syncExternal({}, res);
 
-    expect(axios.get).toHaveBeenCalledWith(process.env.EXTERNAL_INVENTORY_URL);
-    expect(docClient.put.mock.calls).toEqual(items.map(Item => [{ TableName: 'Inventory', Item }]));
-    expect(res.body).toEqual({ imported: 2 });
+    expect(axios.get.mock.calls[0][0]).toBe(process.env.EXTERNAL_INVENTORY_URL);
+    const normalized = {
+      id: 'kale', name: 'Kale', category: undefined, stock: 0, unit: undefined,
+      seasons: [], price: 0, batch: null, lot: null, externalId: null,
+      createdAt: timestamp, updatedAt: timestamp
+    };
+    expect(docClient.put.mock.calls).toEqual([...items, normalized].map(Item => [{ TableName: 'Inventory', Item }]));
+    expect(res.body).toEqual({ imported: 3 });
   });
 
   test.each([[], { items: [] }, null])('imports no records from %j', async data => {

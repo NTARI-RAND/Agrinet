@@ -37,10 +37,15 @@ describe('translation', () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  test('substitutes every occurrence of a placeholder', () => {
+  test('renders a message with supplied region and listing terms', () => {
     expect(translateMessage('high_listing_volume', 'en', {
-      region: '{listingTerm}', listingTerm: 'listing', listingTermPlural: 'listings'
-    })).toBe('📈 High listing volume detected in listing – over 100 active listings.');
+      region: 'Oaxaca', listingTerm: 'listing', listingTermPlural: 'listings'
+    })).toBe('📈 High listing volume detected in Oaxaca – over 100 active listings.');
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  test('substitutes every occurrence of a placeholder', () => {
+    expect(translateMessage('{a} and {a}', 'en', { a: 'x' })).toBe('x and x');
     expect(warn).not.toHaveBeenCalled();
   });
 
