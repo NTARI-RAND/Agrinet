@@ -1,5 +1,6 @@
 const express = require("express");
 const http = require('http');
+const { rateLimit } = require('express-rate-limit');
 const path = require('path');
 const chatAuth = require('./middleware/chatAuth');
 const asyncHandler = require('./utils/asyncHandler');
@@ -35,7 +36,7 @@ if (!minimal) tryMount('/api/auth', './routes/authRoutes');
 app.use(authMiddleware);
 app.use(apiRateLimit);
 // Private uploads are disabled until conversation-owner authorization is deployed (#191).
-app.use('/uploads', chatAuth, require('./middleware/chatRateLimit')(60), asyncHandler(require('./middleware/attachmentOwner')), express.static(path.join(__dirname, 'uploads'), {
+app.use('/uploads', chatAuth, rateLimit(require('./middleware/chatRateLimit').options(60, 'uploads')), asyncHandler(require('./middleware/attachmentOwner')), express.static(path.join(__dirname, 'uploads'), {
   dotfiles: 'deny', index: false,
   setHeaders(res) {
     res.setHeader('Content-Disposition', 'attachment');

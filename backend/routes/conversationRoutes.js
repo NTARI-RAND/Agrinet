@@ -5,94 +5,21 @@ const owner = require('../middleware/conversationOwner');
 const ctrl = require('../controllers/conversation_controller');
 const asyncHandler = require('../utils/asyncHandler');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const chatRateLimit = require('../middleware/chatRateLimit');
+const attemptLimit = rateLimit({
+  windowMs: 60 * 1000, limit: 300,
+  standardHeaders: 'draft-6', legacyHeaders: false,
+  keyGenerator: req => 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many authentication attempts' }
+});
+const accountLimit = rateLimit(chatRateLimit.options(120, 'conversations'));
 
-router.post('/', rateLimit({
-  windowMs: 60 * 1000,
-  limit: 300,
-  standardHeaders: 'draft-6',
-  legacyHeaders: false,
-  keyGenerator: req => 'ip:' + ipKeyGenerator(req.ip),
-  message: { error: 'Too many authentication attempts' }
-}), auth, rateLimit({
-  windowMs: 60 * 1000,
-  limit: 120,
-  standardHeaders: 'draft-6',
-  legacyHeaders: false,
-  keyGenerator: req => req.user?.userId
-    ? 'account:' + req.user.userId
-    : 'ip:' + ipKeyGenerator(req.ip),
-  message: { error: 'Too many requests, please try again later' }
-}), asyncHandler(ctrl.create));
-router.get('/', rateLimit({
-  windowMs: 60 * 1000,
-  limit: 300,
-  standardHeaders: 'draft-6',
-  legacyHeaders: false,
-  keyGenerator: req => 'ip:' + ipKeyGenerator(req.ip),
-  message: { error: 'Too many authentication attempts' }
-}), auth, rateLimit({
-  windowMs: 60 * 1000,
-  limit: 120,
-  standardHeaders: 'draft-6',
-  legacyHeaders: false,
-  keyGenerator: req => req.user?.userId
-    ? 'account:' + req.user.userId
-    : 'ip:' + ipKeyGenerator(req.ip),
-  message: { error: 'Too many requests, please try again later' }
-}), asyncHandler(ctrl.list));
-router.put('/:id', rateLimit({
-  windowMs: 60 * 1000,
-  limit: 300,
-  standardHeaders: 'draft-6',
-  legacyHeaders: false,
-  keyGenerator: req => 'ip:' + ipKeyGenerator(req.ip),
-  message: { error: 'Too many authentication attempts' }
-}), auth, rateLimit({
-  windowMs: 60 * 1000,
-  limit: 120,
-  standardHeaders: 'draft-6',
-  legacyHeaders: false,
-  keyGenerator: req => req.user?.userId
-    ? 'account:' + req.user.userId
-    : 'ip:' + ipKeyGenerator(req.ip),
-  message: { error: 'Too many requests, please try again later' }
-}), asyncHandler(owner), asyncHandler(ctrl.rename));
-router.delete('/:id', rateLimit({
-  windowMs: 60 * 1000,
-  limit: 300,
-  standardHeaders: 'draft-6',
-  legacyHeaders: false,
-  keyGenerator: req => 'ip:' + ipKeyGenerator(req.ip),
-  message: { error: 'Too many authentication attempts' }
-}), auth, rateLimit({
-  windowMs: 60 * 1000,
-  limit: 120,
-  standardHeaders: 'draft-6',
-  legacyHeaders: false,
-  keyGenerator: req => req.user?.userId
-    ? 'account:' + req.user.userId
-    : 'ip:' + ipKeyGenerator(req.ip),
-  message: { error: 'Too many requests, please try again later' }
-}), asyncHandler(owner), asyncHandler(ctrl.remove));
-router.post('/:id/pin', rateLimit({
-  windowMs: 60 * 1000,
-  limit: 300,
-  standardHeaders: 'draft-6',
-  legacyHeaders: false,
-  keyGenerator: req => 'ip:' + ipKeyGenerator(req.ip),
-  message: { error: 'Too many authentication attempts' }
-}), auth, rateLimit({
-  windowMs: 60 * 1000,
-  limit: 120,
-  standardHeaders: 'draft-6',
-  legacyHeaders: false,
-  keyGenerator: req => req.user?.userId
-    ? 'account:' + req.user.userId
-    : 'ip:' + ipKeyGenerator(req.ip),
-  message: { error: 'Too many requests, please try again later' }
-}), asyncHandler(owner), asyncHandler(ctrl.pin));
-
-router.get('/:id/attachments/:name', auth, require('../middleware/chatRateLimit')(120), asyncHandler(owner), asyncHandler(require('../middleware/conversationAttachment')));
-router.get('/:id', auth, require('../middleware/chatRateLimit')(120), asyncHandler(owner), ctrl.get);
+router.post('/', attemptLimit, auth, accountLimit, asyncHandler(ctrl.create));
+router.get('/', attemptLimit, auth, accountLimit, asyncHandler(ctrl.list));
+router.get('/:id/attachments/:name', attemptLimit, auth, accountLimit, asyncHandler(owner), asyncHandler(require('../middleware/conversationAttachment')));
+router.get('/:id', attemptLimit, auth, accountLimit, asyncHandler(owner), ctrl.get);
+router.put('/:id', attemptLimit, auth, accountLimit, asyncHandler(owner), asyncHandler(ctrl.rename));
+router.delete('/:id', attemptLimit, auth, accountLimit, asyncHandler(owner), asyncHandler(ctrl.remove));
+router.post('/:id/pin', attemptLimit, auth, accountLimit, asyncHandler(owner), asyncHandler(ctrl.pin));
 
 module.exports = router;
