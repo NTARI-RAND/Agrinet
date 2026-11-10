@@ -288,10 +288,14 @@ test('failure to record completion leaves a durable pending receipt instead of r
 test('attachment retries reuse one file and do not call an AI responder', async (t) => {
   const filename = `retry-${randomUUID()}.txt`;
   const uploads = path.join(__dirname, '../uploads');
-  const before = new Set(fs.readdirSync(uploads));
-  t.after(() => {
-    for (const file of fs.readdirSync(uploads).filter(name => !before.has(name))) fs.unlinkSync(path.join(uploads, file));
+  const written = [];
+  const writeFile = fs.writeFileSync;
+  t.mock.method(fs, 'writeFileSync', (file, ...args) => {
+    const result = writeFile(file, ...args);
+    if (path.dirname(file) === uploads) written.push(file);
+    return result;
   });
+  t.after(() => { for (const file of written) fs.rmSync(file, { force: true }); });
   const body = { from: 'user', to: 'buyer', type: 'file',
     file: { name: filename, type: 'text/plain', data: Buffer.from('Pickup instructions').toString('base64') } };
   const first = await send({ body });
@@ -299,7 +303,7 @@ test('attachment retries reuse one file and do not call an AI responder', async 
   assert.equal(first.status, 201);
   assert.deepEqual(replay.body, first.body);
   assert.equal(fs.readFileSync(path.join(__dirname, '..', first.body.message.file.path), 'utf8'), 'Pickup instructions');
-  assert.equal(fs.readdirSync(uploads).filter(name => !before.has(name)).length, 1);
+  assert.equal(written.length, 1);
   assert.equal(messages().length, 1);
   assert.equal(aiCalls, 0);
 });
