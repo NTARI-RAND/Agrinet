@@ -27,6 +27,30 @@ test('same-name attachments retain distinct bytes and server-generated names', a
   }
 });
 
+test('a generated-name collision refuses overwrite and does not persist a second message', async t => {
+  const crypto = require('node:crypto');
+  const collisionId = crypto.randomUUID();
+  const modulePath = require.resolve('../models/message');
+  const cached = require.cache[modulePath];
+  const destination = path.join(__dirname, '../uploads', collisionId + '.txt');
+  t.mock.method(crypto, 'randomUUID', () => collisionId);
+  delete require.cache[modulePath];
+  const model = require('../models/message');
+  const persisted = [];
+  model.setDocClient({ put: ({ Item }) => ({ promise: async () => { persisted.push(Item); return {}; } }) });
+  t.after(() => {
+    require.cache[modulePath] = cached;
+    fs.rmSync(destination, { force: true });
+  });
+  await model.sendMessage('mine', { id: 'first', file: { name: 'same.txt', data: Buffer.from('original').toString('base64') } });
+  await assert.rejects(model.sendMessage('foreign', {
+    id: 'second', file: { name: 'same.txt', data: Buffer.from('replacement').toString('base64') },
+  }), { code: 'EEXIST' });
+  assert.equal(fs.readFileSync(destination, 'utf8'), 'original');
+  assert.equal(persisted.length, 1);
+  assert.equal(persisted[0].id, 'first');
+});
+
 test('scoped attachment lookup follows empty filtered pages within its conversation partition', async () => {
   let reads = 0;
   Message.setDocClient({ query: params => ({ promise: async () => {
