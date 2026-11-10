@@ -74,6 +74,9 @@ beforeEach(() => {
   process.env.JWT_SECRET = 'test-only-message-retry-secret';
   process.env.API_KEY = 'test-only-api-key';
   db = memoryDatabase();
+  db.tables.set('Conversations', new Map([
+    ['conversation-1', 'grower-1'], ['conversation-2', 'grower-2'], ['conversation-3', 'grower-1'],
+  ].map(([id, ownerId]) => [JSON.stringify([null, id]), { id, ownerId }])));
   originalClient = { ...docClient };
   Object.assign(docClient, db);
   Message.setDocClient(docClient);
@@ -120,8 +123,8 @@ test('reusing a key with different content conflicts without creating another me
 
 test('keys are isolated by authenticated caller and conversation, never by body.from', async () => {
   const first = await send();
-  const otherUser = await send({ user: 'grower-2' });
-  const otherConversation = await send({ conversation: 'conversation-2' });
+  const otherUser = await send({ user: 'grower-2', conversation: 'conversation-2' });
+  const otherConversation = await send({ conversation: 'conversation-3' });
   assert.equal(otherUser.status, 201);
   assert.equal(otherConversation.status, 201);
   assert.notEqual(otherUser.body.message.id, first.body.message.id);
@@ -225,7 +228,8 @@ test('authentication failures and JWTs without a stable user ID create no receip
     .set('Authorization', `Bearer ${jwt.sign({ role: 'member' }, process.env.JWT_SECRET)}`)
     .set('Idempotency-Key', 'key').send(payload);
   assert.equal(noIdentity.status, 401);
-  assert.equal(db.tables.size, 0);
+  assert.equal(messages().length, 0);
+  assert.equal(db.tables.get('MessageSends')?.size || 0, 0);
 });
 
 test('deleting a conversation never lets an old retry resurrect its messages or retained narrative', async () => {
@@ -284,8 +288,9 @@ test('failure to record completion leaves a durable pending receipt instead of r
 test('attachment retries reuse one file and do not call an AI responder', async (t) => {
   const filename = `retry-${randomUUID()}.txt`;
   const uploads = path.join(__dirname, '../uploads');
+  const before = new Set(fs.readdirSync(uploads));
   t.after(() => {
-    for (const file of fs.readdirSync(uploads).filter(name => name.endsWith(filename))) fs.unlinkSync(path.join(uploads, file));
+    for (const file of fs.readdirSync(uploads).filter(name => !before.has(name))) fs.unlinkSync(path.join(uploads, file));
   });
   const body = { from: 'user', to: 'buyer', type: 'file',
     file: { name: filename, type: 'text/plain', data: Buffer.from('Pickup instructions').toString('base64') } };
@@ -294,7 +299,7 @@ test('attachment retries reuse one file and do not call an AI responder', async 
   assert.equal(first.status, 201);
   assert.deepEqual(replay.body, first.body);
   assert.equal(fs.readFileSync(path.join(__dirname, '..', first.body.message.file.path), 'utf8'), 'Pickup instructions');
-  assert.equal(fs.readdirSync(uploads).filter(name => name.endsWith(filename)).length, 1);
+  assert.equal(fs.readdirSync(uploads).filter(name => !before.has(name)).length, 1);
   assert.equal(messages().length, 1);
   assert.equal(aiCalls, 0);
 });
