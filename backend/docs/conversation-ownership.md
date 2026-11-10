@@ -75,8 +75,24 @@ after account verification and before database work; a renewed token for the
 same user does not reset the budget. IP subnet keys are the fallback when no
 account identity is available. Rejected requests return 429 and Retry-After.
 These budgets are configured at route registration through `chatRateLimit`.
-The in-memory counters are local to one server process; multi-process deployments
-need a shared express-rate-limit store to enforce a deployment-wide budget.
+With `REDIS_URL` configured, these counters share the existing Redis store across
+server instances. Conversation, message and legacy-upload budgets use separate
+namespaces. Set `RATE_LIMIT_REDIS_REQUIRED=true` for multi-instance deployment;
+startup refuses a missing Redis URL, and store errors fail closed. Without Redis,
+counters are local to one process. The existing general API budget also applies.
+Each route names authentication and its account limiter explicitly before the
+owner/database work. Authentication attempts retain the IP-based pre-auth limit.
+
+Verify shared counters against disposable loopback Redis from `backend`:
+
+```sh
+CHAT_LIMIT_REDIS_URL=redis://127.0.0.1:6379 node --test __tests__/chatSharedRateLimit.test.js
+```
+
+The check starts two local server processes, alternates 120 requests using fresh
+tokens for one account, and requires request 121 to return 429. Another account
+keeps its budget. The normal unit suite skips this explicit integration check
+when `CHAT_LIMIT_REDIS_URL` is absent.
 
 ## Browser integration
 
