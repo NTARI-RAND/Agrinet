@@ -1,3 +1,4 @@
+/* eslint-env node */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { once } = require('node:events');
