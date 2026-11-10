@@ -108,9 +108,34 @@ show “Sign in to use chat”; a 401 clears the expired token. Trusted-origin
 preflights permit Authorization, x-api-key and Idempotency-Key.
 
 Do not substitute an Amplify/Cognito token without an approved backend identity
-binding. PR #183 separately makes backend login/registration publicly
-reachable; until it lands, login still needs the server's existing integration
-authentication. This PR does not claim completed browser onboarding.
+binding. The merged security baseline exposes `/api/auth/login` publicly behind
+its own authentication-attempt throttle. The host account flow supplies the
+returned backend JWT; this PR adds no separate login UI or token storage.
+
+The same-origin host can import the adapter and call it after its existing login:
+
+```js
+import { setAccountToken } from './src/api.js';
+
+// `loginResponse` is the successful /api/auth/login response.
+setAccountToken(loginResponse.token);
+// On host logout:
+setAccountToken(null);
+```
+
+After installing both `backend` and `frontend/chat-ui` dependencies, run this
+explicit integration check from `frontend/chat-ui`:
+
+```sh
+node --test hostAccount.integration.js
+```
+
+It obtains a JWT through the real backend login route with synthetic local
+account storage, passes it through the exported setter, and reads an owned chat
+through the real account-authenticated route. A rejected token clears the
+adapter back to the UI's sign-in state. This verifies the integration contract;
+operators must still wire their deployed host's login/logout events and set
+`CORS_ALLOWED_ORIGINS` to its exact origin. The check runs no live account writes.
 
 Attachment buttons download through the authenticated adapter rather than
 opening uncredentialed URLs. Malformed, external and non-upload download paths
