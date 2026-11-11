@@ -20,14 +20,15 @@ async function list() {
   return res.Items || [];
 }
 
-async function rename(id, title) {
+async function update(id, field, value) {
   try {
     const res = await docClient
       .update({
         TableName: CONVERSATION_TABLE_NAME,
         Key: { id },
-        UpdateExpression: 'SET title = :t',
-        ExpressionAttributeValues: { ':t': title },
+        UpdateExpression: 'SET #field = :value',
+        ExpressionAttributeNames: { '#field': field },
+        ExpressionAttributeValues: { ':value': value },
         ReturnValues: 'ALL_NEW',
         ConditionExpression: 'attribute_exists(id)',
       })
@@ -38,34 +39,18 @@ async function rename(id, title) {
     throw err;
   }
 }
+
+function rename(id, title) { return update(id, 'title', title); }
 
 async function remove(id) {
   await docClient.delete({ TableName: CONVERSATION_TABLE_NAME, Key: { id } }).promise();
   await Message.removeByConversation(id);
 }
 
-async function pin(id, pinned) {
-  try {
-    const res = await docClient
-      .update({
-        TableName: CONVERSATION_TABLE_NAME,
-        Key: { id },
-        UpdateExpression: 'SET pinned = :p',
-        ExpressionAttributeValues: { ':p': pinned },
-        ReturnValues: 'ALL_NEW',
-        ConditionExpression: 'attribute_exists(id)',
-      })
-      .promise();
-    return res.Attributes;
-  } catch (err) {
-    if (err.code === 'ConditionalCheckFailedException') return null;
-    throw err;
-  }
-}
+function pin(id, pinned) { return update(id, 'pinned', pinned); }
 
 function setDocClient(client) {
   docClient = client;
 }
 
 module.exports = { create, list, rename, remove, pin, setDocClient };
-

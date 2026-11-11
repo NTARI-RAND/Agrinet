@@ -8,9 +8,6 @@ jest.mock('../../lib/dynamodbClient', () => {
     put: jest.fn().mockReturnValue({
       promise: jest.fn().mockResolvedValue({})
     }),
-    query: jest.fn().mockReturnValue({
-      promise: jest.fn().mockResolvedValue({ Items: [] })
-    }),
     scan: jest.fn().mockReturnValue({
       promise: jest.fn().mockResolvedValue({ Items: [] })
     })
@@ -23,6 +20,7 @@ const authRoutes = require('../authRoutes');
 describe('authRoutes', () => {
   let app;
   beforeEach(() => {
+    process.env.JWT_SECRET = 'test-jwt-secret';
     app = express();
     app.use(express.json());
     app.use('/', authRoutes);
@@ -48,7 +46,7 @@ describe('authRoutes', () => {
   describe('POST /login', () => {
     it('valid email/password returns token and user without password', async () => {
       const hashed = await bcrypt.hash('plainpass', 10);
-      dynamoClient.query.mockReturnValueOnce({
+      dynamoClient.scan.mockReturnValueOnce({
         promise: () => Promise.resolve({ Items: [{ email: 'john@example.com', password: hashed, username: 'john' }] })
       });
 
@@ -64,7 +62,7 @@ describe('authRoutes', () => {
 
     it('invalid password/email returns 401', async () => {
       const hashed = await bcrypt.hash('rightpass', 10);
-      dynamoClient.query.mockReturnValueOnce({
+      dynamoClient.scan.mockReturnValueOnce({
         promise: () => Promise.resolve({ Items: [{ email: 'john@example.com', password: hashed }] })
       });
 
@@ -74,11 +72,7 @@ describe('authRoutes', () => {
         .expect(401);
     });
 
-    it('executes scan when query returns no items', async () => {
-      dynamoClient.query.mockReturnValueOnce({
-        promise: () => Promise.resolve({ Items: [] })
-      });
-
+    it('returns 401 when no user matches the email', async () => {
       dynamoClient.scan.mockReturnValueOnce({
         promise: () => Promise.resolve({ Items: [] })
       });
@@ -92,4 +86,3 @@ describe('authRoutes', () => {
     });
   });
 });
-

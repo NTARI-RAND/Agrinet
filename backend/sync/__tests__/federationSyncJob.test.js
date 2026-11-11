@@ -1,9 +1,9 @@
 const mockScan = jest.fn();
-const mockUpdate = jest.fn();
+const mockPut = jest.fn();
 
 jest.mock('../../lib/dynamodbClient', () => ({
   scan: mockScan,
-  update: mockUpdate
+  put: mockPut
 }));
 
 jest.mock('axios');
@@ -29,16 +29,16 @@ describe('runFederationSync', () => {
     });
     axios.get.mockResolvedValue({ data: exportData });
     importFederatedData.mockResolvedValue({ success: true });
-    mockUpdate.mockReturnValue({ promise: jest.fn().mockResolvedValue({}) });
+    mockPut.mockReturnValue({ promise: jest.fn().mockResolvedValue({}) });
 
     await runFederationSync();
 
     expect(importFederatedData).toHaveBeenCalledWith(exportData);
-    expect(mockUpdate).toHaveBeenCalled();
+    expect(mockPut).toHaveBeenCalled();
 
-    const params = mockUpdate.mock.calls[0][0];
-    expect(params.Key).toEqual({ url: nodes[0].url });
-    const timestamp = params.ExpressionAttributeValues[':lastSyncAt'];
+    const params = mockPut.mock.calls[0][0];
+    expect(params.Item.url).toBe(nodes[0].url);
+    const timestamp = params.Item.lastSyncAt;
     expect(new Date(timestamp).toISOString()).toBe(timestamp);
   });
 
@@ -55,7 +55,7 @@ describe('runFederationSync', () => {
     await runFederationSync();
 
     expect(errorSpy).toHaveBeenCalled();
-    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockPut).not.toHaveBeenCalled();
 
     errorSpy.mockRestore();
   });

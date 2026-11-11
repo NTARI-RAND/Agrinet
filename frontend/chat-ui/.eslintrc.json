@@ -1,0 +1,9 @@
+{
+  "extends": ["../../.eslintrc.json", "plugin:react-hooks/recommended"],
+  "root": true,
+  "env": { "browser": true },
+  "plugins": ["react"],
+  "rules": { "react/jsx-uses-react": "error", "react/jsx-uses-vars": "error" },
+  "settings": { "react": { "version": "detect" } },
+  "overrides": [{ "files": ["*.config.js", "*.test.js"], "env": { "node": true } }]
+}

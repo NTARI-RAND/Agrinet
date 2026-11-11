@@ -20,7 +20,7 @@ const addPingJob = (buyerId, transactionId) => {
   pingQueue.add('checkPing', { buyerId, transactionId }, { delay: 24 * 60 * 60 * 1000 }); // 24h delay
 };
 
-const worker = new Worker('ping-deadline', async job => {
+new Worker('ping-deadline', async job => {
   const { buyerId, transactionId } = job.data;
   const params = {
     TableName: TRANSACTION_TABLE_NAME,

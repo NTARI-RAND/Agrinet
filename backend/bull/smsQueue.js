@@ -19,7 +19,7 @@ const connection = {
 
 const smsQueue = new Queue('sms-outgoing', { connection });
 
-const worker = new Worker(
+new Worker(
   'sms-outgoing',
   async job => {
     const { to, body } = job.data;

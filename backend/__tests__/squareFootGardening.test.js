@@ -3,7 +3,6 @@ const {
   arePlantsCompatible,
   projectGrowth,
   planSeason,
-  renderGrid,
 } = require('../utils/squareFootGardening');
 
 describe('Square Foot Gardening utils', () => {

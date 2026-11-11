@@ -1,4 +1,4 @@
-const { v4: uuid } = require('uuid');
+const { randomUUID: uuid } = require('crypto');
 const docClient = require('../lib/dynamodbClient');
 
 const TABLE = process.env.KEY_TABLE_NAME || 'Keys';

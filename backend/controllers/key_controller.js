@@ -17,7 +17,7 @@ exports.issueKey = async (req, res) => {
             key: generateMcElieseKey(),
             transmissions: 0,
             retired: false,
-            issuedAt: new Date(),
+            issuedAt: new Date().toISOString(),
         });
 
         await newKey.save();
@@ -42,7 +42,7 @@ exports.validateKey = async (req, res) => {
         // Check if the key reached its limit
         if (TRANSMISSION_LIMITS.includes(userKey.transmissions)) {
             userKey.retired = true;
-            userKey.retiredAt = new Date();
+            userKey.retiredAt = new Date().toISOString();
             await userKey.save();
 
             // Automatically issue a replacement key
@@ -51,7 +51,7 @@ exports.validateKey = async (req, res) => {
                 key: generateMcElieseKey(),
                 transmissions: 0,
                 retired: false,
-                issuedAt: new Date(),
+                issuedAt: new Date().toISOString(),
             });
 
             await replacementKey.save();

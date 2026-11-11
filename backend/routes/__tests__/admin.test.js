@@ -1,71 +1,52 @@
 const express = require('express');
 const request = require('supertest');
 
-const scanMock = jest.fn();
-const populateMock = jest.fn();
-const findMock = jest.fn(() => ({ populate: populateMock }));
+const mockScan = jest.fn();
 
-jest.mock('../../lib/dynamodbClient', () => ({ scan: scanMock }));
-jest.mock('../../models/key', () => ({ find: findMock }));
+jest.mock('../../lib/dynamodbClient', () => ({ scan: mockScan }));
 
 const { USER_TABLE_NAME } = require('../../models/user');
 const adminRouter = require('../admin');
 
 const app = express();
+app.use((req, _res, next) => { req.user = { userId: 'test-admin', role: 'admin' }; next(); });
 app.use('/', adminRouter);
 
-beforeEach(() => {
-  scanMock.mockReset();
-  populateMock.mockReset();
-  findMock.mockClear();
-});
+beforeEach(() => mockScan.mockReset());
 
 describe('GET /users', () => {
-  it('uses scan and omits password', async () => {
-    scanMock.mockReturnValue({
+  it('uses a minimal projection and omits private account fields', async () => {
+    mockScan.mockReturnValue({
       promise: jest.fn().mockResolvedValue({
-        Items: [
-          { id: '1', username: 'alice', password: 'secret' }
-        ]
+        Items: [{ id: '1', username: 'alice', email: 'a@example.test', role: 'consumer', password: 'secret', verificationCode: 'secret' }]
       })
     });
-
     const res = await request(app).get('/users');
-
-    expect(scanMock).toHaveBeenCalledWith({ TableName: USER_TABLE_NAME });
+    expect(mockScan).toHaveBeenCalledWith(expect.objectContaining({
+      TableName: USER_TABLE_NAME,
+      ProjectionExpression: expect.stringContaining('email')
+    }));
     expect(res.status).toBe(200);
-    expect(res.body).toEqual([{ id: '1', username: 'alice' }]);
+    expect(res.body).toEqual([{ id: '1', username: 'alice', email: 'a@example.test', role: 'consumer' }]);
     expect(res.body[0].password).toBeUndefined();
+    expect(res.body[0].verificationCode).toBeUndefined();
   });
 
   it('returns 500 when scan rejects', async () => {
-    scanMock.mockReturnValue({
-      promise: jest.fn().mockRejectedValue(new Error('fail'))
-    });
-
+    mockScan.mockReturnValue({ promise: jest.fn().mockRejectedValue(new Error('fail')) });
     const res = await request(app).get('/users');
-
-    expect(scanMock).toHaveBeenCalled();
+    expect(mockScan).toHaveBeenCalled();
     expect(res.status).toBe(500);
   });
 });
 
 describe('GET /keys', () => {
-  it('returns populated keys', async () => {
-    const sampleKeys = [
-      {
-        id: 'k1',
-        key: 'abc',
-        userId: { username: 'bob', email: 'bob@example.com' }
-      }
-    ];
-    populateMock.mockResolvedValue(sampleKeys);
-
+  it('returns only non-secret key metadata', async () => {
+    const sampleKeys = [{ id: 'k1', userId: 'u1', issuedAt: '2026-01-01', usageCount: 1, expiresAt: '2027-01-01', key: 'secret-value' }];
+    mockScan.mockReturnValue({ promise: async () => ({ Items: sampleKeys }) });
     const res = await request(app).get('/keys');
-
-    expect(findMock).toHaveBeenCalled();
-    expect(populateMock).toHaveBeenCalledWith('userId', 'username email');
+    expect(mockScan).toHaveBeenCalledWith(expect.objectContaining({ TableName: 'Keys', ProjectionExpression: expect.any(String) }));
     expect(res.status).toBe(200);
-    expect(res.body).toEqual(sampleKeys);
+    expect(res.body).toEqual([{ id: 'k1', userId: 'u1', issuedAt: '2026-01-01', usageCount: 1, expiresAt: '2027-01-01' }]);
   });
 });

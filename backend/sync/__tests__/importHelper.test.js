@@ -1,70 +1,57 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const Module = require('node:module');
-const path = require('node:path');
+const docClient = require('../../lib/dynamodbClient');
+const { importFederatedData, sanitizeImportedUser } = require('../importHelper');
 
-function createModelStub() {
-  const calls = [];
-  return {
-    calls,
-    stub: {
-      updateOne: async (filter, update, options) => {
-        calls.push({ filter, update, options });
-      },
-    },
-  };
-}
+test('empty federation import succeeds without writes', async () => {
+  docClient.put = () => { throw new Error('unexpected write'); };
+  assert.deepEqual(await importFederatedData({}), { success: true });
+});
 
-const listing = createModelStub();
-const transaction = createModelStub();
-const user = createModelStub();
+test('import requires source identity established by peer authentication', async () => {
+  assert.throws(() => sanitizeImportedUser({ id: 'remote-1', username: 'alice' }), /source identity/);
+});
 
-const originalLoad = Module._load;
-Module._load = function (request, parent, isMain) {
-  if (request.endsWith(path.join('models', 'listing'))) return listing.stub;
-  if (request.endsWith(path.join('models', 'transaction'))) return transaction.stub;
-  if (request.endsWith(path.join('models', 'user'))) return user.stub;
-  return originalLoad(request, parent, isMain);
-};
+test('import strips account authority and preserves authenticated provenance', async () => {
+  const item = sanitizeImportedUser({
+    id: 'remote-1', username: 'alice', password: 'hash', verificationCode: 'secret',
+    verified: true, role: 'admin', email: 'a@example.test', phone: '555-0100',
+    coordinates: { lat: 1, long: 2 }, sourceNodeId: 'forged-node',
+    originNodeId: 'origin-node', originUserId: 'origin-user',
+    arbitrarySecret: 'must-not-survive', reputationScore: 8
+  }, 'authenticated-peer');
 
-const { importFederatedData } = require('../importHelper');
-Module._load = originalLoad;
+  assert.deepEqual(item, {
+    id: 'remote-1', username: 'alice', reputationScore: 8,
+    sourceNodeId: 'authenticated-peer', remoteUserId: 'remote-1',
+    originNodeId: 'origin-node', originUserId: 'origin-user'
+  });
+});
 
-test('importFederatedData upserts listings, transactions, and users', async () => {
-  const data = {
-    listings: [
-      { _id: 'listing1', name: 'Listing One' },
-      { _id: 'listing2', name: 'Listing Two' },
-    ],
-    transactions: [
-      { _id: 'txn1', amount: 100 },
-      { _id: 'txn2', amount: 200 },
-    ],
-    users: [
-      { _id: 'user1', username: 'User One' },
-      { _id: 'user2', username: 'User Two' },
-    ],
-  };
+test('conditional user create refuses collisions without a pre-read race', async () => {
+  const writes = [];
+  docClient.put = params => ({
+    promise: async () => {
+      writes.push(params);
+      throw Object.assign(new Error('collision'), { code: 'ConditionalCheckFailedException' });
+    }
+  });
 
-  const result = await importFederatedData(data);
+  await assert.rejects(
+    () => importFederatedData({
+      users: [{ id: 'existing-id', username: 'alice', role: 'admin', password: 'stolen' }]
+    }, { sourceNodeId: 'peer-1' }),
+    error => error.code === 'ConditionalCheckFailedException'
+  );
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].ConditionExpression, 'attribute_not_exists(#id)');
+  assert.equal(writes[0].Item.sourceNodeId, 'peer-1');
+  assert.equal(writes[0].Item.password, undefined);
+});
 
-  assert.equal(listing.calls.length, 2);
-  assert.deepEqual(listing.calls[0].filter, { _id: 'listing1' });
-  assert.deepEqual(listing.calls[1].filter, { _id: 'listing2' });
-  assert.deepEqual(listing.calls[0].options, { upsert: true });
-  assert.deepEqual(listing.calls[1].options, { upsert: true });
-
-  assert.equal(transaction.calls.length, 2);
-  assert.deepEqual(transaction.calls[0].filter, { _id: 'txn1' });
-  assert.deepEqual(transaction.calls[1].filter, { _id: 'txn2' });
-  assert.deepEqual(transaction.calls[0].options, { upsert: true });
-  assert.deepEqual(transaction.calls[1].options, { upsert: true });
-
-  assert.equal(user.calls.length, 2);
-  assert.deepEqual(user.calls[0].filter, { _id: 'user1' });
-  assert.deepEqual(user.calls[1].filter, { _id: 'user2' });
-  assert.deepEqual(user.calls[0].options, { upsert: true });
-  assert.deepEqual(user.calls[1].options, { upsert: true });
-
-  assert.deepEqual(result, { success: true });
+test('federation import propagates storage errors', async () => {
+  docClient.put = () => ({ promise: async () => { throw new Error('write failed'); } });
+  await assert.rejects(importFederatedData({ users: [{ id: 'u3', username: 'bob' }] }, {
+    sourceNodeId: 'peer-1'
+  }), /write failed/);
 });

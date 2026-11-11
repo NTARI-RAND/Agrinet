@@ -11,6 +11,7 @@ async function getPrice(crop) {
   };
   try {
     const { Item } = await client.send(new GetItemCommand(params));
+    if (Item?.price) {
       if (Item.price.S !== undefined) {
         return Item.price.S;
       } else if (Item.price.N !== undefined) {

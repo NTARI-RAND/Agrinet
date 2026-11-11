@@ -17,8 +17,8 @@ const axios = require('axios');
 
 function createApp() {
   // delete cached router to reset in-memory cache
-  delete require.cache[require.resolve('../contracts')];
-  const router = require('../contracts');
+  let router;
+  jest.isolateModules(() => { router = require('../contracts'); });
   const app = express();
   app.use(express.json());
   app.use('/contracts', router);
@@ -31,7 +31,7 @@ describe('contracts routes', () => {
   });
 
   test('GET /contracts caches results', async () => {
-    docClient.scan.mockResolvedValueOnce({ Items: [{ id: '1' }] });
+    docClient.scan.mockReturnValueOnce({ promise: async () => ({ Items: [{ id: '1' }] }) });
     const app = createApp();
 
     const first = await request(app).get('/contracts');
@@ -45,7 +45,7 @@ describe('contracts routes', () => {
 
   test('POST /contracts stores contract, calls webhook and invalidates cache', async () => {
     // Seed cache with initial scan
-    docClient.scan.mockResolvedValueOnce({ Items: [{ id: 'cached' }] });
+    docClient.scan.mockReturnValueOnce({ promise: async () => ({ Items: [{ id: 'cached' }] }) });
     const app = createApp();
     await request(app).get('/contracts');
     expect(docClient.scan).toHaveBeenCalledTimes(1);
@@ -53,7 +53,7 @@ describe('contracts routes', () => {
     // Prepare mocks for creation
     const id = 'uuid-1234';
     jest.spyOn(require('crypto'), 'randomUUID').mockReturnValue(id);
-    docClient.put.mockResolvedValue({});
+    docClient.put.mockReturnValue({ promise: async () => ({}) });
     axios.post.mockResolvedValue({});
 
     const payload = { type: 'fruit', amountNeeded: 5 };
@@ -71,10 +71,9 @@ describe('contracts routes', () => {
     );
 
     // After creation cache should be invalidated -> next GET triggers new scan
-    docClient.scan.mockResolvedValueOnce({ Items: [{ id: 'cached' }, { id }] });
+    docClient.scan.mockReturnValueOnce({ promise: async () => ({ Items: [{ id: 'cached' }, { id }] }) });
     const getAfterPost = await request(app).get('/contracts');
     expect(getAfterPost.body).toEqual([{ id: 'cached' }, { id }]);
     expect(docClient.scan).toHaveBeenCalledTimes(2);
   });
 });
-

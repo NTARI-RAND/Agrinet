@@ -15,35 +15,15 @@ export default function InputBox() {
   const timeoutRef = useRef();
 
   useEffect(() => {
+    const animation = frameRef;
+    const delay = timeoutRef;
     return () => {
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (animation.current) cancelAnimationFrame(animation.current);
+      if (delay.current) clearTimeout(delay.current);
     };
   }, []);
 
-  const animateTo = (target) => {
-    physicsRef.current.target = target;
-    if (frameRef.current) return;
-
-    const step = () => {
-      const physics = physicsRef.current;
-      const displacement = physics.target - physics.current;
-      physics.velocity += displacement * 0.18;
-      physics.velocity *= 0.72;
-      physics.current += physics.velocity;
-      if (Math.abs(physics.velocity) < 0.001 && Math.abs(displacement) < 0.001) {
-        physics.current = physics.target;
-        physics.velocity = 0;
-        frameRef.current = undefined;
-        setSendScale(physics.current);
-        return;
-      }
-      setSendScale(physics.current);
-      frameRef.current = requestAnimationFrame(step);
-    };
-
-    frameRef.current = requestAnimationFrame(step);
-  };
+  const animateTo = (target) => animateSpring(target, physicsRef, frameRef, setSendScale);
 
   const send = async () => {
     if (!state.currentConversation || (!text && !file) || pending) return;
@@ -163,4 +143,28 @@ export default function InputBox() {
       </button>
     </div>
   );
+}
+
+function animateSpring(target, physicsRef, frameRef, setSendScale) {
+  physicsRef.current.target = target;
+  if (frameRef.current) return;
+
+  const step = () => {
+    const physics = physicsRef.current;
+    const displacement = physics.target - physics.current;
+    physics.velocity += displacement * 0.18;
+    physics.velocity *= 0.72;
+    physics.current += physics.velocity;
+    if (Math.abs(physics.velocity) < 0.001 && Math.abs(displacement) < 0.001) {
+      physics.current = physics.target;
+      physics.velocity = 0;
+      frameRef.current = undefined;
+      setSendScale(physics.current);
+      return;
+    }
+    setSendScale(physics.current);
+    frameRef.current = requestAnimationFrame(step);
+  };
+
+  frameRef.current = requestAnimationFrame(step);
 }

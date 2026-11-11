@@ -14,7 +14,9 @@ test('createNodeRegistryItem returns object with url, region, contact, default l
     contact: 'admin@example.com'
   };
   const item = createNodeRegistryItem(params);
-  assert.deepStrictEqual(item, { ...params, lastSyncAt: null });
+  for (const [key, value] of Object.entries(params)) assert.strictEqual(item[key], value);
+  assert.strictEqual(item.lastSyncAt, null);
+  assert.deepStrictEqual(item.production.capabilities, []);
 });
 
 test('createNodeRegistryItem preserves provided lastSyncAt ISO string', () => {

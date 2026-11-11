@@ -1,74 +1,31 @@
 const request = require('supertest');
 const express = require('express');
 
-jest.mock('../../lib/dynamodbClient', () => ({
-  scan: jest.fn()
-}));
-
+jest.mock('../../lib/dynamodbClient', () => ({ scan: jest.fn() }));
 const docClient = require('../../lib/dynamodbClient');
 const adminRouter = require('../../routes/admin');
+const app = express();
+app.use((req, _res, next) => { req.user = { userId: 'test-admin', role: 'admin' }; next(); });
+app.use('/', adminRouter);
 
-describe('admin routes', () => {
-  let app;
+describe.each([
+  { route: 'users', table: 'Users', item: { id: 'u1', username: 'Alice', email: 'alice@example.test', role: 'consumer' }, expected: { id: 'u1', username: 'Alice', email: 'alice@example.test', role: 'consumer' } },
+  { route: 'keys', table: 'Keys', item: { id: 'k1', userId: 'u1', key: 'secret', usageCount: 2 }, expected: { id: 'k1', userId: 'u1', usageCount: 2 } },
+])('admin GET /$route', ({ route, table, item, expected }) => {
+  beforeEach(() => docClient.scan.mockReset());
 
-  beforeEach(() => {
-    app = express();
-    app.use('/', adminRouter);
-    // generic error handler to send JSON
-    app.use((err, req, res, next) => {
-      res.status(500).json({ error: err.message });
-    });
-    docClient.scan.mockReset();
+  test('returns sanitized records from the expected table', async () => {
+    docClient.scan.mockReturnValue({ promise: async () => ({ Items: [item] }) });
+    const response = await request(app).get('/' + route);
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([expected]);
+    expect(docClient.scan).toHaveBeenCalledWith(expect.objectContaining({ TableName: table, ProjectionExpression: expect.any(String) }));
   });
 
-  describe('GET /users', () => {
-    it('returns scanned users', async () => {
-      const items = [{ id: 1, name: 'Alice' }];
-      docClient.scan.mockReturnValueOnce({
-        promise: () => Promise.resolve({ Items: items })
-      docClient.scan.mockReturnValueOnce(Promise.resolve({ Items: items }));
-
-      const res = await request(app).get('/users');
-
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual(items);
-    });
-
-    it('handles scan errors', async () => {
-      docClient.scan.mockReturnValueOnce({
-        promise: () => Promise.reject(new Error('fail'))
-      docClient.scan.mockReturnValueOnce(Promise.reject(new Error('fail')));
-
-      const res = await request(app).get('/users');
-
-      expect(res.status).toBe(500);
-      expect(res.body).toHaveProperty('error');
-    });
-  });
-
-  describe('GET /keys', () => {
-    it('returns scanned keys', async () => {
-      const items = [{ id: 1, key: 'abc' }];
-      docClient.scan.mockReturnValueOnce({
-        promise: () => Promise.resolve({ Items: items })
-      docClient.scan.mockReturnValueOnce(Promise.resolve({ Items: items }));
-
-      const res = await request(app).get('/keys');
-
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual(items);
-    });
-
-    it('handles scan errors', async () => {
-      docClient.scan.mockReturnValueOnce({
-        promise: () => Promise.reject(new Error('fail'))
-      docClient.scan.mockReturnValueOnce(Promise.reject(new Error('fail')));
-
-      const res = await request(app).get('/keys');
-
-      expect(res.status).toBe(500);
-      expect(res.body).toHaveProperty('error');
-    });
+  test('returns 500 on a storage error', async () => {
+    docClient.scan.mockReturnValue({ promise: async () => { throw new Error('fail'); } });
+    const response = await request(app).get('/' + route);
+    expect(response.status).toBe(500);
+    expect(response.body).toHaveProperty('error');
   });
 });
-

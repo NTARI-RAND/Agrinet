@@ -1,3 +1,5 @@
+const pingTerms = { ping: 'PING', pingPlural: 'PINGs' };
+
 const translations = {
   en: {
     messages: {
@@ -15,8 +17,7 @@ const translations = {
       producerPlural: 'producers',
       transaction: 'transaction',
       transactionPlural: 'transactions',
-      ping: 'PING',
-      pingPlural: 'PINGs'
+      ...pingTerms
     }
   },
   es: {
@@ -35,8 +36,7 @@ const translations = {
       producerPlural: 'productores',
       transaction: 'transacción',
       transactionPlural: 'transacciones',
-      ping: 'PING',
-      pingPlural: 'PINGs'
+      ...pingTerms
     },
     dialects: {
       mx: {
@@ -46,13 +46,7 @@ const translations = {
         },
         terms: {
           listing: 'anuncio',
-          listingPlural: 'anuncios',
-          producer: 'productor',
-          producerPlural: 'productores',
-          transaction: 'transacción',
-          transactionPlural: 'transacciones',
-          ping: 'PING',
-          pingPlural: 'PINGs'
+          listingPlural: 'anuncios'
         }
       }
     }
@@ -73,8 +67,7 @@ const translations = {
       producerPlural: 'producteurs',
       transaction: 'transaction',
       transactionPlural: 'transactions',
-      ping: 'PING',
-      pingPlural: 'PINGs'
+      ...pingTerms
     }
   }
 };

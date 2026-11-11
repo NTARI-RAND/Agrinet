@@ -52,6 +52,13 @@ async function listMessages(conversationId) {
   return res.Items || [];
 }
 
+async function getMessage(conversationId, id) {
+  const { Item } = await docClient.get({
+    TableName: MESSAGE_TABLE_NAME, Key: { conversationId, id }, ConsistentRead: true,
+  }).promise();
+  return Item || null;
+}
+
 async function removeByConversation(conversationId) {
   const messages = await listMessages(conversationId);
   if (!messages.length) return;
@@ -67,4 +74,4 @@ function setDocClient(client) {
   docClient = client;
 }
 
-module.exports = { sendMessage, listMessages, removeByConversation, setDocClient };
+module.exports = { sendMessage, listMessages, getMessage, removeByConversation, setDocClient };

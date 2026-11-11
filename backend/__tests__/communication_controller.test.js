@@ -162,7 +162,7 @@ test('OpenAI responder handles general messages', async () => {
     assert.ok(res.body.reply);
     assert.strictEqual(res.body.reply.content, 'OpenAI reply');
     assert.strictEqual(store.length, 2);
-    assert.strictEqual(store[1].from, 'assistant');
+    assert.strictEqual(store[1].from, 'ai');
     assert.strictEqual(guardChecked, true);
     assert.strictEqual(openAICalled, true);
   } finally {

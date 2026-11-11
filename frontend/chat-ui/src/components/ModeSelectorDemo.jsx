@@ -1,5 +1,7 @@
 import React, { useEffect, useId, useReducer, useRef, useState } from "react";
-import api, { API_BASE_URL } from "../api";
+import api from "../api";
+import { submitMode } from "./modeActions";
+import { initialState, reducer } from "./modeReducer.mjs";
 
 /**
  * Chat Mode Selector Component Set (drop-in demo)
@@ -61,64 +63,7 @@ import api, { API_BASE_URL } from "../api";
 //   | { type: "SET_RESULTS"; results: Partial<State["results"]> }
 //   | { type: "RESET_RESULTS" };
 
-const initialState = {
-  mode: "chat",
-  files: [],
-  connectorsOpen: false,
-  selectedConnectors: new Set(),
-  toasts: [],
-  deepProgress: { running: false, stage: "idle", log: [] },
-  results: {},
-};
-
 const StoreContext = React.createContext(null);
-
-function reducer(state, action) {
-  switch (action.type) {
-    case "SET_MODE":
-      return { ...state, mode: action.mode };
-    case "ADD_FILES": {
-      const next = [...state.files];
-      action.files.forEach((f) => {
-        if (!next.some((x) => x.name === f.name && x.size === f.size && x.lastModified === f.lastModified)) {
-          next.push(f);
-        }
-      });
-      return { ...state, files: next };
-    }
-    case "REMOVE_FILE": {
-      const next = [...state.files];
-      next.splice(action.index, 1);
-      return { ...state, files: next };
-    }
-    case "OPEN_CONNECTORS":
-      return { ...state, connectorsOpen: action.open };
-    case "TOGGLE_CONNECTOR": {
-      const s = new Set(state.selectedConnectors);
-      if (s.has(action.id)) s.delete(action.id); else s.add(action.id);
-      return { ...state, selectedConnectors: s };
-    }
-    case "ADD_TOAST":
-      return { ...state, toasts: [...state.toasts, action.toast] };
-    case "REMOVE_TOAST":
-      return { ...state, toasts: state.toasts.filter((t) => t.id !== action.id) };
-    case "DEEP_START":
-      return { ...state, deepProgress: { running: true, stage: "planning", startedAt: Date.now(), log: [] } };
-    case "DEEP_SET_STAGE": {
-      const log = [...state.deepProgress.log];
-      if (action.log) log.push(action.log);
-      return { ...state, deepProgress: { ...state.deepProgress, stage: action.stage, log } };
-    }
-    case "DEEP_STOP":
-      return { ...state, deepProgress: { running: false, stage: "idle", log: [] } };
-    case "SET_RESULTS":
-      return { ...state, results: { ...state.results, ...action.results } };
-    case "RESET_RESULTS":
-      return { ...state, results: {} };
-    default:
-      return state;
-  }
-}
 
 function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -141,31 +86,6 @@ function classNames(...xs) {
 
 function uid(prefix = "id") {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-const API_KEY = import.meta.env.VITE_API_KEY || "";
-
-// API helpers
-async function deepResearch(query, onStage) {
-  onStage("planning", "Submitting query to agent…");
-  const res = await api.post("/deep-research", { query });
-  onStage("finalizing", "Deep research complete");
-  return res;
-}
-
-async function imageGen(prompt, files) {
-  const form = new FormData();
-  form.append("prompt", prompt);
-  files.forEach((f) => form.append("files", f));
-  const headers = {};
-  if (API_KEY) headers["x-api-key"] = API_KEY;
-  const url = `${API_BASE_URL.replace(/\/$/, "")}/image-gen`;
-  const res = await fetch(url, { method: "POST", headers, body: form });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data?.message || "Image generation failed");
-  }
-  return data.images || [];
 }
 
 // ------------------------------
@@ -581,50 +501,7 @@ function ChatComposer() {
     }
 
     try {
-      if (state.mode === "chat") {
-        dispatch({ type: "SET_RESULTS", results: { text: `You said: ${q}\n\n(Connect your backend to replace this mock.)` } });
-      } else if (state.mode === "deep") {
-        dispatch({ type: "DEEP_START" });
-        try {
-          const res = await deepResearch(q, (stage, log) => {
-            dispatch({ type: "DEEP_SET_STAGE", stage, log });
-          });
-          dispatch({ type: "SET_RESULTS", results: { text: res.text, citations: res.citations } });
-        } catch (error) {
-          console.error("Deep research request failed", error);
-          const description =
-            error instanceof Error && error.message
-              ? error.message
-              : typeof error === "string" && error.length
-              ? error
-              : "Try again in a moment.";
-          dispatch({
-            type: "ADD_TOAST",
-            toast: {
-              id: uid("toast"),
-              title: "Deep research failed",
-              desc: description,
-              kind: "error",
-            },
-          });
-        } finally {
-          dispatch({ type: "DEEP_STOP" });
-        }
-      } else if (state.mode === "image") {
-        const images = await imageGen(q, state.files);
-        dispatch({ type: "SET_RESULTS", results: { images } });
-        dispatch({ type: "ADD_TOAST", toast: { id: uid("toast"), title: "Images ready", kind: "success" } });
-      } else if (state.mode === "connectors") {
-        if (state.selectedConnectors.size === 0) {
-          dispatch({ type: "ADD_TOAST", toast: { id: uid("toast"), title: "Select sources first", desc: "Open Connectors to choose data.", kind: "error" } });
-        } else {
-          const res = await api.post("/connectors/query", {
-            query: q,
-            connectors: Array.from(state.selectedConnectors),
-          });
-          dispatch({ type: "SET_RESULTS", results: { text: res.text, citations: res.citations } });
-        }
-      }
+      await submitMode(state, q, dispatch);
     } finally {
       submittingRef.current = false;
     }
@@ -700,4 +577,3 @@ export default function DemoApp() {
     </StoreProvider>
   );
 }
-
