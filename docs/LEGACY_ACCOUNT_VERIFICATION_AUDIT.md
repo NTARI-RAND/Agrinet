@@ -1,7 +1,8 @@
 # Legacy account verification reachability audit
 
-Reviewed on 2026-11-06 against upstream `main` at
-`9373310afff24ca3294367e6308702446876bc2a`.
+Refreshed on 2026-11-11 against upstream `main` at
+`e645b724109cc5c351676f6ac659737a3a64d82b`, including the merged security
+hardening from #197. The original audit was performed on 2026-11-06.
 
 ## Legacy verification support boundary
 
@@ -32,7 +33,9 @@ a new review and an agreed account-lookup/migration contract.
   worker constructors were replaced for this inspection to avoid Redis access;
   startup interval handles were cleared before their callbacks ran. Account
   routers and their handlers were not replaced, and no account writes were sent.
-- The public NTARI Slack search found no `verifyUser` support declaration.
+- The public NTARI Slack search during the original 2026-11-06 audit found no
+  `verifyUser` support declaration. This historical search was not repeated
+  during the refresh.
   The historical Agrinet channel ID was inaccessible; search absence is not
   proof that no external caller or private support agreement exists.
 
@@ -53,25 +56,37 @@ That text is not evidence of a working verification endpoint, code-delivery
 service or supported caller. This audit does not add such a workflow or change
 that existing response contract.
 
-## Boundary with pending account work
+## Boundary with merged and pending account work
 
-The following PRs were still open when inspected:
+As inspected on 2026-11-11:
 
+- [#197](https://github.com/NTARI-RAND/Agrinet/pull/197) has merged into `main`.
+  Its account authorization and privileged user provisioning are included in
+  this audit baseline. Registration normalizes email, generates the account ID
+  server-side and conditionally creates the account. User provisioning requires
+  an administrator. These inline handlers still do not load the legacy controller.
 - [#199](https://github.com/NTARI-RAND/Agrinet/pull/199), head
-  `af02744744e782259ec0db9e146cad81035bd7d3`, owns email claims, conditional
-  registration, direct login lookup and paginated backfill. Its proposed
-  trim/lowercase lookup and duplicate-account operator decisions are not adopted
-  by this audit. It does not change the legacy controller.
-- [#197](https://github.com/NTARI-RAND/Agrinet/pull/197), head
-  `3f8c1285d00edbaf482992d409882c516ebc921c`, owns account authorization and
-  privileged user provisioning, including overlapping auth/user routes.
+  `af02744744e782259ec0db9e146cad81035bd7d3`, remains open. It proposes email
+  claims, direct login lookup and paginated backfill. Its lookup and
+  duplicate-account migration decisions are not adopted by this audit. It does
+  not change the legacy controller. The current `main` login still scans one
+  DynamoDB page; this reachability finding does not resolve that separate issue.
 - [#194](https://github.com/NTARI-RAND/Agrinet/pull/194), head
-  `05b894f082f03a7e9cf2a6ee3012093999415155`, overlaps user-route pagination
-  and account response handling.
+  `a7cc23468a3513bca5754222b8e5a0d5d5495f1d`, remains open and overlaps
+  user-route pagination and account response handling.
 
 Do not duplicate those PRs, introduce a `UserEmails` table here, mount a new
 verification route, or silently choose a duplicate-account migration policy.
 If legacy support is established later, reconcile these account contracts first.
+
+## Refresh verification
+
+The non-minimal runtime inspection confirmed the router methods listed above,
+with no legacy controller in the module cache and no account writes sent.
+The backend `npm test` command passed all 60 Node tests and 65 Jest tests.
+`./scripts/list-hardcoded-urls.sh` and `git diff --check` also passed. The final
+change relative to the inspected `main` is limited to this audit and its README
+link; no verification endpoint, lookup implementation or migration was added.
 
 ## Contribution and acceptance boundary
 
