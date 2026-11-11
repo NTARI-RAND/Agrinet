@@ -1,3 +1,4 @@
+const { configurePeers, signedResponse } = require('../../test-support/federation-pages');
 const mockScan = jest.fn();
 const mockPut = jest.fn();
 
@@ -18,17 +19,17 @@ const runFederationSync = require('../federationSyncJob');
 describe('runFederationSync', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.FEDERATION_PEER_KEYS = JSON.stringify({ 'https://node.example': 'read-key' });
+    configurePeers();
   });
 
   it('inspects the full export without importing summaries or updating lastSyncAt', async () => {
-    const nodes = [{ url: 'https://node.example' }];
+    const nodes = [{ nodeId: 'peer-1', url: 'https://node.example' }];
     const exportData = { listings: [], transactions: [], users: [] };
 
     mockScan.mockReturnValue({
       promise: jest.fn().mockResolvedValue({ Items: nodes })
     });
-    axios.get.mockResolvedValue({ data: exportData, headers: { 'x-pagination': 'cursor-v1' } });
+    axios.get.mockResolvedValue(signedResponse({ data: exportData, headers: { 'x-pagination': 'cursor-v1' } }));
     importFederatedData.mockResolvedValue({ success: true });
     mockPut.mockReturnValue({ promise: jest.fn().mockResolvedValue({}) });
 
@@ -40,7 +41,7 @@ describe('runFederationSync', () => {
   });
 
   it('logs errors from axios without updating', async () => {
-    const nodes = [{ url: 'https://node.example' }];
+    const nodes = [{ nodeId: 'peer-1', url: 'https://node.example' }];
     mockScan.mockReturnValue({
       promise: jest.fn().mockResolvedValue({ Items: nodes })
     });

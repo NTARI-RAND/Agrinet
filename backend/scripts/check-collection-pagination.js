@@ -27,7 +27,10 @@ async function main() {
   process.env.AWS_REGION = 'us-east-1';
   process.env.JWT_SECRET = randomUUID();
   process.env.API_KEY = randomUUID();
-  process.env.FEDERATION_EXPORT_KEY = randomUUID();
+  const peerSecret = randomUUID();
+  process.env.FEDERATION_LOCAL_NODE_ID = 'local-check';
+  process.env.FEDERATION_PEERS_JSON = JSON.stringify({ 'local-check': peerSecret });
+  process.env.FEDERATION_OUTBOUND_PEERS_JSON = JSON.stringify({ 'local-check': peerSecret });
   const admin = new DynamoDBClient({ endpoint: endpoint.href, region: 'us-east-1', credentials: { accessKeyId: 'localcheck', secretAccessKey: 'localcheck' } });
   const store = DynamoDBDocument.from(admin);
   const prefix = `CollectionPages_${randomUUID().replaceAll('-', '')}`;
@@ -45,7 +48,7 @@ async function main() {
     const put = (table, Item) => store.send(new PutCommand({ TableName: tables[table], Item }));
     for (let i = 0; i < 8; i++) {
       await put('Conversations', { id: `c${i}`, ownerId: i % 2 ? 'alice' : 'bob', title: 'private'.repeat(33000) });
-      await put('Users', { id: `u${i}`, username: `member${i}`, role: i % 2 ? 'producer' : 'consumer', location: 'Town', locationPrivacy: i % 2 === 1,
+      await put('Users', { id: `u${i}`, username: `member${i}`, role: i % 2 ? 'producer' : 'consumer', locationType: i % 2 ? 'farm' : 'delivery', reputationScore: 99, reputationWeight: 1000, location: 'Town', locationPrivacy: i % 2 === 1,
         password: 'private hash', verificationCode: 'private code', email: 'private@example.invalid', coordinates: { lat: 1, long: 2 }, privatePadding: 'x'.repeat(230000) });
       await put('Listings', { id: `l${i}`, userId: `u${i}`, title: `Public listing ${i}`, description: 'advertised text'.repeat(16000), price: i + 1, privateExtra: 'not an advertised field' });
       await put('Transactions', { id: `t${i}`, buyerId: 'alice', sellerId: 'bob', status: 'pending', dialogNotes: 'local narrative'.repeat(15000) });
@@ -63,10 +66,10 @@ async function main() {
     };
     const app = express();
     app.use(express.json());
+    app.use('/federation', require('../federation/federationRoutes'));
     app.use(require('../middleware/requestRateLimit')(), require('../middleware/authMiddleware'));
     app.use('/conversations', require('../routes/conversationRoutes'));
     app.use('/users', require('../routes/userRoutes'));
-    app.use('/federation', require('../federation/federationRoutes'));
     server = await new Promise(resolve => { const listener = app.listen(0, '127.0.0.1', () => resolve(listener)); });
     const base = `http://127.0.0.1:${server.address().port}`;
     const token = jwt.sign({ userId: 'alice' }, process.env.JWT_SECRET, { expiresIn: '2h' });
@@ -89,8 +92,11 @@ async function main() {
     assert.ok(directory.pages > 1, 'the 1 MiB scan boundary must require continuation even with a projection');
     assert.equal(directory.result.length, 8);
     for (const user of directory.result) {
-      assert.deepEqual(Object.keys(user).sort(), ['id', 'username', 'role', ...(Number(user.id.slice(1)) % 2 ? ['location'] : [])].sort());
+      assert.deepEqual(Object.keys(user).sort(), ['id', 'username', 'role', 'locationType', ...(Number(user.id.slice(1)) % 2 ? ['location'] : [])].sort());
     }
+    const byType = await collect('/users?limit=1&locationType=delivery');
+    assert.deepEqual(byType.result.map(user => user.id).sort(), ['u0', 'u2', 'u4', 'u6']);
+    assert.ok(byType.result.every(user => !Object.hasOwn(user, 'location') && !Object.hasOwn(user, 'reputationScore') && !Object.hasOwn(user, 'reputationWeight')));
     const filtered = await collect('/users?limit=1&role=producer&location=Town');
     assert.deepEqual(filtered.result.map(user => user.id).sort(), ['u1', 'u3', 'u5', 'u7']);
     const { createAccountClient } = await import('../../frontend/chat-ui/src/accountClient.mjs');
@@ -105,10 +111,10 @@ async function main() {
     assert.equal(foreign.status, 400);
 
     const { forEachExportPage, inspectExport } = require('../sync/exportPages');
-    process.env.FEDERATION_PEER_KEYS = JSON.stringify({ [base]: process.env.FEDERATION_EXPORT_KEY });
+    const peer = { nodeId: 'local-check', url: base };
     const exported = { listings: [], transactions: [], users: [] };
     let exportPages = 0;
-    await forEachExportPage(base, page => {
+    await forEachExportPage(peer, page => {
       exportPages++;
       for (const name of Object.keys(exported)) exported[name].push(...page[name]);
     });
@@ -118,7 +124,7 @@ async function main() {
     assert.deepEqual(exported.users, []);
     assert.ok(exported.listings.every(item => !Object.hasOwn(item, 'privateExtra')));
     assert.ok(exported.transactions.every(item => !Object.hasOwn(item, 'dialogNotes')));
-    assert.deepEqual(await inspectExport(base), { listings: 8, transactions: 8, users: 0 });
+    assert.deepEqual(await inspectExport(peer), { listings: 8, transactions: 8, users: 0 });
     assert.equal((await store.send(new GetCommand({ TableName: tables.Users, Key: { id: 'u0' } }))).Item.password, 'private hash');
     assert.ok((await store.send(new GetCommand({ TableName: tables.Transactions, Key: { id: 't0' } }))).Item.dialogNotes.length > 100000);
     assert.ok(scans.some(params => params.ExclusiveStartKey));

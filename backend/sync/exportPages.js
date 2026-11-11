@@ -1,31 +1,37 @@
 const axios = require('axios');
 
-function peerKey(base) {
+const { createPeerHeaders, verifyPeerResponse } = require('../middleware/federationPeerAuth');
+
+function peerCredentials(peer, expectedNodeId) {
+  const base = (typeof peer === 'string' ? peer : peer.url || peer.nodeUrl).replace(/\/+$/, '');
+  const nodeId = typeof peer === 'string' ? expectedNodeId : peer.nodeId;
   const url = new URL(base);
   if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) throw new Error('Invalid federation peer URL');
-  let keys;
-  try { keys = JSON.parse(process.env.FEDERATION_PEER_KEYS || '{}'); }
-  catch { throw new Error('Invalid FEDERATION_PEER_KEYS configuration'); }
-  if (!keys || typeof keys !== 'object' || Array.isArray(keys)) throw new Error('Invalid FEDERATION_PEER_KEYS configuration');
-  const key = Object.hasOwn(keys, base) && keys[base];
-  if (typeof key !== 'string' || !key) throw new Error('Federation peer has no configured read-only key');
-  if (key === process.env.API_KEY || key === process.env.WIX_API_KEY) throw new Error('Refusing to forward the local write-capable API key');
   const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
   if (url.protocol !== 'https:' && !loopback) throw new Error('Federation peer credentials require HTTPS');
-  return key;
+  const localNodeId = process.env.FEDERATION_LOCAL_NODE_ID || process.env.NODE_ID;
+  if (!localNodeId) throw new Error('Federation local node identity is not configured');
+  let keys;
+  try { keys = JSON.parse(process.env.FEDERATION_OUTBOUND_PEERS_JSON || '{}'); }
+  catch { throw new Error('Invalid FEDERATION_OUTBOUND_PEERS_JSON configuration'); }
+  if (!keys || typeof keys !== 'object' || Array.isArray(keys)) throw new Error('Invalid FEDERATION_OUTBOUND_PEERS_JSON configuration');
+  const secret = typeof nodeId === 'string' && Object.hasOwn(keys, nodeId) && keys[nodeId];
+  if (typeof secret !== 'string' || secret.length < 32) throw new Error('Federation peer has no configured HMAC credential');
+  return { base, nodeId, localNodeId, secret };
 }
 
 // Stream pages to the consumer instead of collecting a complete peer export in
 // memory. Completion means a final page under the explicit pagination contract.
-async function forEachExportPage(peer, consume) {
-  const base = peer.replace(/\/+$/, '');
-  const key = peerKey(base);
+async function forEachExportPage(peer, consume, expectedNodeId) {
+  const { base, nodeId, localNodeId, secret } = peerCredentials(peer, expectedNodeId);
+  const path = new URL(`${base}/federation/export`).pathname;
   let cursor;
   for (let pages = 0; pages < 10000; pages++) {
     const response = await axios.get(`${base}/federation/export`, {
-      headers: { 'x-federation-key': key }, params: { limit: 50, ...(cursor && { cursor }) },
+      headers: createPeerHeaders({ nodeId: localNodeId, secret, method: 'GET', path }), params: { limit: 50, ...(cursor && { cursor }) },
       timeout: 5000, maxRedirects: 0, maxContentLength: 16 * 1024 * 1024,
     });
+    if (!verifyPeerResponse({ headers: response.headers || {}, expectedNodeId: nodeId, secret, method: 'GET', path, body: JSON.stringify(response.data) })) throw new Error('Federation peer response signature is invalid');
     const header = name => response.headers?.get?.(name) ?? response.headers?.[name];
     if (header('x-pagination') !== 'cursor-v1') throw new Error('Peer does not declare cursor pagination');
     const { data } = response;

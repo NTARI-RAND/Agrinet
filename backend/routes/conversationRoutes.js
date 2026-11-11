@@ -1,16 +1,112 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/chatAuth');
-const owner = require('../middleware/conversationOwner');
 const ctrl = require('../controllers/conversation_controller');
+const owner = require('../middleware/conversationOwner');
 const asyncHandler = require('../utils/asyncHandler');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
-router.use(auth);
-router.post('/', asyncHandler(ctrl.create));
-router.get('/', asyncHandler(ctrl.list));
-router.get('/:id', asyncHandler(owner), ctrl.get);
-router.put('/:id', asyncHandler(owner), asyncHandler(ctrl.rename));
-router.delete('/:id', asyncHandler(owner), asyncHandler(ctrl.remove));
-router.post('/:id/pin', asyncHandler(owner), asyncHandler(ctrl.pin));
+router.post('/', rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many authentication attempts' }
+}), auth, rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => req.user?.userId
+    ? 'account:' + req.user.userId
+    : 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many requests, please try again later' }
+}), asyncHandler(ctrl.create));
+router.get('/', rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many authentication attempts' }
+}), auth, rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => req.user?.userId
+    ? 'account:' + req.user.userId
+    : 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many requests, please try again later' }
+}), asyncHandler(ctrl.list));
+router.get('/:id', rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many authentication attempts' }
+}), auth, rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => req.user?.userId
+    ? 'account:' + req.user.userId
+    : 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many requests, please try again later' }
+}), asyncHandler(owner), ctrl.get);
+router.put('/:id', rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many authentication attempts' }
+}), auth, rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => req.user?.userId
+    ? 'account:' + req.user.userId
+    : 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many requests, please try again later' }
+}), asyncHandler(owner), asyncHandler(ctrl.rename));
+router.delete('/:id', rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many authentication attempts' }
+}), auth, rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => req.user?.userId
+    ? 'account:' + req.user.userId
+    : 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many requests, please try again later' }
+}), asyncHandler(owner), asyncHandler(ctrl.remove));
+router.post('/:id/pin', rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many authentication attempts' }
+}), auth, rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => req.user?.userId
+    ? 'account:' + req.user.userId
+    : 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many requests, please try again later' }
+}), asyncHandler(owner), asyncHandler(ctrl.pin));
 
 module.exports = router;

@@ -1,3 +1,4 @@
+const { configurePeers, signedResponse } = require('../../test-support/federation-pages');
 jest.mock('axios');
 jest.mock('../../lib/dynamodbClient', () => ({
   scan: jest.fn(),
@@ -26,7 +27,7 @@ describe('scheduler', () => {
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
-    process.env.FEDERATION_PEER_KEYS = JSON.stringify({ 'https://node.example': 'read-key' });
+    configurePeers();
     jest.useFakeTimers();
   });
 
@@ -37,19 +38,19 @@ describe('scheduler', () => {
   test('syncFromPeers inspects without mutating canonical records or lastSyncAt', async () => {
     const dynamodbClient = require('../../lib/dynamodbClient');
     dynamodbClient.scan.mockReturnValue({
-      promise: () => Promise.resolve({ Items: [{ nodeUrl: 'https://node.example' }] }),
+      promise: () => Promise.resolve({ Items: [{ nodeId: 'peer-1', nodeUrl: 'https://node.example' }] }),
     });
     dynamodbClient.update.mockReturnValue({ promise: () => Promise.resolve() });
 
     const axios = require('axios');
-    axios.get.mockResolvedValue({
+    axios.get.mockResolvedValue(signedResponse({
       data: {
         listings: [{ _id: 'l1', updatedAt: '2024-01-01T00:00:00.000Z' }],
         transactions: [{ _id: 't1', updatedAt: '2024-01-01T00:00:00.000Z' }],
         users: [],
       },
       headers: { 'x-pagination': 'cursor-v1' },
-    });
+    }));
 
     const listingMock = require('../../marketplace/models/listings');
     const transactionMock = require('../../models/transaction');

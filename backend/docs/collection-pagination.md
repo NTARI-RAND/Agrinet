@@ -10,29 +10,27 @@ private-chat rollout still requires the authenticated-stream companion #192.
 
 Pagination must not make more private account data available. The directory
 uses an allowlist, account records are omitted from federation exports, and
-the export credential is separate from write-capable application credentials.
+federation uses independently authenticated per-peer HMAC credentials.
 These are deliberate compatibility changes, not a claim that all existing
 account or federation security gaps are closed.
 
 ## HTTP contract
 
 `GET /users` and attachment downloads each have an independent limit of
-1,000 requests per minute. A guard before account authentication uses the
+120 requests per minute. A guard before account authentication uses the
 account already verified by outer middleware, or an IP fallback. A separate
-budget after account authentication enforces 1,000 requests per account even
+budget after account authentication enforces 120 requests per account even
 when an API key accompanies the bearer token. Excess requests return HTTP 429
 with `Retry-After`. Existing ownership, response fields and pagination remain
 unchanged below the limit. Message reads and sends (`GET` and `POST`
 `/messages/:conversationId`) use the same two-guard policy with a separate
-1,000-request budget shared across methods and conversation IDs for each
+120-request budget shared across methods and conversation IDs for each
 account. The guards run before ownership lookups, message storage and AI
 responses. Adding an API key or refreshing a token does not reset an account's
-budget. Conversation and federation routes are unchanged.
+budget. Conversation routes also retain the authentication-attempt and account limits from the security hardening change. Federation retains its separate peer limits.
 
-Budgets are local to each server process and reset on restart. Multiple
-instances need a shared limiter store for a deployment-wide budget. Proxy
-trust settings are unchanged. The disposable storage-check HTTP server also
-limits authentication attempts to 1,000 per minute per IP before verifying
+The additional collection guards are process-local and reset on restart. The outer API and federation guards retain the existing Redis-backed store when configured. Configure Redis as described in `security-hardening.md` for multi-instance deployment; the collection guards do not replace that shared protection. Proxy trust settings are unchanged. The disposable storage-check HTTP server also
+limits authentication attempts to 120 per minute per IP before verifying
 credentials, and its acceptance check verifies exhaustion of that budget.
 
 JSON response shapes remain arrays for conversations/users and
@@ -82,7 +80,8 @@ The existing all-results model helper remains for programmatic compatibility;
 the HTTP route uses its bounded page counterpart.
 
 `GET /users` now requires a verified account token; a shared integration key
-alone is insufficient. Returned fields are `id`, `username`, and `role`, plus
+alone is insufficient. Returned fields are `id`, `username`, legacy `role`, and
+`locationType` when present, plus
 the existing coarse `location` only when `locationPrivacy === true`. That
 boolean is the existing sharing opt-in convention, not an inverted default.
 Location filtering also requires that opt-in, preventing the filter itself
@@ -90,20 +89,28 @@ from revealing a private location. Missing/false privacy never publishes a
 location. Coordinates, email, phone, password, verification code, scalar
 reputation values, and unknown future fields are excluded. The database
 projection and the response allowlist both enforce this boundary. Existing
-role filtering remains available; role and location each accept one string.
+role filtering remains available; `role`, `location`, and `locationType` each
+accept one string and are bound into continuation cursors. `locationType` retains
+the structural discovery field/filter from the account hardening change. Scalar
+`reputationScore` and `reputationWeight` remain excluded: the repository covenant
+requires full distributions rather than a single ranking score. This directory
+introduces no replacement reputation schema.
 
-This directory policy does not repair other account/admin/login endpoints,
-role assignment, or the separate account-overwrite issue. Do not describe it
-as full A3/A4/A5 implementation or as completed public signup hardening.
+The merged account hardening remains intact: user provisioning is admin-only, account IDs are server-generated, writes refuse collisions, and login/admin responses use their existing sanitized DTOs. Pagination does not replace or broaden those authorization policies.
 
 ## Federation export is read-only inspection
 
-Configure a strong, private `FEDERATION_EXPORT_KEY` on the exporting backend.
-It must differ from `API_KEY` and `WIX_API_KEY`; equal or unset keys fail
-closed. Supply it only in `x-federation-key` on `GET /federation/export`.
-It grants no `/users`, admin, import or other write access. Ordinary account
-JWTs and general API keys do not grant export access. Keep export keys on
-servers, out of frontend builds, URLs and logs. There is no default key.
+Federation uses the existing per-peer HMAC contract from
+`security-hardening.md`. Both export and manual import require a configured
+peer identity, a fresh signed request and the existing peer request limits.
+Ordinary account JWTs, browser API keys and the obsolete `x-federation-key`
+header cannot authorize a federation request. The former export-key flow is
+removed; `FEDERATION_EXPORT_KEY` and `FEDERATION_PEER_KEYS` are not used.
+
+Each export page has a response signature checked against the expected peer
+identity before its contents reach an inspection consumer. Encrypted export
+cursors also bind the authenticated peer. Manual imports retain authenticated
+source provenance, field sanitization and conditional no-overwrite writes.
 
 Export pages contain only explicitly selected advertised listing fields and
 structural transaction fields. Existing participant/contract/listing IDs and
@@ -114,19 +121,19 @@ claim that the operator has zero members. `X-Federation-Omissions` states
 are still included; this is not an automatic PII scrubber for public content.
 The duplicate legacy router delegates to the mounted router's same policy.
 
-For outbound inspection, set `FEDERATION_PEER_KEYS` to a JSON object mapping
-each approved peer's exact base URL (without trailing slash) to **that peer's
-read-only export key**. For example, the structure is:
+For outbound inspection, keep the operator-managed `NodeRegistry` records,
+including each peer's `nodeId` and `url` (or legacy `nodeUrl`). Set
+`FEDERATION_LOCAL_NODE_ID` (or `NODE_ID`) and
+`FEDERATION_OUTBOUND_PEERS_JSON`, mapping the remote node ID to a pairwise
+secret of at least 32 characters. The peer's `FEDERATION_PEERS_JSON` maps the
+local sender ID to that same secret. No credential is sent for an unconfigured
+node ID. There is no default credential; neither browser API keys nor HMAC
+secrets are forwarded in plaintext.
 
-```json
-{"https://peer.example":"<peer-provided-read-only-export-key>"}
-```
-
-Registry enrollment alone never causes a credential to be sent. Only
-explicitly configured destinations are contacted; userinfo, query strings
-and fragments in peer base URLs are rejected. HTTPS is required except for
-loopback development. Redirects are refused, and continuation is a token,
-never a destination URL. The local general API key is never forwarded.
+Peer URLs reject userinfo, query strings and fragments. HTTPS is required
+except for loopback development. Redirects are refused; continuation is a token,
+never a destination URL. Keep clocks synchronized for the existing five-minute
+signature window.
 Requests have a five-second timeout, a 16 MiB response limit and a 10,000-page
 safety ceiling. Exceeding a limit is an explicit incomplete inspection, not
 successful truncation. Older peers without `X-Pagination: cursor-v1`,
@@ -136,16 +143,13 @@ The server-mounted worker and both legacy scheduled paths inspect all pages
 and report counts. **Automatic import is disabled, and `lastSyncAt` is not
 advanced.** The old importers overwrite canonical records without a source
 namespace or auditable conflict policy; importing redacted summaries could
-erase local narrative or account data. A16 cannot safely invent those rules.
-Source-aware reconciliation remains A17 design work. No temporary unscoped
+erase local narrative or account data. This pagination change does not define those reconciliation rules.
+Source-aware reconciliation remains separate design work. No temporary unscoped
 cache or new authority store is added. The legacy status router (not mounted by the default server) totals all pages
 and reports `exportMode: read-only` and `usersExported: false`; its `lastSync`
 value is historical data, not proof this inspection synchronized anything.
 
-The original manual `/federation/import` endpoint and helper remain separate
-legacy security debt; this PR does not certify them safe. General API/admin
-authorization, collision policy, witnessed checkpoints and independent peers
-remain open work. Operators must review existing import access before rollout.
+The manual `/federation/import` endpoint retains the merged security controls, but is not called by scheduled inspection. Source-aware reconciliation of listing and transaction records, witnessed checkpoints and independent peers remain separate work; authenticated imports do not establish those guarantees.
 
 These exports are interim application views, not commons artifacts, portable
 reputation, signed exchange receipts, witnessed federation, or a coordination
@@ -155,9 +159,9 @@ remain outside the change.
 
 ## Rollout and verification
 
-Review #191 first, then the A16 commit; deploy private chat with #192. No table
+Review #191 before this pagination change; deploy private chat with #192. No table
 schema migration or new index is required. The application retains existing
-Scan permissions. Configure distinct export and per-peer read credentials
+Scan permissions. Configure per-peer HMAC credentials
 before enabling inspection; unset configuration deliberately fails closed.
 Update external clients to consume pagination headers before rollout, and
 communicate that automated merging and account replication are disabled.

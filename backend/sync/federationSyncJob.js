@@ -6,7 +6,7 @@ const { inspectExport } = require('./exportPages');
 async function runFederationSync() {
   for (const node of await getAllNodes()) {
     try {
-      const counts = await inspectExport(node.url || node.nodeUrl);
+      const counts = await inspectExport(node);
       console.info('Federation export inspected; automatic import disabled', { counts });
     } catch (error) {
       console.error('Federation export inspection failed; no sync recorded', error.message);

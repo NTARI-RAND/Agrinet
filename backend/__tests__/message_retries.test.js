@@ -431,3 +431,12 @@ test('browser preflight permits the idempotency header on the existing allowed o
     if (priorMinimal === undefined) delete process.env.MINIMAL_SERVER; else process.env.MINIMAL_SERVER = priorMinimal;
   }
 });
+
+
+test('shared API-key-only callers are rejected before message or AI work', async () => {
+  const response = await send({ apiKey: process.env.API_KEY });
+  assert.equal(response.status, 401);
+  assert.equal(response.body.error, 'Account bearer token required');
+  assert.equal(messages().length, 0);
+  assert.equal(aiCalls, 0);
+});

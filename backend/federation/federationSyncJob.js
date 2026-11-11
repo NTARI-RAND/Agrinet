@@ -7,7 +7,7 @@ async function runFederationSync() {
   for await (const node of scanItems(dynamodbClient, { TableName: NODE_REGISTRY_TABLE_NAME })) {
     const url = node.url || node.nodeUrl;
     try {
-      const counts = await inspectExport(url);
+      const counts = await inspectExport(node);
       // Redacted summaries cannot replace canonical records or local narrative.
       console.info('Federation export inspected; automatic import disabled', { peer: url, counts });
     } catch (error) {
@@ -16,5 +16,6 @@ async function runFederationSync() {
   }
 }
 
-setInterval(() => runFederationSync().catch(() => console.error('Federation registry scan failed')), 6 * 60 * 60 * 1000);
+const timer = setInterval(() => runFederationSync().catch(() => console.error('Federation registry scan failed')), 6 * 60 * 60 * 1000);
+if (typeof timer.unref === 'function') timer.unref();
 module.exports = runFederationSync;

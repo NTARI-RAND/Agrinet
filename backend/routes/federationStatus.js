@@ -10,7 +10,7 @@ router.get("/federation/status", async (req, res) => {
     for await (const node of scanItems(dynamodbClient, { TableName: 'NodeRegistry' })) {
       const url = node.nodeUrl || node.url;
       try {
-        const counts = await inspectExport(url);
+        const counts = await inspectExport(node);
         checks.push({
           node: url,
           status: "ONLINE",

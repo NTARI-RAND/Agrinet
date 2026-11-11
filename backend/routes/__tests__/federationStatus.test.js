@@ -1,3 +1,4 @@
+const { configurePeers, signedResponse } = require('../../test-support/federation-pages');
 const request = require('supertest');
 const express = require('express');
 
@@ -16,29 +17,29 @@ app.use(federationStatusRouter);
 describe('GET /federation/status', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env.FEDERATION_PEER_KEYS = JSON.stringify({ 'https://node1.com': 'read-key', 'https://node2.com': 'other-read-key' });
+    configurePeers();
   });
 
   it('returns federation health with last sync times', async () => {
     dynamodbClient.scan.mockReturnValue({
       promise: () => Promise.resolve({
         Items: [
-          { nodeUrl: 'https://node1.com', lastSyncAt: '2024-01-01T00:00:00Z' },
-          { nodeUrl: 'https://node2.com', lastSyncAt: '2024-01-02T00:00:00Z' }
+          { nodeId: 'peer-1', nodeUrl: 'https://node1.com', lastSyncAt: '2024-01-01T00:00:00Z' },
+          { nodeId: 'peer-1', nodeUrl: 'https://node2.com', lastSyncAt: '2024-01-02T00:00:00Z' }
         ]
       })
     });
 
     axios.get.mockImplementation((url) => {
       if (url.includes('node1')) {
-        return Promise.resolve({
+        return Promise.resolve(signedResponse({
           data: {
             listings: [1, 2],
             transactions: [1],
             users: []
           },
           headers: { 'x-pagination': 'cursor-v1' }
-        });
+        }));
       }
       return Promise.reject(new Error('Network Error'));
     });
