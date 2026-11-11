@@ -1,6 +1,7 @@
 const request = require('supertest');
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 jest.mock('../../lib/dynamodbClient', () => ({
   scan: jest.fn(),
@@ -10,41 +11,48 @@ jest.mock('../../lib/dynamodbClient', () => ({
 const docClient = require('../../lib/dynamodbClient');
 const userRoutes = require('../userRoutes');
 
-describe('userRoutes security', () => {
+describe('userRoutes', () => {
   let app;
   beforeEach(() => {
     app = express();
     app.use(express.json());
-    app.use((req, _res, next) => {
-      req.user = { userId: 'admin-1', role: 'admin' };
-      next();
-    });
+    process.env.JWT_SECRET = 'directory-test-key';
+    app.use((req, _res, next) => { req.user = { userId: 'admin-1', role: 'admin' }; next(); });
     app.use('/users', userRoutes);
     docClient.scan.mockReset();
     docClient.put.mockReset();
   });
 
-  test('public directory returns only an explicit public DTO', async () => {
-    docClient.scan.mockReturnValue({
-      promise: async () => ({
-        Items: [{
-          id: 'u1', username: 'alice', role: 'admin', email: 'alice@example.test',
-          phone: '555-0100', password: 'hash', verificationCode: 'secret',
-          verified: true, location: 'private address', coordinates: { lat: 1, long: 2 },
-          locationType: 'farm', reputationScore: 5, reputationWeight: 2
-        }]
-      })
+  describe('GET /users', () => {
+    it('returns users without passwords', async () => {
+      docClient.scan.mockReturnValue({
+        promise: () => Promise.resolve({
+          Items: [
+            { id: '1', username: 'john', password: 'hash', role: 'consumer', location: 'NY' }
+          ]
+        })
+      });
+
+      const res = await request(app).get('/users').set('Authorization', `Bearer ${jwt.sign({ userId: 'test' }, process.env.JWT_SECRET)}`);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual([
+        { id: '1', username: 'john', role: 'consumer' }
+      ]);
+      expect(res.body[0].password).toBeUndefined();
     });
 
-    const response = await request(app).get('/users');
-    expect(response.status).toBe(200);
-    expect(response.body).toEqual([{
-      id: 'u1', username: 'alice', locationType: 'farm',
-      reputationScore: 5, reputationWeight: 2
-    }]);
-    expect(docClient.scan).toHaveBeenCalledWith(expect.objectContaining({
-      ProjectionExpression: expect.stringContaining('username')
-    }));
+    it('applies role and location filters', async () => {
+      docClient.scan.mockReturnValue({ promise: () => Promise.resolve({ Items: [] }) });
+
+      await request(app).get('/users?role=farmer&location=Texas').set('Authorization', `Bearer ${jwt.sign({ userId: 'test' }, process.env.JWT_SECRET)}`);
+
+      expect(docClient.scan).toHaveBeenCalledWith(
+        expect.objectContaining({
+          FilterExpression: '#role = :role AND #location = :location AND #privacy = :public',
+          ExpressionAttributeValues: { ':role': 'farmer', ':location': 'Texas', ':public': true }
+        })
+      );
+    });
   });
 
   test('rejects caller-supplied IDs before writing', async () => {

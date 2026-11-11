@@ -14,7 +14,14 @@ setClient({ chat: { completions: { create: async () => {
 
 const app = express();
 app.use(express.json());
-app.use('/messages', require('../routes/communicationRoutes'));
+if (process.env.TEST_RETRY_SERVICE === 'true') {
+  // API-key mode verifies the shared retry service, not private-chat access.
+  app.use(require('../middleware/requestRateLimit')(), require('../middleware/authMiddleware'));
+  app.post('/messages/:conversationId', require('../utils/asyncHandler')(
+    require('../controllers/communication_controller').sendMessage));
+} else {
+  app.use('/messages', require('../routes/communicationRoutes'));
+}
 const server = app.listen(0, '127.0.0.1', () => {
   process.send({ type: 'ready', url: `http://127.0.0.1:${server.address().port}` });
 });

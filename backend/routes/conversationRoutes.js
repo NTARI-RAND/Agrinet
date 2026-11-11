@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/chatAuth');
 const ctrl = require('../controllers/conversation_controller');
+const owner = require('../middleware/conversationOwner');
 const asyncHandler = require('../utils/asyncHandler');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 
@@ -39,6 +40,23 @@ router.get('/', rateLimit({
     : 'ip:' + ipKeyGenerator(req.ip),
   message: { error: 'Too many requests, please try again later' }
 }), asyncHandler(ctrl.list));
+router.get('/:id', rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many authentication attempts' }
+}), auth, rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: 'draft-6',
+  legacyHeaders: false,
+  keyGenerator: req => req.user?.userId
+    ? 'account:' + req.user.userId
+    : 'ip:' + ipKeyGenerator(req.ip),
+  message: { error: 'Too many requests, please try again later' }
+}), asyncHandler(owner), ctrl.get);
 router.put('/:id', rateLimit({
   windowMs: 60 * 1000,
   limit: 300,
@@ -55,7 +73,7 @@ router.put('/:id', rateLimit({
     ? 'account:' + req.user.userId
     : 'ip:' + ipKeyGenerator(req.ip),
   message: { error: 'Too many requests, please try again later' }
-}), asyncHandler(ctrl.rename));
+}), asyncHandler(owner), asyncHandler(ctrl.rename));
 router.delete('/:id', rateLimit({
   windowMs: 60 * 1000,
   limit: 300,
@@ -72,7 +90,7 @@ router.delete('/:id', rateLimit({
     ? 'account:' + req.user.userId
     : 'ip:' + ipKeyGenerator(req.ip),
   message: { error: 'Too many requests, please try again later' }
-}), asyncHandler(ctrl.remove));
+}), asyncHandler(owner), asyncHandler(ctrl.remove));
 router.post('/:id/pin', rateLimit({
   windowMs: 60 * 1000,
   limit: 300,
@@ -89,6 +107,6 @@ router.post('/:id/pin', rateLimit({
     ? 'account:' + req.user.userId
     : 'ip:' + ipKeyGenerator(req.ip),
   message: { error: 'Too many requests, please try again later' }
-}), asyncHandler(ctrl.pin));
+}), asyncHandler(owner), asyncHandler(ctrl.pin));
 
 module.exports = router;

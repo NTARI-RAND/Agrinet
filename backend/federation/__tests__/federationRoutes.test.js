@@ -45,7 +45,7 @@ describe('federation route security', () => {
     expect(docClient.scan).not.toHaveBeenCalled();
   });
 
-  test('exports only allowlisted user, listing and transaction fields and signs response', async () => {
+  test('exports bounded redacted listing and transaction fields and signs response', async () => {
     docClient.scan
       .mockReturnValueOnce({ promise: async () => ({ Items: [{ id: 'l1', title: 'Apples', password: 'secret', internal: 'x' }] }) })
       .mockReturnValueOnce({ promise: async () => ({ Items: [{ id: 't1', status: 'pending', cardToken: 'secret' }] }) })
@@ -58,12 +58,11 @@ describe('federation route security', () => {
     const headers = createPeerHeaders({
       nodeId: 'peer-1', secret, method: 'GET', path: '/federation/export'
     });
+    process.env.JWT_SECRET = 'federation-cursor-test-secret';
     const response = await request(app).get('/federation/export').set(headers);
     expect(response.status).toBe(200);
-    expect(response.body.users).toEqual([{
-      id: 'u1', username: 'alice', reputationScore: 3,
-      originNodeId: 'local-node', originUserId: 'u1'
-    }]);
+    expect(response.body.users).toEqual([]);
+    expect(response.headers['x-pagination']).toBe('cursor-v1');
     expect(response.body.listings).toEqual([{ id: 'l1', title: 'Apples' }]);
     expect(response.body.transactions).toEqual([{ id: 't1', status: 'pending' }]);
     expect(verifyPeerResponse({

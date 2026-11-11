@@ -7,22 +7,60 @@ const { USER_TABLE_NAME, createUserItem, sanitizeUserForPublic } = require('../m
 const requireAdmin = require('../middleware/requireAdmin');
 const { userWriteRateLimit } = require('../middleware/rateLimit');
 
-// GET /users is a public directory, not an account export.
-router.get('/', async (req, res) => {
+const account = require('../middleware/chatAuth');
+const requestRateLimit = require('../middleware/requestRateLimit');
+const { collectionPage, scanPage, pageError } = require('../lib/collectionPage');
+
+// GET /users - bounded directory, never account or private location records
+router.get('/', requestRateLimit(), account, requestRateLimit(), async (req, res) => {
   try {
+    for (const name of ['role', 'location', 'locationType']) {
+      if (req.query[name] !== undefined && typeof req.query[name] !== 'string') {
+        return res.status(400).json({ error: 'Filters must be single strings' });
+      }
+    }
+    const page = collectionPage(req.query, ['users', req.user.userId, req.query.role || '', req.query.location || '', req.query.locationType || '']);
     const params = {
       TableName: USER_TABLE_NAME,
-      ProjectionExpression: '#id, username, locationType, reputationScore, reputationWeight',
-      ExpressionAttributeNames: { '#id': 'id' }
+      ProjectionExpression: '#id, #username, #role, #location, #privacy, #locationType',
+      ExpressionAttributeNames: { '#id': 'id', '#username': 'username', '#role': 'role', '#location': 'location', '#privacy': 'locationPrivacy', '#locationType': 'locationType' },
     };
-    if (req.query.locationType) {
-      params.FilterExpression = 'locationType = :locationType';
-      params.ExpressionAttributeValues = { ':locationType': req.query.locationType };
+
+    const filters = [];
+    const values = {};
+    if (req.query.role) {
+      filters.push('#role = :role');
+      values[':role'] = req.query.role;
     }
-    const data = await docClient.scan(params).promise();
-    res.json((data.Items || []).map(sanitizeUserForPublic));
-  } catch {
-    res.status(500).json({ error: 'Failed to fetch users' });
+    if (req.query.locationType) {
+      filters.push('#locationType = :locationType');
+      values[':locationType'] = req.query.locationType;
+    }
+    if (req.query.location) {
+      filters.push('#location = :location AND #privacy = :public');
+      values[':location'] = req.query.location;
+      values[':public'] = true;
+    }
+    if (filters.length) {
+      params.FilterExpression = filters.join(' AND ');
+      params.ExpressionAttributeValues = values;
+    }
+
+    const { items, next } = await scanPage(docClient, params, page.limit, page.state?.start);
+    // Preserve structural discovery (including locationType), not scalar ranking:
+    // CLAUDE.md requires full reputation distributions, never a single score.
+    // Exact coordinates/contact fields stay private; coarse location is opt-in.
+    const users = items.map(item => ({
+      ...(typeof item.id === 'string' && { id: item.id }),
+      ...(typeof item.username === 'string' && { username: item.username }),
+      ...(typeof item.locationType === 'string' && { locationType: item.locationType }),
+      ...(typeof item.role === 'string' && { role: item.role }),
+      ...(item.locationPrivacy === true && typeof item.location === 'string' && { location: item.location }),
+    }));
+    page.finish(res, next && { start: next });
+    res.json(users);
+  } catch (err) {
+    pageError(res, err, 'Failed to fetch users');
   }
 });
 

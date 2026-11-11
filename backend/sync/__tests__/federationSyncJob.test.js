@@ -1,3 +1,4 @@
+const { configurePeers, signedResponse } = require('../../test-support/federation-pages');
 const mockScan = jest.fn();
 const mockPut = jest.fn();
 
@@ -18,32 +19,29 @@ const runFederationSync = require('../federationSyncJob');
 describe('runFederationSync', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    configurePeers();
   });
 
-  it('fetches nodes, imports data, and updates lastSyncAt', async () => {
-    const nodes = [{ url: 'https://node.example' }];
+  it('inspects the full export without importing summaries or updating lastSyncAt', async () => {
+    const nodes = [{ nodeId: 'peer-1', url: 'https://node.example' }];
     const exportData = { listings: [], transactions: [], users: [] };
 
     mockScan.mockReturnValue({
       promise: jest.fn().mockResolvedValue({ Items: nodes })
     });
-    axios.get.mockResolvedValue({ data: exportData });
+    axios.get.mockResolvedValue(signedResponse({ data: exportData, headers: { 'x-pagination': 'cursor-v1' } }));
     importFederatedData.mockResolvedValue({ success: true });
     mockPut.mockReturnValue({ promise: jest.fn().mockResolvedValue({}) });
 
     await runFederationSync();
 
-    expect(importFederatedData).toHaveBeenCalledWith(exportData);
-    expect(mockPut).toHaveBeenCalled();
-
-    const params = mockPut.mock.calls[0][0];
-    expect(params.Item.url).toBe(nodes[0].url);
-    const timestamp = params.Item.lastSyncAt;
-    expect(new Date(timestamp).toISOString()).toBe(timestamp);
+    expect(axios.get).toHaveBeenCalledTimes(1);
+    expect(importFederatedData).not.toHaveBeenCalled();
+    expect(mockPut).not.toHaveBeenCalled();
   });
 
   it('logs errors from axios without updating', async () => {
-    const nodes = [{ url: 'https://node.example' }];
+    const nodes = [{ nodeId: 'peer-1', url: 'https://node.example' }];
     mockScan.mockReturnValue({
       promise: jest.fn().mockResolvedValue({ Items: nodes })
     });

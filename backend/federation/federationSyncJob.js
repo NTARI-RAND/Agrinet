@@ -1,78 +1,21 @@
-const axios = require('axios');
 const dynamodbClient = require('../lib/dynamodbClient');
 const { NODE_REGISTRY_TABLE_NAME } = require('./models/nodeRegistry');
-const { createPeerHeaders, verifyPeerResponse } = require('../middleware/federationPeerAuth');
-const { importFederatedData } = require('../sync/importHelper');
+const { scanItems } = require('../lib/collectionPage');
+const { inspectExport } = require('../sync/exportPages');
 
-const runFederationSync = async () => {
-  const localNodeId = process.env.FEDERATION_LOCAL_NODE_ID || process.env.NODE_ID;
-  if (!localNodeId) {
-    console.error('Federation sync skipped: FEDERATION_LOCAL_NODE_ID or NODE_ID is not configured');
-    return;
-  }
-  let outboundSecrets;
-  try {
-    outboundSecrets = JSON.parse(process.env.FEDERATION_OUTBOUND_PEERS_JSON || '{}');
-  } catch {
-    console.error('Federation sync skipped: FEDERATION_OUTBOUND_PEERS_JSON is invalid');
-    return;
-  }
-
-  const { Items: nodes = [] } = await dynamodbClient
-    .scan({ TableName: NODE_REGISTRY_TABLE_NAME })
-    .promise();
-
-  for (const node of nodes) {
+async function runFederationSync() {
+  for await (const node of scanItems(dynamodbClient, { TableName: NODE_REGISTRY_TABLE_NAME })) {
+    const url = node.url || node.nodeUrl;
     try {
-      // A peer must be present in the operator's authenticated peer registry.
-      const peerSecret = node.nodeId ? outboundSecrets[node.nodeId] : null;
-      if (!node.nodeId || typeof peerSecret !== 'string' || peerSecret.length < 32) {
-        console.error('Federation sync skipped for an unconfigured peer');
-        continue;
-      }
-
-      const exportPath = '/federation/export';
-      const headers = createPeerHeaders({
-        nodeId: localNodeId, secret: peerSecret, method: 'GET', path: exportPath
-      });
-      const peerUrl = new URL(node.url);
-      if (peerUrl.protocol !== 'https:' && !['localhost', '127.0.0.1', '[::1]'].includes(peerUrl.hostname)) {
-        throw new Error('Federation peers must use HTTPS');
-      }
-      const response = await axios.get(new URL(exportPath, peerUrl).toString(), {
-        headers, timeout: 15000
-      });
-      const responseBody = JSON.stringify(response.data);
-      if (!verifyPeerResponse({
-        headers: response.headers,
-        expectedNodeId: node.nodeId,
-        secret: peerSecret,
-        method: 'GET',
-        path: exportPath,
-        body: responseBody
-      })) {
-        throw new Error('Federation peer response signature is invalid');
-      }
-      const data = response.data;
-
-      // Source identity comes from the locally managed NodeRegistry record whose
-      // peer credential is configured above, never from fields in the response body.
-      await importFederatedData(data, { sourceNodeId: node.nodeId });
-
-      await dynamodbClient.update({
-        TableName: NODE_REGISTRY_TABLE_NAME,
-        Key: { url: node.url },
-        UpdateExpression: 'set lastSyncAt = :time',
-        ExpressionAttributeValues: { ':time': new Date().toISOString() }
-      }).promise();
-      console.log('Federation sync completed with a registered peer');
+      const counts = await inspectExport(node);
+      // Redacted summaries cannot replace canonical records or local narrative.
+      console.info('Federation export inspected; automatic import disabled', { peer: url, counts });
     } catch (error) {
-      console.error('Federation sync failed for a registered peer:', error.message);
+      console.error('Federation export inspection failed; no sync recorded', { peer: url, error: error.message });
     }
   }
-};
+}
 
-const timer = setInterval(runFederationSync, 6 * 60 * 60 * 1000);
+const timer = setInterval(() => runFederationSync().catch(() => console.error('Federation registry scan failed')), 6 * 60 * 60 * 1000);
 if (typeof timer.unref === 'function') timer.unref();
-
 module.exports = runFederationSync;

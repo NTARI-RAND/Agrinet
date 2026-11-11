@@ -49,18 +49,26 @@ function memoryDatabase() {
   };
 }
 
-let db, app, originalClient, originalEnv, aiCalls, emitted;
+let db, app, serviceApp, originalClient, originalEnv, aiCalls, emitted;
 const payload = { from: 'user', to: 'ai', content: 'When should I plant tomatoes?', type: 'text' };
 
-function makeApp() {
+function makeApp(service = false) {
   const instance = express();
   instance.use(express.json());
-  instance.use('/messages', require('../routes/communicationRoutes'));
+  if (service) {
+    // Exercise the upstream retry service's credential scopes separately from
+    // private chat, whose production route requires an account and ownership.
+    instance.use(require('../middleware/requestRateLimit')(), require('../middleware/authMiddleware'));
+    instance.post('/messages/:conversationId', require('../utils/asyncHandler')(
+      require('../controllers/communication_controller').sendMessage));
+  } else {
+    instance.use('/messages', require('../routes/communicationRoutes'));
+  }
   return instance;
 }
 
-function send({ key = 'send-1', body = payload, user = 'grower-1', conversation = 'conversation-1', apiKey } = {}) {
-  let pending = request(app).post(`/messages/${conversation}`);
+function send({ key = 'send-1', body = payload, user = 'grower-1', conversation = 'conversation-1', apiKey, service = false } = {}) {
+  let pending = request(service ? serviceApp : app).post(`/messages/${conversation}`);
   if (apiKey) pending = pending.set('X-API-Key', apiKey);
   else pending = pending.set('Authorization', `Bearer ${jwt.sign({ userId: user }, process.env.JWT_SECRET)}`);
   if (key !== undefined && key !== null) pending = pending.set('Idempotency-Key', key);
@@ -69,7 +77,7 @@ function send({ key = 'send-1', body = payload, user = 'grower-1', conversation 
 
 function messages() { return [...(db.tables.get('Messages')?.values() || [])]; }
 
-beforeEach(() => {
+beforeEach(async () => {
   originalEnv = { JWT_SECRET: process.env.JWT_SECRET, API_KEY: process.env.API_KEY };
   process.env.JWT_SECRET = 'test-only-message-retry-secret';
   process.env.API_KEY = 'test-only-api-key';
@@ -77,6 +85,9 @@ beforeEach(() => {
   originalClient = { ...docClient };
   Object.assign(docClient, db);
   Message.setDocClient(docClient);
+  for (const [id, ownerId] of [['conversation-1', 'grower-1'], ['conversation-2', 'grower-1'], ['foreign', 'grower-2']]) {
+    await db.put({ TableName: 'Conversations', Item: { id, ownerId } }).promise();
+  }
   aiCalls = 0;
   emitted = [];
   global.emitMessage = (conversation, message) => emitted.push({ conversation, message });
@@ -85,6 +96,7 @@ beforeEach(() => {
     return (async function* () { yield { choices: [{ delta: { content: 'Plant after the last frost.' } }] }; })();
   } } } });
   app = makeApp();
+  serviceApp = makeApp(true);
 });
 
 afterEach(() => {
@@ -118,9 +130,10 @@ test('reusing a key with different content conflicts without creating another me
   assert.equal(aiCalls, 1);
 });
 
-test('keys are isolated by authenticated caller and conversation, never by body.from', async () => {
+test('keys are isolated by owned conversation and cannot be replayed by another account', async () => {
   const first = await send();
-  const otherUser = await send({ user: 'grower-2' });
+  assert.equal((await send({ user: 'grower-2' })).status, 404);
+  const otherUser = await send({ user: 'grower-2', conversation: 'foreign' });
   const otherConversation = await send({ conversation: 'conversation-2' });
   assert.equal(otherUser.status, 201);
   assert.equal(otherConversation.status, 201);
@@ -148,35 +161,30 @@ test('invalid keys are rejected before persistence or AI work', async () => {
   assert.equal(aiCalls, 0);
 });
 
-test('parallel JWT retries cannot acquire a second send while the first AI response is running', async () => {
-  let started, finish;
-  const running = new Promise(resolve => { started = resolve; });
-  const release = new Promise(resolve => { finish = resolve; });
-  setClient({ chat: { completions: { create: async () => {
-    aiCalls++;
-    started();
-    await release;
-    return (async function* () { yield { choices: [{ delta: { content: 'Ready' } }] }; })();
-  } } } });
-  const first = send().then(response => response);
-  await running;
-  const racing = await Promise.all(Array.from({ length: 8 }, () => send()));
-  finish();
-  const done = await first;
-  assert.ok(racing.every(response => response.status === 409 && response.body.code === 'message_send_pending'));
-  assert.deepEqual((await send()).body, done.body);
-  assert.equal(messages().length, 2);
-  assert.equal(aiCalls, 1);
-  assert.equal(emitted.length, 2);
-});
-
-test('shared API-key-only callers are rejected before message or AI work', async () => {
-  const response = await send({ apiKey: process.env.API_KEY });
-  assert.equal(response.status, 401);
-  assert.equal(response.body.error, 'Account bearer token required');
-  assert.equal(messages().length, 0);
-  assert.equal(aiCalls, 0);
-});
+for (const apiCaller of [false, true]) {
+  test(`parallel ${apiCaller ? 'API-key service' : 'JWT route'} retries cannot acquire a second send while the first AI response is running`, async () => {
+    const auth = apiCaller ? { service: true, apiKey: process.env.API_KEY } : {};
+    let started, finish;
+    const running = new Promise(resolve => { started = resolve; });
+    const release = new Promise(resolve => { finish = resolve; });
+    setClient({ chat: { completions: { create: async () => {
+      aiCalls++;
+      started();
+      await release;
+      return (async function* () { yield { choices: [{ delta: { content: 'Ready' } }] }; })();
+    } } } });
+    const first = send(auth).then(response => response);
+    await running;
+    const racing = await Promise.all(Array.from({ length: 8 }, () => send(auth)));
+    finish();
+    const done = await first;
+    assert.ok(racing.every(response => response.status === 409 && response.body.code === 'message_send_pending'));
+    assert.deepEqual((await send(auth)).body, done.body);
+    assert.equal(messages().length, 2);
+    assert.equal(aiCalls, 1);
+    assert.equal(emitted.length, 2);
+  });
+}
 
 test('completed receipts survive reloading the request handler', async () => {
   const first = await send();
@@ -208,11 +216,77 @@ test('changing sender label, recipient, type or attachment conflicts, without re
   assert.equal(aiCalls, 1);
 });
 
-test('an invalid API-key header cannot alter a verified JWT retry scope', async () => {
+test('API-key callers replay within their credential scope and do not share JWT receipts', async () => {
+  const first = await send({ service: true, apiKey: process.env.API_KEY });
+  assert.deepEqual((await send({ service: true, apiKey: process.env.API_KEY })).body, first.body);
+  const user = await send();
+  assert.equal(user.status, 201);
+  assert.notEqual(user.body.message.id, first.body.message.id);
+  assert.equal(aiCalls, 2);
+});
+
+test('API-key-only callers cannot send or replay private chat messages', async () => {
+  const denied = await send({ service: false, apiKey: process.env.API_KEY });
+  assert.equal(denied.status, 401);
+  assert.equal(messages().length, 0);
+  assert.equal(db.tables.has('MessageSends'), false);
+  const first = await send();
+  assert.equal(first.status, 201);
+  const deniedReplay = await send({ service: false, apiKey: process.env.API_KEY });
+  assert.equal(deniedReplay.status, 401);
+  assert.equal(messages().length, 2);
+  assert.equal(aiCalls, 1);
+});
+
+test('API-key receipts use the stable scrypt scope instead of a fast credential hash', async () => {
+  const first = await send({ service: true, apiKey: process.env.API_KEY });
+  assert.equal(first.status, 201);
+  const [receipt] = db.tables.get('MessageSends').values();
+  // Independent Python hashlib.scrypt fixture: password=test-only-api-key,
+  // salt=SHA256(JSON([message-send-api-key-v2, conversation-1, send-1])).hex,
+  // N=16384, r=8, p=5, dklen=32. Locks the durable replay namespace.
+  assert.equal(receipt.id, 'e54be044e9e970d309de6ebe2b3763f1cbb49c546d04c7379102ba52709867e6');
+  assert.ok(!JSON.stringify(receipt).includes(process.env.API_KEY));
+  delete require.cache[require.resolve('../services/retrySafeMessage')];
+  delete require.cache[require.resolve('../controllers/communication_controller')];
+  delete require.cache[require.resolve('../routes/communicationRoutes')];
+  app = makeApp();
+  assert.deepEqual((await send({ service: true, apiKey: process.env.API_KEY })).body, first.body);
+  assert.equal(aiCalls, 1);
+});
+
+test('API-key rotation, conversation and send keys have separate retry scopes', async () => {
+  const first = await send({ service: true, apiKey: process.env.API_KEY });
+  const otherConversation = await send({ service: true, apiKey: process.env.API_KEY, conversation: 'conversation-2' });
+  const otherSend = await send({ service: true, apiKey: process.env.API_KEY, key: 'send-2' });
+  process.env.API_KEY = 'rotated-test-api-key';
+  const rotated = await send({ service: true, apiKey: process.env.API_KEY });
+  for (const response of [first, otherConversation, otherSend, rotated]) assert.equal(response.status, 201);
+  assert.equal(new Set([first, otherConversation, otherSend, rotated].map(response => response.body.message.id)).size, 4);
+  assert.deepEqual((await send({ service: true, apiKey: process.env.API_KEY })).body, rotated.body);
+  assert.equal(aiCalls, 4);
+});
+
+test('WIX API-key retries work without a JWT secret', async () => {
+  const priorWixKey = process.env.WIX_API_KEY;
+  delete process.env.API_KEY;
+  delete process.env.JWT_SECRET;
+  process.env.WIX_API_KEY = 'test-only-wix-api-key';
+  try {
+    const first = await send({ service: true, apiKey: process.env.WIX_API_KEY });
+    assert.equal(first.status, 201);
+    assert.deepEqual((await send({ service: true, apiKey: process.env.WIX_API_KEY })).body, first.body);
+    assert.equal(aiCalls, 1);
+  } finally {
+    if (priorWixKey === undefined) delete process.env.WIX_API_KEY; else process.env.WIX_API_KEY = priorWixKey;
+  }
+});
+
+for (const validKey of [false, true]) test(`the ${validKey ? 'valid' : 'invalid'} API-key header cannot alter a verified JWT retry scope`, async () => {
   const first = await send();
   const retry = await request(app).post('/messages/conversation-1')
     .set('Authorization', `Bearer ${jwt.sign({ userId: 'grower-1' }, process.env.JWT_SECRET)}`)
-    .set('X-API-Key', 'invalid-api-key')
+    .set('X-API-Key', validKey ? process.env.API_KEY : 'invalid-api-key')
     .set('Idempotency-Key', 'send-1').send(payload);
   assert.equal(retry.status, 201);
   assert.deepEqual(retry.body, first.body);
@@ -225,10 +299,11 @@ test('authentication failures and JWTs without a stable user ID create no receip
     .set('Authorization', `Bearer ${jwt.sign({ role: 'member' }, process.env.JWT_SECRET)}`)
     .set('Idempotency-Key', 'key').send(payload);
   assert.equal(noIdentity.status, 401);
-  assert.equal(db.tables.size, 0);
+  assert.equal(db.tables.has('MessageSends'), false);
+  assert.equal(messages().length, 0);
 });
 
-test('deleting a conversation never lets an old retry resurrect its messages or retained narrative', async () => {
+test('removing original messages never lets a retry resurrect them or retained narrative', async () => {
   await send();
   await Message.removeByConversation('conversation-1');
   const retry = await send();
@@ -240,6 +315,19 @@ test('deleting a conversation never lets an old retry resurrect its messages or 
   assert.ok(!receipts.includes('Plant after the last frost.'));
   assert.ok(!receipts.includes('grower-1'));
   assert.ok(!receipts.includes('send-1'));
+  assert.equal(aiCalls, 1);
+});
+
+
+test('a missing persisted assistant reply cannot replay a partial success', async () => {
+  const first = await send();
+  assert.equal(first.status, 201);
+  const [replyKey] = [...db.tables.get('Messages')].find(([, row]) => row.id === first.body.reply.id);
+  db.tables.get('Messages').delete(replyKey);
+  const retry = await send();
+  assert.equal(retry.status, 410);
+  assert.equal(retry.body.code, 'message_send_removed');
+  assert.equal(messages().length, 1);
   assert.equal(aiCalls, 1);
 });
 
@@ -342,4 +430,13 @@ test('browser preflight permits the idempotency header on the existing allowed o
   } finally {
     if (priorMinimal === undefined) delete process.env.MINIMAL_SERVER; else process.env.MINIMAL_SERVER = priorMinimal;
   }
+});
+
+
+test('shared API-key-only callers are rejected before message or AI work', async () => {
+  const response = await send({ apiKey: process.env.API_KEY });
+  assert.equal(response.status, 401);
+  assert.equal(response.body.error, 'Account bearer token required');
+  assert.equal(messages().length, 0);
+  assert.equal(aiCalls, 0);
 });

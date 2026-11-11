@@ -73,4 +73,21 @@ function setDocClient(client) {
   docClient = client;
 }
 
-module.exports = { sendMessage, listMessages, getMessage, removeByConversation, setDocClient };
+async function findByAttachmentPath(filePath) {
+  const items = [];
+  let cursor;
+  do {
+    const page = await docClient.scan({
+      TableName: MESSAGE_TABLE_NAME,
+      FilterExpression: '#file.#path = :filePath',
+      ExpressionAttributeNames: { '#file': 'file', '#path': 'path' },
+      ExpressionAttributeValues: { ':filePath': filePath },
+      ...(cursor && { ExclusiveStartKey: cursor }),
+    }).promise();
+    items.push(...(page.Items || []));
+    cursor = page.LastEvaluatedKey;
+  } while (cursor);
+  return items;
+}
+
+module.exports = { sendMessage, listMessages, getMessage, removeByConversation, findByAttachmentPath, setDocClient };

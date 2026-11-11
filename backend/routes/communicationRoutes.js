@@ -2,8 +2,11 @@ const express = require('express');
 const router = express.Router();
 const commController = require('../controllers/communication_controller');
 const auth = require('../middleware/chatAuth');
+const owner = require('../middleware/conversationOwner');
 const asyncHandler = require('../utils/asyncHandler');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+
+router.use(require('../middleware/requestRateLimit')());
 
 router.post('/:conversationId', rateLimit({
   windowMs: 60 * 1000,
@@ -21,7 +24,7 @@ router.post('/:conversationId', rateLimit({
     ? 'account:' + req.user.userId
     : 'ip:' + ipKeyGenerator(req.ip),
   message: { error: 'Too many requests, please try again later' }
-}), asyncHandler(commController.sendMessage));
+}), require('../middleware/requestRateLimit')(), asyncHandler(owner), asyncHandler(commController.sendMessage));
 router.get('/:conversationId', rateLimit({
   windowMs: 60 * 1000,
   limit: 300,
@@ -38,6 +41,6 @@ router.get('/:conversationId', rateLimit({
     ? 'account:' + req.user.userId
     : 'ip:' + ipKeyGenerator(req.ip),
   message: { error: 'Too many requests, please try again later' }
-}), asyncHandler(commController.listMessages));
+}), require('../middleware/requestRateLimit')(), asyncHandler(owner), asyncHandler(commController.listMessages));
 
 module.exports = router;

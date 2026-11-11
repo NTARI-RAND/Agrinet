@@ -26,7 +26,7 @@ Requests sign the timestamp, HTTP method, path and SHA-256 digest of the exact r
 
 Federation user imports accept an explicit user-field allowlist, reject existing IDs atomically, strip passwords, contact fields, roles and verification state, and record sourceNodeId from the authenticated peer plus remoteUserId. Claimed origin identifiers are retained as provenance metadata from the signed peer payload; they never determine the authenticated sender.
 
-Exports use explicit field allowlists. The location feature's exact owner coordinates remain in its separate local Locations table and are not part of the user export.
+Exports use bounded cursor pages and explicit listing/transaction field allowlists; account records, local dialog narrative and scalar ratings are omitted. Scheduled federation paths verify signed pages and report inspection counts without importing or advancing lastSyncAt. Manual imports retain the source-bound security controls above. See collection-pagination.md for the complete inspection contract.
 
 ## Distributed request and connection limits
 
@@ -48,9 +48,9 @@ The concurrency middleware releases a reservation on response close/finish and R
 Until the owner-checked chat changes are deployed:
 
 - /events and /stream/:conversationId return 410 instead of exposing the legacy unauthenticated feed.
-- /uploads returns 410 instead of serving files to any caller holding the shared browser key.
+- /uploads serves attachments only after independent account authentication, request throttling and attachment-owner authorization; shared browser keys alone grant no download access.
 
-After #191 is rebased and approved, restore attachment serving only behind chatAuth, the shared chat limiter, and attachmentOwner. After #192 is rebased and approved, replace the temporary stream 410 with the ordered authenticated handler above. Do not restore the old handlers before those protections are present.
+This branch carries the owner-checked attachment path from #191; retain it when integrating subsequent chat changes. After #192 is rebased and approved, replace the temporary stream 410 with the ordered authenticated handler above. Do not restore the old handlers before those protections are present.
 
 No upload-creation endpoint exists in the current main tree; when one is introduced, place upload throttling on that actual write operation, not only on static download paths.
 

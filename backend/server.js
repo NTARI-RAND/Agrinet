@@ -1,5 +1,9 @@
 const express = require("express");
 const http = require('http');
+const path = require('path');
+const chatAuth = require('./middleware/chatAuth');
+const asyncHandler = require('./utils/asyncHandler');
+const requestRateLimit = require('./middleware/requestRateLimit');
 let cors;
 try { cors = require('cors'); } catch { cors = () => (_req, _res, next) => next(); }
 let dotenv;
@@ -10,7 +14,7 @@ const { apiRateLimit, streamRateLimit, locationRateLimit } = require('./middlewa
 const minimal = process.env.MINIMAL_SERVER === 'true';
 const app = express();
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || 'https://www.ntari.org').split(',').map(origin => origin.trim()).filter(Boolean);
-app.use(cors({ origin(origin, callback) { if (!origin || allowedOrigins.includes(origin)) return callback(null, true); return callback(new Error('CORS not allowed for this origin')); }, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-API-Key', 'X-Federation-Node-Id', 'X-Federation-Timestamp', 'X-Federation-Signature'] }));
+app.use(cors({ origin(origin, callback) { if (!origin || allowedOrigins.includes(origin)) return callback(null, true); return callback(new Error('CORS not allowed for this origin')); }, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-API-Key', 'X-Federation-Node-Id', 'X-Federation-Timestamp', 'X-Federation-Signature'], exposedHeaders: ['X-Pagination', 'X-Next-Cursor', 'X-Page-Limit', 'X-Federation-Omissions'] }));
 app.use(express.json({ verify(req, _res, buffer) { req.rawBody = Buffer.from(buffer); } }));
 const tryMount = (route, modPath) => { try { app.use(route, require(modPath)); } catch (err) { console.warn('Skipping ' + modPath + ': ' + err.message); } };
 if (!minimal) tryMount('/deposit', './routes/depositRoutes');
@@ -31,8 +35,15 @@ if (!minimal) tryMount('/federation', './federation/federationRoutes');
 if (!minimal) tryMount('/api/auth', './routes/authRoutes');
 app.use(authMiddleware);
 app.use(apiRateLimit);
-// Private uploads are disabled until conversation-owner authorization is deployed (#191).
-app.use('/uploads', (_req, res) => res.status(410).json({ error: 'Attachment downloads are temporarily unavailable pending owner authorization' }));
+// Attachment content remains behind independent account authentication and ownership.
+app.use('/uploads', requestRateLimit(), chatAuth, requestRateLimit(), asyncHandler(require('./middleware/attachmentOwner')), express.static(path.join(__dirname, 'uploads'), {
+  dotfiles: 'deny', index: false,
+  setHeaders(res) {
+    res.setHeader('Content-Disposition', 'attachment');
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+  },
+}));
 app.use('/api/location', locationRateLimit);
 let runFederationSync;
 if (!minimal) {

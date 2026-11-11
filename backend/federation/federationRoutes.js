@@ -3,58 +3,45 @@ const router = express.Router();
 const docClient = require('../lib/dynamodbClient');
 const { LISTING_TABLE_NAME } = require('../models/listing');
 const { TRANSACTION_TABLE_NAME } = require('../models/transaction');
-const { USER_TABLE_NAME } = require('../models/user');
 const { importFederatedData } = require('../sync/importHelper');
+const { collectionPage, scanPage, pageError } = require('../lib/collectionPage');
+const exportFields = require('./exportFields');
 const { requireFederationPeer, createPeerResponseHeaders } = require('../middleware/federationPeerAuth');
 const { federationAttemptRateLimit, federationRateLimit } = require('../middleware/rateLimit');
 
-const pick = (item, fields) => Object.fromEntries(
-  fields.filter(field => item[field] !== undefined).map(field => [field, item[field]])
-);
-
-// Browser API keys and ordinary member tokens are never federation credentials.
 router.use(federationAttemptRateLimit, requireFederationPeer, federationRateLimit);
 
-router.get('/export', async (_req, res) => {
+// Export route for peer sync
+router.get('/export', async (req, res) => {
   try {
-    const [listingsRes, transactionsRes, usersRes] = await Promise.all([
-      docClient.scan({ TableName: LISTING_TABLE_NAME }).promise(),
-      docClient.scan({ TableName: TRANSACTION_TABLE_NAME }).promise(),
-      docClient.scan({
-        TableName: USER_TABLE_NAME,
-        ProjectionExpression: '#id, username, reputationScore, reputationWeight, originNodeId, originUserId',
-        ExpressionAttributeNames: { '#id': 'id' }
-      }).promise()
-    ]);
-
-    const configuredNodeId = process.env.FEDERATION_LOCAL_NODE_ID || process.env.NODE_ID;
-    const users = (usersRes.Items || []).map(user => ({
-      ...pick(user, ['id', 'username', 'reputationScore', 'reputationWeight']),
-      originNodeId: typeof user.originNodeId === 'string' ? user.originNodeId : configuredNodeId,
-      originUserId: typeof user.originUserId === 'string' ? user.originUserId : user.id
-    }));
-
-    // Export only fields required for federation; never serialize full DynamoDB rows.
-    const listings = (listingsRes.Items || []).map(item => pick(item, [
-      'id', 'userId', 'type', 'title', 'description', 'price', 'location', 'createdAt'
-    ]));
-    const transactions = (transactionsRes.Items || []).map(item => pick(item, [
-      'id', 'contractId', 'consumerId', 'producerId', 'rating', 'status'
-    ]));
-
-    const payload = JSON.stringify({ listings, transactions, users });
+    const nodeId = process.env.FEDERATION_LOCAL_NODE_ID || process.env.NODE_ID;
     const peers = JSON.parse(process.env.FEDERATION_PEERS_JSON || '{}');
-    const secret = peers[_req.federationPeer.nodeId];
-    const responseNodeId = process.env.FEDERATION_LOCAL_NODE_ID || process.env.NODE_ID;
-    if (!responseNodeId || typeof secret !== 'string' || secret.length < 32) {
+    const secret = peers[req.federationPeer.nodeId];
+    if (!nodeId || typeof secret !== 'string' || secret.length < 32) {
       return res.status(503).json({ error: 'Federation response signing is not configured' });
     }
-    res.set(createPeerResponseHeaders({
-      nodeId: responseNodeId, secret, method: 'GET', path: '/federation/export', body: payload
-    }));
-    return res.type('application/json').send(payload);
-  } catch {
-    return res.status(500).json({ error: 'Export failed' });
+    const page = collectionPage(req.query, ['federation-export', req.federationPeer.nodeId]);
+    const result = { listings: [], transactions: [], users: [] };
+    const next = {};
+    for (const [name, table, allowed, present] of [
+      ['listings', LISTING_TABLE_NAME, exportFields.listingFields, exportFields.listing],
+      ['transactions', TRANSACTION_TABLE_NAME, exportFields.transactionFields, exportFields.transaction],
+    ]) {
+      if (page.state && page.state[name] === null) { next[name] = null; continue; }
+      const names = Object.fromEntries(allowed.map((field, i) => [`#f${i}`, field]));
+      const data = await scanPage(docClient, {
+        TableName: table, ProjectionExpression: Object.keys(names).join(', '), ExpressionAttributeNames: names,
+      }, page.limit, page.state?.[name]);
+      result[name] = data.items.map(present);
+      next[name] = data.next;
+    }
+    page.finish(res, Object.values(next).some(Boolean) ? next : null);
+    res.set('X-Federation-Omissions', 'users, dialogNotes, ratings');
+    const payload = JSON.stringify(result);
+    res.set(createPeerResponseHeaders({ nodeId, secret, method: 'GET', path: '/federation/export', body: payload }));
+    res.type('application/json').send(payload);
+  } catch (err) {
+    pageError(res, err, 'Export failed');
   }
 });
 
