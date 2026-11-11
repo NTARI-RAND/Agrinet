@@ -10,81 +10,101 @@ jest.mock('../../lib/dynamodbClient', () => ({
 const docClient = require('../../lib/dynamodbClient');
 const userRoutes = require('../userRoutes');
 
-describe('userRoutes', () => {
+describe('userRoutes security', () => {
   let app;
   beforeEach(() => {
     app = express();
     app.use(express.json());
+    app.use((req, _res, next) => {
+      req.user = { userId: 'admin-1', role: 'admin' };
+      next();
+    });
     app.use('/users', userRoutes);
     docClient.scan.mockReset();
     docClient.put.mockReset();
   });
 
-  describe('GET /users', () => {
-    it('returns users without passwords', async () => {
-      docClient.scan.mockReturnValue({
-        promise: () => Promise.resolve({
-          Items: [
-            { id: '1', username: 'john', password: 'hash', role: 'consumer', location: 'NY' }
-          ]
-        })
-      });
-
-      const res = await request(app).get('/users');
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual([
-        { id: '1', username: 'john', role: 'consumer', location: 'NY' }
-      ]);
-      expect(res.body[0].password).toBeUndefined();
+  test('public directory returns only an explicit public DTO', async () => {
+    docClient.scan.mockReturnValue({
+      promise: async () => ({
+        Items: [{
+          id: 'u1', username: 'alice', role: 'admin', email: 'alice@example.test',
+          phone: '555-0100', password: 'hash', verificationCode: 'secret',
+          verified: true, location: 'private address', coordinates: { lat: 1, long: 2 },
+          locationType: 'farm', reputationScore: 5, reputationWeight: 2
+        }]
+      })
     });
 
-    it('applies role and location filters', async () => {
-      docClient.scan.mockReturnValue({ promise: () => Promise.resolve({ Items: [] }) });
-
-      await request(app).get('/users?role=farmer&location=Texas');
-
-      expect(docClient.scan).toHaveBeenCalledWith(
-        expect.objectContaining({
-          FilterExpression: 'role = :role AND location = :location',
-          ExpressionAttributeValues: { ':role': 'farmer', ':location': 'Texas' }
-        })
-      );
-    });
+    const response = await request(app).get('/users');
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([{
+      id: 'u1', username: 'alice', locationType: 'farm',
+      reputationScore: 5, reputationWeight: 2
+    }]);
+    expect(docClient.scan).toHaveBeenCalledWith(expect.objectContaining({
+      ProjectionExpression: expect.stringContaining('username')
+    }));
   });
 
-  describe('POST /users', () => {
-    it('creates user with hashed password and defaults', async () => {
-      docClient.put.mockReturnValue({ promise: () => Promise.resolve({}) });
-
-      const res = await request(app)
-        .post('/users')
-        .send({
-          id: '1',
-          username: 'alice',
-          email: 'a@b.com',
-          password: 'secret',
-          role: 'producer',
-          location: 'CA'
-        });
-
-      expect(res.status).toBe(201);
-      expect(res.body.user).toMatchObject({
-        id: '1',
-        username: 'alice',
-        email: 'a@b.com',
-        role: 'producer',
-        location: 'CA',
-        verified: false,
-        reputationScore: 0
-      });
-      expect(res.body.user.password).toBeUndefined();
-
-      const params = docClient.put.mock.calls[0][0];
-      const stored = params.Item;
-      expect(stored.verified).toBe(false);
-      expect(stored.reputationScore).toBe(0);
-      expect(await bcrypt.compare('secret', stored.password)).toBe(true);
+  test('rejects caller-supplied IDs before writing', async () => {
+    const response = await request(app).post('/users').send({
+      id: 'victim-id', username: 'attacker', email: 'a@example.test', password: 'long-password'
     });
+    expect(response.status).toBe(400);
+    expect(docClient.put).not.toHaveBeenCalled();
+  });
+
+  test('rejects shared API-key-style callers without a verified admin identity', async () => {
+    app = express();
+    app.use(express.json());
+    app.use('/users', userRoutes);
+    const response = await request(app).post('/users').send({
+      username: 'attacker', email: 'a@example.test', password: 'long-password'
+    });
+    expect(response.status).toBe(403);
+    expect(docClient.put).not.toHaveBeenCalled();
+  });
+
+  test('rejects authenticated non-admin callers', async () => {
+    app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      req.user = { userId: 'member-1', role: 'consumer' };
+      next();
+    });
+    app.use('/users', userRoutes);
+    const response = await request(app).post('/users').send({
+      username: 'member', email: 'm@example.test', password: 'long-password'
+    });
+    expect(response.status).toBe(403);
+    expect(docClient.put).not.toHaveBeenCalled();
+  });
+
+  test('creates a server-ID account with a hash and atomic no-overwrite condition', async () => {
+    docClient.put.mockReturnValue({ promise: async () => ({}) });
+    const response = await request(app).post('/users').send({
+      username: 'alice', email: 'a@b.com', password: 'secretsecret',
+      role: 'producer', locationType: 'farm'
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.user).toMatchObject({ username: 'alice', locationType: 'farm' });
+    expect(response.body.user.id).toBeTruthy();
+    expect(response.body.user.role).toBeUndefined();
+    const params = docClient.put.mock.calls[0][0];
+    expect(params.ConditionExpression).toBe('attribute_not_exists(#id)');
+    expect(params.Item.id).not.toBe('undefined');
+    expect(await bcrypt.compare('secretsecret', params.Item.password)).toBe(true);
+  });
+
+  test('reports conditional ID collision without overwriting', async () => {
+    docClient.put.mockReturnValue({
+      promise: async () => { throw Object.assign(new Error('collision'), { code: 'ConditionalCheckFailedException' }); }
+    });
+    const response = await request(app).post('/users').send({
+      username: 'alice', email: 'a@b.com', password: 'secretsecret'
+    });
+    expect(response.status).toBe(409);
   });
 });
-
