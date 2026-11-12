@@ -68,3 +68,14 @@ binding changes, and the in-review statuses above remain in review.
 dates, adjacent-crop conflicts, resize impact, portable round-tripping, invalid
 imports, and storage errors. This is feature verification, not a claim that the
 delegated JFA invariants are now enforced by this repository.
+Private application chat uses the verified backend account `userId` as an
+immutable conversation owner. Conversation/message routes and attachment
+downloads enforce that boundary; shared integration keys supply no participant
+identity. Legacy ownerless rows remain inaccessible pending explicit operator
+assignment. Bindings: `backend/middleware/chatAuth.js`,
+`conversationOwner.js`, `attachmentOwner.js`, the conditional conversation
+model writes, and `backend/__tests__/conversationAccess.test.js`. This does not
+promote private chat to a sealed commons dialog or change the in-review ledger
+claims above. Legacy SSE endpoints remain retired with HTTP 410 until the
+companion authenticated-stream change lands. See `backend/docs/conversation-ownership.md` for migration and client
+integration limits.
