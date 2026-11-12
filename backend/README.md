@@ -56,6 +56,9 @@ These settings allow the backend services to connect to Redis for queue manageme
 
 ## Routing
 
+For the legacy account-verification reachability finding and its boundary with
+merged and pending account work, see the [audit](../docs/LEGACY_ACCOUNT_VERIFICATION_AUDIT.md).
+
 Main mounts (see `server.js`):
 - `/health` – health check
 - `/uploads/*` – static uploads
