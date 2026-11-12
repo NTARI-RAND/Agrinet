@@ -10,11 +10,12 @@ let dotenv;
 try { dotenv = require('dotenv'); } catch { dotenv = { config: () => {} }; }
 dotenv.config();
 const authMiddleware = require('./middleware/authMiddleware');
+const errorHandler = require('./middleware/errorHandler');
 const { apiRateLimit, streamRateLimit, locationRateLimit } = require('./middleware/rateLimit');
 const minimal = process.env.MINIMAL_SERVER === 'true';
 const app = express();
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || 'https://www.ntari.org').split(',').map(origin => origin.trim()).filter(Boolean);
-app.use(cors({ origin(origin, callback) { if (!origin || allowedOrigins.includes(origin)) return callback(null, true); return callback(new Error('CORS not allowed for this origin')); }, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-API-Key', 'X-Federation-Node-Id', 'X-Federation-Timestamp', 'X-Federation-Signature'] }));
+app.use(cors({ origin(origin, callback) { if (!origin || allowedOrigins.includes(origin)) return callback(null, true); const err = new Error('CORS not allowed for this origin'); err.status = 403; err.expose = true; return callback(err); }, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-API-Key', 'X-Federation-Node-Id', 'X-Federation-Timestamp', 'X-Federation-Signature'] }));
 app.use(express.json({ verify(req, _res, buffer) { req.rawBody = Buffer.from(buffer); } }));
 const tryMount = (route, modPath) => { try { app.use(route, require(modPath)); } catch (err) { console.warn('Skipping ' + modPath + ': ' + err.message); } };
 if (!minimal) tryMount('/deposit', './routes/depositRoutes');
@@ -50,6 +51,8 @@ if (!minimal) {
   [['/', './routes/api'], ['/api/keys', './routes/keyRoutes'], ['/api/contracts', './routes/contracts'], ['/api/admin', './routes/admin'], ['/api/marketplace', './marketplace/marketplace_routes'], ['/users', './routes/userRoutes'], ['/products', './routes/products'], ['/broadcast', './routes/broadcastRoutes'], ['/sms', './routes/smsRoutes'], ['/cart', './routes/cartRoutes'], ['/orders', './routes/orderRoutes'], ['/subscriptions', './routes/subscriptionRoutes'], ['/conversations', './routes/conversationRoutes'], ['/messages', './routes/communicationRoutes'], ['/inventory', './routes/inventoryRoutes'], ['/api/location', './routes/locationRoutes'], ['/trends', './trends/trendsRoutes']].forEach(([route, mod]) => tryMount(route, mod));
   try { runFederationSync = require('./federation/federationSyncJob'); } catch (err) { console.warn('Federation sync disabled: ' + err.message); }
 }
+// Last-resort JSON error handler, registered after every route.
+app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 if (require.main === module) { server.listen(PORT, () => console.log('Server running on port ' + PORT)); if (runFederationSync) runFederationSync(); }
 module.exports = { app, server };
