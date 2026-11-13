@@ -1,5 +1,9 @@
 const express = require("express");
 const http = require('http');
+const { rateLimit } = require('express-rate-limit');
+const path = require('path');
+const chatAuth = require('./middleware/chatAuth');
+const asyncHandler = require('./utils/asyncHandler');
 let cors;
 try { cors = require('cors'); } catch { cors = () => (_req, _res, next) => next(); }
 let dotenv;
@@ -32,7 +36,14 @@ if (!minimal) tryMount('/api/auth', './routes/authRoutes');
 app.use(authMiddleware);
 app.use(apiRateLimit);
 // Private uploads are disabled until conversation-owner authorization is deployed (#191).
-app.use('/uploads', (_req, res) => res.status(410).json({ error: 'Attachment downloads are temporarily unavailable pending owner authorization' }));
+app.use('/uploads', chatAuth, rateLimit(require('./middleware/chatRateLimit').options(60, 'uploads')), asyncHandler(require('./middleware/attachmentOwner')), express.static(path.join(__dirname, 'uploads'), {
+  dotfiles: 'deny', index: false,
+  setHeaders(res) {
+    res.setHeader('Content-Disposition', 'attachment');
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+  },
+}));
 app.use('/api/location', locationRateLimit);
 let runFederationSync;
 if (!minimal) {

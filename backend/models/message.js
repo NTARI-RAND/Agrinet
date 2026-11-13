@@ -26,8 +26,8 @@ async function sendMessage(
   };
 
   if (file && file.data) {
-    // Client filenames are metadata only, never part of a filesystem path.
-    const filename = randomUUID();
+    const extension = path.extname(file.name || '');
+    const filename = randomUUID() + (/^\.[a-zA-Z0-9]{1,10}$/.test(extension) ? extension : '');
     const filePath = path.join(UPLOAD_DIR, filename);
     fs.writeFileSync(filePath, Buffer.from(file.data, 'base64'), { flag: 'wx' });
     msg.file = {
@@ -60,18 +60,67 @@ async function getMessage(conversationId, id) {
 }
 
 async function removeByConversation(conversationId) {
-  const messages = await listMessages(conversationId);
-  if (!messages.length) return;
-  const deletes = messages.map((m) => ({
-    DeleteRequest: { Key: { conversationId: m.conversationId, id: m.id } },
-  }));
-  await docClient
-    .batchWrite({ RequestItems: { [MESSAGE_TABLE_NAME]: deletes } })
-    .promise();
+  let cursor;
+  do {
+    const page = await docClient.query({
+      TableName: MESSAGE_TABLE_NAME,
+      KeyConditionExpression: 'conversationId = :cid',
+      ExpressionAttributeValues: { ':cid': conversationId },
+      ...(cursor && { ExclusiveStartKey: cursor }),
+    }).promise();
+    const messages = page.Items || [];
+    for (let start = 0; start < messages.length; start += 25) {
+      const deletes = messages.slice(start, start + 25).map(message => ({
+        DeleteRequest: { Key: { conversationId, id: message.id } },
+      }));
+      const result = await docClient.batchWrite({
+        RequestItems: { [MESSAGE_TABLE_NAME]: deletes },
+      }).promise();
+      if (result?.UnprocessedItems?.[MESSAGE_TABLE_NAME]?.length) {
+        throw new Error('Message deletion incomplete; retry conversation deletion');
+      }
+    }
+    cursor = page.LastEvaluatedKey;
+  } while (cursor);
 }
 
 function setDocClient(client) {
   docClient = client;
 }
 
-module.exports = { sendMessage, listMessages, getMessage, removeByConversation, setDocClient };
+async function findByAttachmentPath(filePath) {
+  const items = [];
+  let cursor;
+  do {
+    const page = await docClient.scan({
+      TableName: MESSAGE_TABLE_NAME,
+      FilterExpression: '#file.#path = :filePath',
+      ExpressionAttributeNames: { '#file': 'file', '#path': 'path' },
+      ExpressionAttributeValues: { ':filePath': filePath },
+      ...(cursor && { ExclusiveStartKey: cursor }),
+    }).promise();
+    items.push(...(page.Items || []));
+    cursor = page.LastEvaluatedKey;
+  } while (cursor);
+  return items;
+}
+
+async function findConversationAttachment(conversationId, filePath) {
+  let cursor;
+  do {
+    const page = await docClient.query({
+      TableName: MESSAGE_TABLE_NAME,
+      KeyConditionExpression: 'conversationId = :cid',
+      FilterExpression: '#file.#path = :filePath',
+      ExpressionAttributeNames: { '#file': 'file', '#path': 'path' },
+      ExpressionAttributeValues: { ':cid': conversationId, ':filePath': filePath },
+      Limit: 100,
+      ...(cursor && { ExclusiveStartKey: cursor }),
+    }).promise();
+    if (page.Items?.some(message => message.file?.path === filePath)) return true;
+    cursor = page.LastEvaluatedKey;
+  } while (cursor);
+  return false;
+}
+
+module.exports = { sendMessage, listMessages, getMessage, removeByConversation, findByAttachmentPath, findConversationAttachment, setDocClient };
