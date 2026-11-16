@@ -5,11 +5,14 @@ const express = require('express');
 const request = require('supertest');
 const jwt = require('../utils/jwt');
 const auth = require('../middleware/authMiddleware');
+const { apiRateLimit } = require('../middleware/rateLimit');
 const Cart = require('../models/cart');
 const Order = require('../models/order');
 
 const app = express();
 app.use(express.json());
+// Bound requests before JWT verification, including unauthenticated attempts.
+app.use(apiRateLimit);
 app.use(auth);
 app.use('/cart', require('../routes/cartRoutes'));
 app.use('/orders', require('../routes/orderRoutes'));
@@ -109,3 +112,22 @@ for (const operation of operations) {
     }
   });
 }
+
+test('repeated requests are throttled before cart mutation', async () => {
+  const owner = seedOwner();
+  const previousCart = structuredClone(Cart.getCart(owner));
+  const headers = bearer({ userId: owner });
+  let status;
+  // Earlier ownership cases may consume part of the shared IP quota.
+  for (let attempt = 0; attempt < 121; attempt += 1) {
+    const response = await request(app).get(`/cart/${owner}`).set(headers);
+    status = response.status;
+    if (status === 429) break;
+    assert.equal(status, 200);
+  }
+  assert.equal(status, 429);
+  const response = await request(app).post(`/cart/${owner}`)
+    .set(headers).send({ id: 'banana' });
+  assert.equal(response.status, 429);
+  assert.deepEqual(Cart.getCart(owner), previousCart);
+});
