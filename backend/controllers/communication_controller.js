@@ -1,6 +1,7 @@
 const Message = require('../models/message');
 const agrinetResponder = require('../services/agrinetResponder');
 const openAIResponder = require('../services/openAIResponder');
+const retrySafeMessage = require('../services/retrySafeMessage');
 
 function broadcastMessage(conversationId, msg, options = {}) {
   if (!msg) return;
@@ -57,7 +58,7 @@ function shouldAutoRespond({ from, type }) {
   return ['user', 'client', 'farmer'].includes(normalized);
 }
 
-exports.sendMessage = async (req, res) => {
+async function deliverMessage(req) {
   const { conversationId } = req.params;
   const { from, to, content, type, file } = req.body;
 
@@ -110,7 +111,15 @@ exports.sendMessage = async (req, res) => {
     responsePayload.reply = formattedReply;
   }
 
-  res.status(201).json(responsePayload);
+  return responsePayload;
+}
+
+exports.sendMessage = async (req, res) => {
+  if (req.headers?.['idempotency-key'] === undefined) {
+    return res.status(201).json(await deliverMessage(req));
+  }
+  const result = await retrySafeMessage.send(req, () => deliverMessage(req));
+  return res.status(result.status).json(result.body);
 };
 
 exports.listMessages = async (req, res) => {

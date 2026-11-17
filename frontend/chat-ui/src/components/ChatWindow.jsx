@@ -11,50 +11,25 @@
 import React, { useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import MessageBubble from './MessageBubble.jsx';
-import { stream } from '../api';
+import { accountClient, stream } from '../api';
 import ThinkingTicker from './ThinkingTicker.jsx';
 
 export default function ChatWindow() {
   const { state, dispatch } = useStore();
   const bottomRef = useRef();
   const containerRef = useRef();
-  const rafRef = useRef();
-
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [state.messages]);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return undefined;
-
-    const updateParallax = () => {
-      const max = el.scrollHeight - el.clientHeight;
-      const depth = max > 0 ? el.scrollTop / max : 0;
-      el.style.setProperty('--scroll-depth', `${Math.min(Math.max(depth, 0), 1) * 100}`);
-      rafRef.current = null;
-    };
-
-    const handleScroll = () => {
-      if (rafRef.current) return;
-      rafRef.current = requestAnimationFrame(updateParallax);
-    };
-
-    el.addEventListener('scroll', handleScroll, { passive: true });
-    updateParallax();
-
-    return () => {
-      el.removeEventListener('scroll', handleScroll);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, []);
+  useParallax(containerRef);
 
   useEffect(() => {
     dispatch({ type: 'SET_AI_THINKING', value: false });
   }, [state.currentConversation, dispatch]);
 
   useEffect(() => {
-    if (!state.currentConversation) return;
+    if (!accountClient.getToken() || !state.currentConversation) return;
     const events = stream(`/stream/${state.currentConversation.id}`);
 
     const handleToken = (e) => {
@@ -88,6 +63,10 @@ export default function ChatWindow() {
     };
   }, [state.currentConversation, dispatch]);
 
+  if (!accountClient.getToken()) {
+    return <div className="chat-stream" role="status">Sign in to use chat.</div>;
+  }
+
   return (
     <div className="chat-stream" data-parallax="true" ref={containerRef}>
       {state.messages.map((m, index) => (
@@ -97,4 +76,32 @@ export default function ChatWindow() {
       <div ref={bottomRef} />
     </div>
   );
+}
+
+function useParallax(containerRef) {
+  const rafRef = useRef();
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return undefined;
+
+    const updateParallax = () => {
+      const max = el.scrollHeight - el.clientHeight;
+      const depth = max > 0 ? el.scrollTop / max : 0;
+      el.style.setProperty('--scroll-depth', `${Math.min(Math.max(depth, 0), 1) * 100}`);
+      rafRef.current = null;
+    };
+
+    const handleScroll = () => {
+      if (rafRef.current) return;
+      rafRef.current = requestAnimationFrame(updateParallax);
+    };
+
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    updateParallax();
+
+    return () => {
+      el.removeEventListener('scroll', handleScroll);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [containerRef]);
 }

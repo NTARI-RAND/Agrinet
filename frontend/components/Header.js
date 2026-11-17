@@ -5,6 +5,7 @@ export default function Header() {
     <header>
       <nav className="nav">
         <Link href="/">Home</Link>
+        <Link href="/garden-planner">Garden planner</Link>
         <Link href="/about">About</Link>
         <Link href="/contact">Contact</Link>
       </nav>

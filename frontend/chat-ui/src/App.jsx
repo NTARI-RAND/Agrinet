@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Amplify } from 'aws-amplify';
-import awsExports from '../../aws-exports';
+const awsExports = Object.values(import.meta.glob('../../aws-exports.js', { eager: true, import: 'default' }))[0] || {};
 // Configure Amplify with backend settings
 Amplify.configure(awsExports);
 

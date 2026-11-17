@@ -1,0 +1,42 @@
+name: CodeQL
+
+# Advanced setup. Default setup never analyzes pull requests from forks
+# (GitHub docs: "excluding pull requests from forks"), and this repository's
+# ruleset requires CodeQL results before a merge, so outside contributors'
+# PRs could never merge. This workflow runs on every pull request, including
+# forks, and on pushes to main.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "23 5 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

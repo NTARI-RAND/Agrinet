@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import MessageActions from './MessageActions.jsx';
+import { downloadAttachment } from '../api';
 
 /** @typedef {import('../types').Message} Message */
 
@@ -8,6 +9,12 @@ import MessageActions from './MessageActions.jsx';
  * @param {{message: Message}} props
  */
 export default function MessageBubble({ message, index = 0 }) {
+  const [downloadError, setDownloadError] = useState('');
+  const download = async () => {
+    setDownloadError('');
+    try { await downloadAttachment(message.file, message.conversationId); }
+    catch (error) { setDownloadError(error.message); }
+  };
   const isUser = message.role === 'user' || message.sender === 'user' || message.from === 'user';
   const alignment = isUser ? 'items-end text-right' : 'items-start text-left';
   const bubbleClass = `message-bubble ${isUser ? 'user' : 'assistant'}`;
@@ -18,9 +25,9 @@ export default function MessageBubble({ message, index = 0 }) {
   let content;
   if (message.type === 'file' && message.file) {
     content = (
-      <a href={message.file.path} target="_blank" rel="noopener noreferrer" className="underline">
+      <button type="button" onClick={download} className="underline">
         {message.file.originalname}
-      </a>
+      </button>
     );
   } else {
     const text = message.content || message.message || '';
@@ -32,6 +39,7 @@ export default function MessageBubble({ message, index = 0 }) {
       {!isUser && <MessageActions message={message} className="message-actions" />}
       <div className={bubbleClass}>
         {content}
+        {downloadError && <p role="alert">{downloadError}</p>}
       </div>
     </div>
   );

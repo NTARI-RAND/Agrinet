@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useReducer } from 'react';
+import { reducer } from './chatReducer.mjs';
+import React, { createContext, useContext, useEffect, useReducer } from 'react';
+import { accountClient } from './api';
 
 /**
  * @typedef {import('./types').Message} Message
@@ -42,51 +44,6 @@ const initialState = {
   aiThinking: false,
 };
 
-/**
- * Reducer handling chat UI actions.
- * @param {State} state
- * @param {Action} action
- * @returns {State}
- */
-function reducer(state, action) {
-  switch (action.type) {
-    case 'ADD_MESSAGE':
-      return { ...state, messages: [...state.messages, action.message] };
-    case 'UPSERT_MESSAGE': {
-      const idx = state.messages.findIndex((m) => m.id === action.message.id);
-      if (idx >= 0) {
-        const updated = [...state.messages];
-        updated[idx] = { ...updated[idx], ...action.message };
-        return { ...state, messages: updated };
-      }
-      return { ...state, messages: [...state.messages, action.message] };
-    }
-    case 'APPEND_MESSAGE_CONTENT':
-      return {
-        ...state,
-        messages: state.messages.map((m) =>
-          m.id === action.id ? { ...m, content: (m.content || '') + action.content } : m
-        ),
-      };
-    case 'SET_MESSAGES':
-      return { ...state, messages: action.messages };
-    case 'SET_CONVERSATIONS':
-      return { ...state, conversations: action.conversations };
-    case 'SET_CURRENT_CONVERSATION':
-      return { ...state, currentConversation: action.conversation };
-    case 'TOGGLE_SIDEBAR':
-      return { ...state, sidebarOpen: !state.sidebarOpen };
-    case 'SET_THEME':
-      return { ...state, theme: action.theme };
-    case 'TOGGLE_MEMORY':
-      return { ...state, memory: !state.memory };
-    case 'SET_AI_THINKING':
-      return { ...state, aiThinking: action.value };
-    default:
-      return state;
-  }
-}
-
 /** @type {React.Context<{state: State, dispatch: React.Dispatch<Action>}>} */
 const StoreContext = createContext();
 
@@ -97,8 +54,13 @@ const StoreContext = createContext();
  */
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  useEffect(() => {
+    const reset = () => dispatch({ type: 'RESET_ACCOUNT' });
+    accountClient.changes.addEventListener('change', reset);
+    return () => accountClient.changes.removeEventListener('change', reset);
+  }, []);
   return (
-    <StoreContext.Provider value={{ state, dispatch }}>
+    <StoreContext.Provider key={state.accountVersion || 0} value={{ state, dispatch }}>
       {children}
     </StoreContext.Provider>
   );
