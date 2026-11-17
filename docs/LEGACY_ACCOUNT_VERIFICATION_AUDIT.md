@@ -24,9 +24,11 @@ a new review and an agreed account-lookup/migration contract.
 - The auth router defines `GET /test`, `POST /register` and `POST /login`.
   Registration and login are inline handlers, independent of the legacy module.
 - The user router defines `GET /` and `POST /`, also using inline handlers.
-- A search of tracked source, configuration and scripts found no reference to
-  the legacy module name or either exported function outside its definition file.
-  This includes the frontend and backend tests, not only HTTP routes.
+- A search of tracked files in `backend`, `frontend` and `scripts` found no
+  reference to the legacy module name or either exported function outside its
+  definition file. This includes frontend and backend tests, not only HTTP routes.
+  Historical related-file lists in `.github/ISSUE_TEMPLATE` mention the controller
+  path; those references do not establish a runtime caller or a support agreement.
 - A runtime inspection loaded the actual non-minimal server, confirmed both
   account routers were mounted, enumerated the methods above and confirmed the
   legacy module was absent from Node's module cache. Unrelated BullMQ queue and
