@@ -3,6 +3,7 @@ const {
   arePlantsCompatible,
   projectGrowth,
   planSeason,
+  compareGardenPlans,
 } = require('../utils/squareFootGardening');
 
 describe('Square Foot Gardening utils', () => {
@@ -39,5 +40,67 @@ describe('Square Foot Gardening utils', () => {
         ['tomato', 'carrot'],
       ], '2024-03-01', 'spring')
     ).toThrow();
+  });
+});
+
+describe('compareGardenPlans', () => {
+  const spring = { startDate: '2024-03-01', season: 'spring' };
+
+  test('reports no changes for equivalent plans', () => {
+    const before = { ...spring, layout: [['tomato', null]] };
+    const after = { ...spring, layout: [['tomato', null]], startDate: new Date(spring.startDate) };
+
+    expect(compareGardenPlans(before, after)).toEqual([]);
+  });
+
+  test('reports the replacement crop and harvest dates for the changed square', () => {
+    const before = { ...spring, layout: [['tomato'], [null, 'lettuce']] };
+    const after = { ...spring, layout: [['basil'], [null, 'lettuce']] };
+
+    expect(compareGardenPlans(before, after)).toEqual([
+      {
+        position: [0, 0],
+        before: { plant: 'tomato', harvestDate: new Date('2024-05-10') },
+        after: { plant: 'basil', harvestDate: new Date('2024-04-30') },
+      },
+    ]);
+  });
+
+  test('reports a new harvest date when an existing crop is planted later', () => {
+    const before = { ...spring, layout: [['lettuce']] };
+    const after = { ...before, startDate: '2024-03-08' };
+
+    expect(compareGardenPlans(before, after)).toEqual([
+      {
+        position: [0, 0],
+        before: { plant: 'lettuce', harvestDate: new Date('2024-04-25') },
+        after: { plant: 'lettuce', harvestDate: new Date('2024-05-02') },
+      },
+    ]);
+  });
+
+  test('reports planted and removed squares in row order across different bed sizes', () => {
+    const before = { ...spring, layout: [[null], ['lettuce']] };
+    const after = { ...spring, layout: [[null, 'carrot']] };
+
+    expect(compareGardenPlans(before, after)).toEqual([
+      {
+        position: [0, 1],
+        before: null,
+        after: { plant: 'carrot', harvestDate: new Date('2024-05-05') },
+      },
+      {
+        position: [1, 0],
+        before: { plant: 'lettuce', harvestDate: new Date('2024-04-25') },
+        after: null,
+      },
+    ]);
+  });
+
+  test('rejects a candidate with incompatible neighboring crops', () => {
+    const before = { ...spring, layout: [['tomato', 'basil']] };
+    const after = { ...spring, layout: [['tomato', 'carrot']] };
+
+    expect(() => compareGardenPlans(before, after)).toThrow(/Incompatible neighbors/);
   });
 });

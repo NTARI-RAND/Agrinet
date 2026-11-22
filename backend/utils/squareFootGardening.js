@@ -85,11 +85,37 @@ function planSeason(layout, startDate, season) {
   return { grid: renderGrid(layout), schedule, seasonMonths: months };
 }
 
+function compareGardenPlans(before, after) {
+  const squares = new Map();
+  const plans = { before, after };
+
+  for (const side of ['before', 'after']) {
+    const { layout, startDate, season } = plans[side];
+    const { schedule } = planSeason(layout, startDate, season);
+
+    for (const { position, plant, harvestDate } of schedule) {
+      const key = position.join(',');
+      if (!squares.has(key)) {
+        squares.set(key, { position, before: null, after: null });
+      }
+      squares.get(key)[side] = { plant, harvestDate };
+    }
+  }
+
+  return [...squares.values()]
+    .filter(({ before: previous, after: next }) =>
+      previous?.plant !== next?.plant ||
+      !Object.is(previous?.harvestDate.getTime(), next?.harvestDate.getTime())
+    )
+    .sort((a, b) => a.position[0] - b.position[0] || a.position[1] - b.position[1]);
+}
+
 module.exports = {
   getPlantsPerSquare,
   arePlantsCompatible,
   projectGrowth,
   planSeason,
+  compareGardenPlans,
   renderGrid,
   PLANT_SPACING,
   COMPATIBILITY_MATRIX,

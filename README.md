@@ -119,6 +119,22 @@ console.log(plan.schedule);
 
 The planner validates companion planting, projects growth timelines, and renders an ASCII grid of the garden.
 
+Compare two plans locally with `compareGardenPlans`. Each input accepts the
+same layout, planting date, and season as `planSeason`.
+
+```javascript
+const { compareGardenPlans } = require('./backend/utils/squareFootGardening');
+
+const before = { layout: [['tomato']], startDate: '2024-03-01', season: 'spring' };
+const after = { ...before, layout: [['basil']] };
+console.log(compareGardenPlans(before, after));
+```
+
+The result lists only squares whose crop or projected harvest date changed,
+ordered by zero-based `[row, column]`. Each entry has a `position`, a `before`,
+and an `after`. Each planted side has a `plant` and a `harvestDate` (`Date`).
+An empty or absent square is `null`, and equivalent plans return `[]`.
+
 ## API Endpoints
 
 Additional chat interface endpoints (e.g., `/conversations`, `/messages/:id`, `/stream/:id`) and their expected JSON
