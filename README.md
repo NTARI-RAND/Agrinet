@@ -125,6 +125,14 @@ Additional chat interface endpoints (e.g., `/conversations`, `/messages/:id`, `/
 structures are documented inline in the frontend components
 [`Sidebar.jsx`](frontend/chat-ui/src/components/Sidebar.jsx) and
 [`ChatWindow.jsx`](frontend/chat-ui/src/components/ChatWindow.jsx).
+Private chat requires the existing backend account JWT, including for SSE and
+attachments. Shared API keys do not identify a chat owner. Legacy ownerless
+chats remain inaccessible pending explicit operator assignment. The host
+application supplies its login token to `setAccountToken`; the chat UI does
+not provide a complete onboarding flow. See
+[conversation ownership](backend/docs/conversation-ownership.md) and
+[authenticated streams](backend/docs/authenticated-streams.md). The global
+`/events` feed is retired; use an authorized `/stream/:conversationId` request.
 ### User Registration
 #### POST /userRegistration
 ```
