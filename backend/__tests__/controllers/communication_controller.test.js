@@ -102,7 +102,8 @@ test('sendMessage streams tokens and persists ai message', async () => {
   assert.equal(jsonResponse.ai.id, aiMessage.id);
 
   assert.equal(tokenEvents.length, 3);
-  assert.deepEqual(directTokens, ['Hello', ' ', 'world!']);
+  assert.deepEqual(directTokens, [], 'legacy alias must not duplicate canonical tokens');
+  assert.equal(messageEvents.length, 2, 'one event per persisted message');
   assert(tokenEvents.every((event) => event.id === aiMessage.id));
 
   assert.ok(

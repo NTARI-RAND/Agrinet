@@ -5,7 +5,8 @@
  *   token   -> { "id": string, "token": string }
  *   message -> { "message": { id, role, content } }
  *
- * Assumes server-side auth (no 'x-api-key' header sent).
+ * Streaming fetch carries the current backend account bearer in a header.
+ * A 401 for the active account returns chat to its sign-in state.
  * Errors while parsing events are logged to the console.
  */
 import React, { useEffect, useRef } from 'react';

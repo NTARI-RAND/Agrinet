@@ -44,6 +44,26 @@ Adopts the covenant scale (LBTAS, v2 floor) and carries its own record instance.
 
 The reference economy. Its operator/federation model is the named reference for the substrate's frontend-as-operator design target.
 
+Private application chat uses the verified backend account `userId` as an
+immutable conversation owner. Conversation/message routes and attachment
+downloads enforce that boundary; shared integration keys supply no participant
+identity. Legacy ownerless rows remain inaccessible pending explicit operator
+assignment. Bindings: `backend/middleware/chatAuth.js`,
+`conversationOwner.js`, `attachmentOwner.js`, the conditional conversation
+model writes, and `backend/__tests__/conversationAccess.test.js`. This does not
+promote private chat to a sealed commons dialog or change the in-review ledger
+claims above. SSE uses the same verified owner identity before stream headers,
+implemented in `backend/lib/conversationStreams.js` and checked by
+`backend/__tests__/conversationStreams.test.js`. The unrestricted global feed
+is retired. Streams expire with the account token and close on local parent
+deletion after retryable message cleanup. Shared request/capacity guards bind
+to the verified account; Redis is required across replicas. Bindings include
+`backend/middleware/streamConcurrency.js`, `backend/__tests__/streamCapacity.test.js`
+and the optional real-Redis `streamSharedCapacity.test.js`. Shared capacity does
+not provide cross-replica event delivery or deletion invalidation. See
+`backend/docs/conversation-ownership.md` for migration and client
+integration limits.
+
 The application message API supports optional retry receipts, scoped to the
 authenticated caller and conversation. These are private operational metadata,
 not sealed dialog or commons entries; they store hashes and message references,
@@ -68,14 +88,3 @@ binding changes, and the in-review statuses above remain in review.
 dates, adjacent-crop conflicts, resize impact, portable round-tripping, invalid
 imports, and storage errors. This is feature verification, not a claim that the
 delegated JFA invariants are now enforced by this repository.
-Private application chat uses the verified backend account `userId` as an
-immutable conversation owner. Conversation/message routes and attachment
-downloads enforce that boundary; shared integration keys supply no participant
-identity. Legacy ownerless rows remain inaccessible pending explicit operator
-assignment. Bindings: `backend/middleware/chatAuth.js`,
-`conversationOwner.js`, `attachmentOwner.js`, the conditional conversation
-model writes, and `backend/__tests__/conversationAccess.test.js`. This does not
-promote private chat to a sealed commons dialog or change the in-review ledger
-claims above. Legacy SSE endpoints remain retired with HTTP 410 until the
-companion authenticated-stream change lands. See `backend/docs/conversation-ownership.md` for migration and client
-integration limits.

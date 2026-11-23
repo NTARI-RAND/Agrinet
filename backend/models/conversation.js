@@ -78,6 +78,7 @@ async function remove(id, ownerId) {
     if (err.code === 'ConditionalCheckFailedException') return false;
     throw err;
   }
+  require('../lib/conversationStreams').close(id);
   return true;
 }
 

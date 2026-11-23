@@ -100,7 +100,7 @@ test('agrinet responder intercepts Agrinet-specific questions', async () => {
     assert.strictEqual(agrinetCalled, true, 'Agrinet guard should evaluate');
     const messageBroadcasts = broadcastEvents.filter((evt) => evt.payload.type === 'message');
     assert.strictEqual(messageBroadcasts.length, 2, 'both messages should be broadcast');
-    assert.strictEqual(emitted.length, 2, 'emitMessage should fire for both messages');
+    assert.strictEqual(emitted.length, 0, 'legacy alias must not duplicate canonical broadcasts');
   } finally {
     agrinetResponder.shouldHandle = originalShouldHandle;
     agrinetResponder.generateResponse = originalGenerateResponse;
