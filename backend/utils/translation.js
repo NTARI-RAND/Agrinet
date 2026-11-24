@@ -99,11 +99,16 @@ function translateTerm(key, locale = 'en') {
 
 function translateMessage(key, locale = 'en', vars = {}) {
   const dict = resolveLocale(locale);
-  let template = dict.messages[key] || translations.en.messages[key] || key;
-  Object.keys(vars).forEach(v => {
-    template = template.replace(new RegExp(`{${v}}`, 'g'), vars[v]);
+  const template = dict.messages[key] || translations.en.messages[key] || key;
+  let hasUnresolvedToken = false;
+  const output = template.replace(/\{(\w+)\}/g, (token, name) => {
+    if (Object.prototype.propertyIsEnumerable.call(vars, name)) {
+      return vars[name];
+    }
+    hasUnresolvedToken = true;
+    return token;
   });
-  return qaCheck(template);
+  return hasUnresolvedToken ? qaCheck(output) : output;
 }
 
 module.exports = {
