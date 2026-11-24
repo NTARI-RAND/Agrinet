@@ -5,7 +5,7 @@ const agriInfo = require('../models/agriInfo');
 const handleIncomingSMS = async (req, res) => {
   const { Body, From } = req.body;
   const normalized = language.normalize(Body);
-  const [command, ...rest] = normalized.split(' ');
+  const [command, ...rest] = normalized.split(/\s+/);
   const target = rest.join(' ');
   let reply;
 
