@@ -1,6 +1,6 @@
 let franc;
 try {
-  franc = require('franc');
+  ({ franc } = require('franc'));
 } catch (e) {
   franc = () => 'eng';
 }
