@@ -1,10 +1,13 @@
 const { randomUUID } = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { setTimeout: delay } = require('node:timers/promises');
 
 let docClient = require('../lib/dynamodbClient');
 
 const MESSAGE_TABLE_NAME = process.env.MESSAGE_TABLE_NAME || 'Messages';
+const MAX_BATCH_DELETE_RETRIES = 3;
+const INITIAL_BATCH_DELETE_BACKOFF_MS = 25;
 const UPLOAD_DIR = path.join(__dirname, '../uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -59,6 +62,21 @@ async function getMessage(conversationId, id) {
   return Item || null;
 }
 
+async function deleteMessageBatch(deletes) {
+  let pending = deletes;
+  for (let attempt = 0; attempt <= MAX_BATCH_DELETE_RETRIES; attempt++) {
+    if (attempt > 0) {
+      await delay(INITIAL_BATCH_DELETE_BACKOFF_MS * 2 ** (attempt - 1));
+    }
+    const result = await docClient.batchWrite({
+      RequestItems: { [MESSAGE_TABLE_NAME]: pending },
+    }).promise();
+    pending = result?.UnprocessedItems?.[MESSAGE_TABLE_NAME];
+    if (!pending?.length) return;
+  }
+  throw new Error('Message deletion incomplete; retry conversation deletion');
+}
+
 async function removeByConversation(conversationId) {
   let cursor;
   do {
@@ -73,12 +91,7 @@ async function removeByConversation(conversationId) {
       const deletes = messages.slice(start, start + 25).map(message => ({
         DeleteRequest: { Key: { conversationId, id: message.id } },
       }));
-      const result = await docClient.batchWrite({
-        RequestItems: { [MESSAGE_TABLE_NAME]: deletes },
-      }).promise();
-      if (result?.UnprocessedItems?.[MESSAGE_TABLE_NAME]?.length) {
-        throw new Error('Message deletion incomplete; retry conversation deletion');
-      }
+      await deleteMessageBatch(deletes);
     }
     cursor = page.LastEvaluatedKey;
   } while (cursor);
