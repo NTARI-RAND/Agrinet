@@ -1,6 +1,14 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 
+test('account changes clear private chat state while retaining display preferences', async () => {
+  const { reducer } = await import('./src/chatReducer.mjs');
+  const state = { messages: [{ content: 'private' }], conversations: [{ id: 'old' }], currentConversation: { id: 'old' }, aiThinking: true, theme: 'dark' };
+  assert.deepEqual(reducer(state, { type: 'RESET_ACCOUNT' }), {
+    messages: [], conversations: [], currentConversation: null, aiThinking: false, theme: 'dark', accountVersion: 1,
+  });
+});
+
 test('chat streaming appends content and upsert preserves message metadata', async () => {
   const { reducer } = await import('./src/chatReducer.mjs');
   const initial = { messages: [{ id: 'm1', content: 'Hello', from: 'ai' }] };

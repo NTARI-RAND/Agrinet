@@ -1,0 +1,34 @@
+name: Security hardening regression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/security-hardening.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  backend-regression:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install exact lockfile dependencies
+        run: npm ci
+      - name: Run complete backend test suite
+        run: npm test
+      - name: Check whitespace errors across the PR
+        working-directory: .
+        run: git diff --check origin/main...HEAD

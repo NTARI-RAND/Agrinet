@@ -142,7 +142,10 @@ streaming code, with only DynamoDB and the external AI provider replaced.
 The separate integration check uses the real SDK and DynamoDB Local, two HTTP
 worker processes, restart/replay, and process death during an AI call. It creates
 and deletes uniquely named tables, refuses non-loopback endpoints, and uses a
-local AI fixture without contacting an external provider:
+local AI fixture without contacting an external provider. The default run uses
+a signed account token and seeded conversations owned by that account. The
+`--api-key` run verifies that an integration key alone receives HTTP 401 and
+creates neither messages nor retry receipts.
 
 ```sh
 docker run --rm -d --name agrinet-retry-check \

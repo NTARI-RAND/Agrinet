@@ -3,7 +3,7 @@ const path = require('node:path');
 const { fork } = require('node:child_process');
 const { once } = require('node:events');
 const { randomUUID } = require('node:crypto');
-const { DynamoDBClient, CreateTableCommand, DeleteTableCommand, ScanCommand } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBClient, CreateTableCommand, DeleteTableCommand, PutItemCommand, ScanCommand } = require('@aws-sdk/client-dynamodb');
 const jwt = require('../utils/jwt');
 
 async function createTables(client, definitions, created) {
@@ -34,6 +34,8 @@ async function main() {
   const suffix = randomUUID();
   const messages = `RetryMessages-${suffix}`;
   const receipts = `RetrySends-${suffix}`;
+  const conversations = `RetryConversations-${suffix}`;
+  const ownerId = 'local-grower';
   const created = [];
   const workers = [];
   const secret = 'local-integration-secret';
@@ -45,7 +47,8 @@ async function main() {
     const child = fork(path.join(__dirname, '../test-support/message-retry-worker.js'), [], {
       env: { ...process.env, DYNAMODB_ENDPOINT: endpoint, AWS_REGION: 'us-east-1',
         AWS_ACCESS_KEY_ID: 'local', AWS_SECRET_ACCESS_KEY: 'local', JWT_SECRET: secret, API_KEY: apiKey,
-        MESSAGE_TABLE_NAME: messages, MESSAGE_SEND_TABLE_NAME: receipts, TEST_HOLD_AI: String(hold) },
+        MESSAGE_TABLE_NAME: messages, MESSAGE_SEND_TABLE_NAME: receipts,
+        CONVERSATION_TABLE_NAME: conversations, TEST_HOLD_AI: String(hold) },
       stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
     });
     const state = { child, ai: 0 };
@@ -67,7 +70,7 @@ async function main() {
     const response = await fetch(`${target.url}/messages/${conversation}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': key,
         ...(apiCaller ? { 'X-API-Key': apiKey }
-          : { Authorization: `Bearer ${jwt.sign({ userId: 'local-grower' }, secret)}` }) },
+          : { Authorization: `Bearer ${jwt.sign({ userId: ownerId }, secret)}` }) },
       body: JSON.stringify(body), signal: AbortSignal.timeout(15000),
     });
     return { status: response.status, body: await response.json() };
@@ -89,8 +92,24 @@ async function main() {
   }
 
   try {
-    await createTables(client, [[messages, true], [receipts, false]], created);
+    await createTables(client, [[messages, true], [receipts, false], [conversations, false]], created);
+    for (const id of ['conversation-1', 'crash-conversation']) {
+      await client.send(new PutItemCommand({
+        TableName: conversations,
+        Item: { id: { S: id }, ownerId: { S: ownerId } },
+      }));
+    }
     const firstWorker = await worker(true);
+    if (apiCaller) {
+      assert.equal((await send(firstWorker)).status, 401);
+      assert.equal(firstWorker.ai, 0);
+      for (const TableName of [messages, receipts]) {
+        const rows = await client.send(new ScanCommand({ TableName, ConsistentRead: true }));
+        assert.equal(rows.Count, 0);
+      }
+      console.log('PASS: an API key alone cannot send a private message or create a receipt.');
+      return;
+    }
     const secondWorker = await worker(false);
     const first = send(firstWorker);
     await waitForAI(firstWorker);
