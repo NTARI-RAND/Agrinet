@@ -34,8 +34,11 @@ If ownership cannot be established, preserve the inaccessible row for the
 operator's data-retention process. Ownership transfer is not supported here.
 
 Conversation deletion follows every Messages query page and deletes in batches
-of at most 25 writes. Messages are removed before the conversation row, so a
-storage error or unprocessed batch leaves ownership available for a retry.
+of at most 25 writes. When DynamoDB returns unprocessed writes, the server
+retries those writes up to three times with exponential backoff. Messages are
+removed before the conversation row. If writes remain unprocessed after the
+retries or a storage error aborts the operation, the conversation remains
+available for its owner to retry deletion.
 This does not erase physical attachment bytes or durable retry receipts. Stale
 attachment files become inaccessible when their owned message/conversation
 reference no longer exists.
