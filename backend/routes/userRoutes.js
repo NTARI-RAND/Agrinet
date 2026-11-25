@@ -5,14 +5,14 @@ const router = express.Router();
 const docClient = require('../lib/dynamodbClient');
 const { USER_TABLE_NAME, createUserItem, sanitizeUserForPublic } = require('../models/user');
 const requireAdmin = require('../middleware/requireAdmin');
-const { userWriteRateLimit } = require('../middleware/rateLimit');
+const { createRequestLimiter, userWriteRateLimit } = require('../middleware/rateLimit');
 
 const account = require('../middleware/chatAuth');
-const requestRateLimit = require('../middleware/requestRateLimit');
+const directoryLimit = createRequestLimiter({ prefix: 'agrinet:user-directory', limit: 120 });
 const { collectionPage, scanPage, pageError } = require('../lib/collectionPage');
 
 // GET /users - bounded directory, never account or private location records
-router.get('/', requestRateLimit(), account, requestRateLimit(), async (req, res) => {
+router.get('/', account, directoryLimit, async (req, res) => {
   try {
     for (const name of ['role', 'location', 'locationType']) {
       if (req.query[name] !== undefined && typeof req.query[name] !== 'string') {

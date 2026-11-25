@@ -11,7 +11,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import MessageBubble from './MessageBubble.jsx';
-import { stream } from '../api';
+import { accountClient, stream } from '../api';
 import ThinkingTicker from './ThinkingTicker.jsx';
 
 export default function ChatWindow() {
@@ -29,7 +29,7 @@ export default function ChatWindow() {
   }, [state.currentConversation, dispatch]);
 
   useEffect(() => {
-    if (!state.currentConversation) return;
+    if (!accountClient.getToken() || !state.currentConversation) return;
     const events = stream(`/stream/${state.currentConversation.id}`);
 
     const handleToken = (e) => {
@@ -62,6 +62,10 @@ export default function ChatWindow() {
       dispatch({ type: 'SET_AI_THINKING', value: false });
     };
   }, [state.currentConversation, dispatch]);
+
+  if (!accountClient.getToken()) {
+    return <div className="chat-stream" role="status">Sign in to use chat.</div>;
+  }
 
   return (
     <div className="chat-stream" data-parallax="true" ref={containerRef}>

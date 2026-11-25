@@ -44,6 +44,8 @@ async function main() {
     assert.equal((await Message.listMessages(mine.id))[0].id, message.id);
     await db.put({ TableName: process.env.MESSAGE_TABLE_NAME, Item: { id: 'attachment', conversationId: mine.id, file: { path: '/uploads/example.txt' } } }).promise();
     assert.equal((await Message.findByAttachmentPath('/uploads/example.txt'))[0].id, 'attachment');
+    assert.equal(await Message.findConversationAttachment(mine.id, '/uploads/example.txt'), true);
+    assert.equal(await Message.findConversationAttachment('foreign', '/uploads/example.txt'), false);
     assert.equal(await Conversation.remove(mine.id, 'alice'), true);
     assert.deepEqual(await Message.listMessages(mine.id), []);
     assert.equal(await Conversation.getOwned(mine.id, 'alice'), null);

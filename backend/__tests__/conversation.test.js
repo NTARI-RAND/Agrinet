@@ -8,6 +8,7 @@ test('removing a conversation deletes its messages', async () => {
   const tables = { Conversations: [], Messages: [] };
   const mockClient = {
     put: ({ TableName, Item }) => ({ promise: async () => { tables[TableName].push(Item); } }),
+    get: ({ TableName, Key }) => ({ promise: async () => ({ Item: tables[TableName].find(item => item.id === Key.id) }) }),
     scan: ({ TableName }) => ({ promise: async () => ({ Items: tables[TableName] }) }),
     update: ({ TableName, Key, UpdateExpression, ExpressionAttributeValues }) => ({
       promise: async () => {

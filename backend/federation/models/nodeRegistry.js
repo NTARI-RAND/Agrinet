@@ -1,5 +1,4 @@
 const docClient = require("../../lib/dynamodbClient");
-const { scanItems } = require('../../lib/collectionPage');
 const { applyNodeTemplate } = require("./nodeTemplate");
 const NODE_REGISTRY_TABLE_NAME = "NodeRegistry";
 
@@ -59,9 +58,8 @@ module.exports = {
  * @returns {Promise<Array<Object>>}
  */
 async function getAllNodes() {
-  const nodes = [];
-  for await (const node of scanItems(docClient, { TableName: NODE_REGISTRY_TABLE_NAME })) nodes.push(node);
-  return nodes;
+  const data = await docClient.scan({ TableName: NODE_REGISTRY_TABLE_NAME }).promise();
+  return data.Items || [];
 }
 
 /**

@@ -68,13 +68,4 @@ function pageError(res, error, fallback) {
   return res.status(status).json({ error: status === 500 ? fallback : error.message });
 }
 
-async function* scanItems(client, params) {
-  let start;
-  do {
-    const page = await scanPage(client, params, 50, start);
-    yield* page.items;
-    start = page.next;
-  } while (start);
-}
-
-module.exports = { collectionPage, scanPage, scanItems, pageError };
+module.exports = { collectionPage, scanPage, pageError };

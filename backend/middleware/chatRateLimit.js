@@ -1,11 +1,20 @@
-const { createRequestLimiter } = require('./rateLimit');
+const { rateLimit } = require('express-rate-limit');
+const { requestLimitOptions } = require('./rateLimit');
 
-// Mount after chatAuth so req.user.userId is a verified account identity.
-module.exports = function chatRateLimit(limit = 60) {
-  return createRequestLimiter({
-    prefix: 'agrinet:chat',
-    windowMs: 60 * 1000,
-    limit,
-    message: 'Too many chat requests, please try again later'
-  });
+// Use the same Redis-backed store and verified-identity keys as the API limits.
+function options(limit = 60, scope = 'chat') {
+  return {
+    ...requestLimitOptions({
+      prefix: `agrinet:chat:${scope}`,
+      windowMs: 60 * 1000,
+      limit,
+      message: 'Too many chat requests, please try again later'
+    }),
+    standardHeaders: 'draft-6'
+  };
+}
+
+module.exports = function chatRateLimit(limit, scope) {
+  return rateLimit(options(limit, scope));
 };
+module.exports.options = options;

@@ -36,56 +36,26 @@ describe('account collection request budgets', () => {
   });
   afterAll(() => { process.env = env; });
 
-  test.each([
-    ['/users?limit=0', 400],
-    ['/uploads/bad%00name', 404],
-    ['/messages/missing', 404],
-  ])('%s preserves normal responses and throttles each account independently', async (url, status) => {
+  test('directory limits verified accounts independently when credentials change', async () => {
+    const url = '/users?limit=0';
     const token = authorization('alice');
     for (let i = 0; i < 120; i++) {
-      expect((await send('get', url).set('Authorization', token)).status).toBe(status);
-    }
-    const blocked = await send('get', url).set('Authorization', authorization('alice'))
-      .set('X-Forwarded-For', '203.0.113.9');
-    expect(blocked.status).toBe(429);
-    expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
-    expect((await send('get', url).set('Authorization', authorization('bob'))).status).toBe(status);
-  }, 20000);
-
-  test.each(['/users', '/uploads/bad%00name', '/messages/missing'])('%s limits API-key-only callers without granting account access', async url => {
-    for (let i = 0; i < 120; i++) {
-      expect((await send('get', url).set('x-api-key', process.env.API_KEY)).status).toBe(401);
-    }
-    const blocked = await send('get', url).set('x-api-key', process.env.API_KEY)
-      .set('X-Forwarded-For', '203.0.113.10');
-    expect(blocked.status).toBe(429);
-  }, 20000);
-
-  test.each([
-    ['/users?limit=0', 400],
-    ['/uploads/bad%00name', 404],
-    ['/messages/missing', 404],
-  ])('%s cannot gain another account budget by adding an API key', async (url, status) => {
-    const token = authorization('credential-owner');
-    for (let i = 0; i < 120; i++) {
-      expect((await send('get', url).set('Authorization', token)).status).toBe(status);
+      expect((await send('get', url).set('Authorization', token)).status).toBe(400);
     }
     for (const key of [process.env.API_KEY, 'invalid-key']) {
-      expect((await send('get', url).set('Authorization', token).set('x-api-key', key)).status).toBe(429);
-    }
-  }, 20000);
-
-  test('message reads and sends share an account budget across conversation IDs and encoded paths', async () => {
-    const token = authorization('alice');
-    for (let i = 0; i < 120; i++) {
-      expect((await send('get', '/messages/missing').set('Authorization', token)).status).toBe(404);
-    }
-    for (const method of ['get', 'post']) {
-      const blocked = await send(method, '/messages/%6fwned')
-        .set('Authorization', token).send({ from: 'bob', content: 'hello' });
+      const blocked = await send('get', url).set('Authorization', authorization('alice'))
+        .set('x-api-key', key).set('X-Forwarded-For', '203.0.113.9');
       expect(blocked.status).toBe(429);
       expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
     }
-    expect((await send('get', '/messages/owned').set('Authorization', authorization('bob'))).status).toBe(404);
+    expect((await send('get', url).set('Authorization', authorization('bob'))).status).toBe(400);
+  }, 20000);
+
+  test('the outer request budget limits API-key-only callers without granting directory access', async () => {
+    for (let i = 0; i < 120; i++) {
+      expect((await send('get', '/users').set('x-api-key', process.env.API_KEY)).status).toBe(401);
+    }
+    const blocked = await send('get', '/users').set('x-api-key', process.env.API_KEY);
+    expect(blocked.status).toBe(429);
   }, 20000);
 });

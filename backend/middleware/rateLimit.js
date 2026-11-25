@@ -34,8 +34,8 @@ class RedisRateLimitStore {
   async shutdown() {}
 }
 
-function createRequestLimiter({ prefix, windowMs = 60000, limit = 60, message = 'Too many requests' }) {
-  return rateLimit({
+function requestLimitOptions({ prefix, windowMs = 60000, limit = 60, message = 'Too many requests' }) {
+  return {
     windowMs,
     limit,
     standardHeaders: 'draft-8',
@@ -50,10 +50,15 @@ function createRequestLimiter({ prefix, windowMs = 60000, limit = 60, message = 
         : 'ip:' + ipKeyGenerator(req.ip);
     },
     handler: (_req, res) => res.status(429).json({ error: message })
-  });
+  };
+}
+
+function createRequestLimiter(options) {
+  return rateLimit(requestLimitOptions(options));
 }
 
 module.exports = {
+  requestLimitOptions,
   createRequestLimiter,
   getRedisClient: () => redis,
   apiRateLimit: createRequestLimiter({ prefix: 'agrinet:api', limit: 120 }),

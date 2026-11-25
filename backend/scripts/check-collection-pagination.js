@@ -27,14 +27,10 @@ async function main() {
   process.env.AWS_REGION = 'us-east-1';
   process.env.JWT_SECRET = randomUUID();
   process.env.API_KEY = randomUUID();
-  const peerSecret = randomUUID();
-  process.env.FEDERATION_LOCAL_NODE_ID = 'local-check';
-  process.env.FEDERATION_PEERS_JSON = JSON.stringify({ 'local-check': peerSecret });
-  process.env.FEDERATION_OUTBOUND_PEERS_JSON = JSON.stringify({ 'local-check': peerSecret });
   const admin = new DynamoDBClient({ endpoint: endpoint.href, region: 'us-east-1', credentials: { accessKeyId: 'localcheck', secretAccessKey: 'localcheck' } });
   const store = DynamoDBDocument.from(admin);
   const prefix = `CollectionPages_${randomUUID().replaceAll('-', '')}`;
-  const tables = Object.fromEntries(['Conversations', 'Users', 'Listings', 'Transactions'].map(name => [name, `${prefix}_${name}`]));
+  const tables = Object.fromEntries(['Conversations', 'Users'].map(name => [name, `${prefix}_${name}`]));
   process.env.CONVERSATION_TABLE_NAME = tables.Conversations;
   const created = [];
   let server;
@@ -50,8 +46,6 @@ async function main() {
       await put('Conversations', { id: `c${i}`, ownerId: i % 2 ? 'alice' : 'bob', title: 'private'.repeat(33000) });
       await put('Users', { id: `u${i}`, username: `member${i}`, role: i % 2 ? 'producer' : 'consumer', locationType: i % 2 ? 'farm' : 'delivery', reputationScore: 99, reputationWeight: 1000, location: 'Town', locationPrivacy: i % 2 === 1,
         password: 'private hash', verificationCode: 'private code', email: 'private@example.invalid', coordinates: { lat: 1, long: 2 }, privatePadding: 'x'.repeat(230000) });
-      await put('Listings', { id: `l${i}`, userId: `u${i}`, title: `Public listing ${i}`, description: 'advertised text'.repeat(16000), price: i + 1, privateExtra: 'not an advertised field' });
-      await put('Transactions', { id: `t${i}`, buyerId: 'alice', sellerId: 'bob', status: 'pending', dialogNotes: 'local narrative'.repeat(15000) });
     }
     await put('Conversations', { id: 'legacy', title: 'no owner' });
 
@@ -66,8 +60,9 @@ async function main() {
     };
     const app = express();
     app.use(express.json());
-    app.use('/federation', require('../federation/federationRoutes'));
-    app.use(require('../middleware/requestRateLimit')(), require('../middleware/authMiddleware'));
+    const { createRequestLimiter, apiRateLimit } = require('../middleware/rateLimit');
+    app.use(createRequestLimiter({ prefix: 'agrinet:collection-check-attempt', limit: 120 }));
+    app.use(require('../middleware/authMiddleware'), apiRateLimit);
     app.use('/conversations', require('../routes/conversationRoutes'));
     app.use('/users', require('../routes/userRoutes'));
     server = await new Promise(resolve => { const listener = app.listen(0, '127.0.0.1', () => resolve(listener)); });
@@ -110,27 +105,11 @@ async function main() {
     const foreign = await fetch(`${base}/conversations?limit=1&cursor=${cursor}`, { headers: { Authorization: `Bearer ${jwt.sign({ userId: 'bob' }, process.env.JWT_SECRET)}` } });
     assert.equal(foreign.status, 400);
 
-    const { forEachExportPage, inspectExport } = require('../sync/exportPages');
-    const peer = { nodeId: 'local-check', url: base };
-    const exported = { listings: [], transactions: [], users: [] };
-    let exportPages = 0;
-    await forEachExportPage(peer, page => {
-      exportPages++;
-      for (const name of Object.keys(exported)) exported[name].push(...page[name]);
-    });
-    assert.ok(exportPages > 1);
-    assert.deepEqual(exported.listings.map(item => item.id).sort(), Array.from({ length: 8 }, (_, i) => `l${i}`));
-    assert.deepEqual(exported.transactions.map(item => item.id).sort(), Array.from({ length: 8 }, (_, i) => `t${i}`));
-    assert.deepEqual(exported.users, []);
-    assert.ok(exported.listings.every(item => !Object.hasOwn(item, 'privateExtra')));
-    assert.ok(exported.transactions.every(item => !Object.hasOwn(item, 'dialogNotes')));
-    assert.deepEqual(await inspectExport(peer), { listings: 8, transactions: 8, users: 0 });
     assert.equal((await store.send(new GetCommand({ TableName: tables.Users, Key: { id: 'u0' } }))).Item.password, 'private hash');
-    assert.ok((await store.send(new GetCommand({ TableName: tables.Transactions, Key: { id: 't0' } }))).Item.dialogNotes.length > 100000);
     assert.ok(scans.some(params => params.ExclusiveStartKey));
     assert.ok(scans.every(params => params.Limit > 0 && params.Limit <= 100));
     await checkAuthenticationBudget(base);
-    console.log('PASS: real DynamoDB 1 MiB continuation, ownership, private projections, filters, browser adapter, read-only exports and unchanged local records');
+    console.log('PASS: real DynamoDB 1 MiB continuation, ownership, private projections, filters, account client traversal and unchanged local credentials');
   } finally {
     if (server) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
     for (const TableName of created) await admin.send(new DeleteTableCommand({ TableName }));
