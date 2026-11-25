@@ -82,10 +82,13 @@ async function deliverMessage(req) {
       const historyMessages = await Message.listMessages(conversationId);
       const MAX_HISTORY_MESSAGES = 20;
       const recentMessages = historyMessages.slice(-MAX_HISTORY_MESSAGES);
-      const chatHistory = recentMessages.map((m) => ({
-        role: String(m.from || '').toLowerCase() === 'assistant' ? 'assistant' : 'user',
-        content: m.content || '',
-      }));
+      const chatHistory = recentMessages.map((m) => {
+        const sender = String(m.from || '').toLowerCase();
+        return {
+          role: sender === 'ai' || sender === 'assistant' ? 'assistant' : 'user',
+          content: m.content || '',
+        };
+      });
 
       const reply = await openAIResponder.generateResponse({
         conversationId,

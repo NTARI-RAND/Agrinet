@@ -109,3 +109,44 @@ test('sendMessage streams tokens and persists ai message', async () => {
     messageEvents.some((event) => event.message && event.message.id === aiMessage.id)
   );
 });
+
+test('sendMessage preserves assistant roles from previous chat turns', async () => {
+  const requests = [];
+  setClient({
+    chat: {
+      completions: {
+        create: async ({ messages }) => {
+          requests.push(messages);
+          return createStream(['First reply']);
+        },
+      },
+    },
+  });
+  const conversationId = 'conv1';
+  const send = (content) => commController.sendMessage({
+    params: { conversationId },
+    body: { from: 'user', to: 'ai', content, type: 'text' },
+  }, {
+    status() { return this; },
+    json(body) { return body; },
+  });
+
+  const firstTurn = await send('How are you?');
+  assert.equal(firstTurn.ai.from, 'ai');
+  await Message.sendMessage(conversationId, {
+    from: 'assistant', to: 'user', content: 'Legacy reply',
+  });
+  await Message.sendMessage(conversationId, {
+    from: 'system', to: 'ai', content: 'Unrecognized sender',
+  });
+  await send('What did you say?');
+
+  assert.equal(requests.length, 2);
+  assert.deepEqual(requests[1].slice(0, 5), [
+    { role: 'user', content: 'How are you?' },
+    { role: 'assistant', content: 'First reply' },
+    { role: 'assistant', content: 'Legacy reply' },
+    { role: 'user', content: 'Unrecognized sender' },
+    { role: 'user', content: 'What did you say?' },
+  ]);
+});
