@@ -5,7 +5,16 @@ const TRANSMISSION_LIMITS = [3, 6, 9, 12, 365]; // Keys retire after these limit
 
 exports.issueKey = async (req, res) => {
     try {
-        const { userId } = req.body;
+        // Keys belong to the account whose bearer token was verified. The shared
+        // API key does not identify an account, and a body userId is not trusted.
+        const userId = typeof req.user?.userId === "string" && req.user.userId ? req.user.userId : null;
+        if (!userId) {
+            return res.status(401).json({ error: "Unauthorized: sign in to issue a key" });
+        }
+        if (req.body?.userId !== undefined && req.body.userId !== userId) {
+            return res.status(403).json({ error: "Forbidden: keys can only be issued for your own account" });
+        }
+
         const activeKeys = await KeyLibrary.find({ userId, retired: false });
 
         if (activeKeys.length >= 7) {
