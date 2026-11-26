@@ -4,7 +4,7 @@ const docClient = require('../lib/dynamodbClient');
 const { USER_TABLE_NAME } = require('../models/user');
 const { LISTING_TABLE_NAME } = require('../models/listing');
 const { TRANSACTION_TABLE_NAME } = require('../models/transaction');
-const { generateAIInsight } = require('../utils/aiTrendHelper');
+const { generateAIInsight, publicProducers } = require('../utils/aiTrendHelper');
 
 // 1. Top Rated Producers
 router.get('/top-rated', async (req, res) => {
@@ -22,7 +22,9 @@ router.get('/top-rated', async (req, res) => {
       params.ExpressionAttributeValues[':r'] = region;
     }
     const data = await docClient.scan(params).promise();
-    const sorted = data.Items.sort((a, b) => b.reputationScore - a.reputationScore).slice(0, parseInt(limit));
+    const sorted = publicProducers(data.Items, region)
+      .sort((a, b) => b.reputationScore - a.reputationScore)
+      .slice(0, parseInt(limit));
     res.json(sorted);
   } catch (err) {
     res.status(500).json({ error: 'Aggregation failed' });
