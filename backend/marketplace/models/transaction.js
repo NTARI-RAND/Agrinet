@@ -41,7 +41,11 @@ function createTransactionItem({
   };
 }
 
+// The only fields a transaction read returns.
+const TRANSACTION_FIELDS = Object.keys(createTransactionItem({}));
+
 module.exports = {
   TRANSACTION_TABLE_NAME,
+  TRANSACTION_FIELDS,
   createTransactionItem
 };
