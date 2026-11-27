@@ -151,3 +151,7 @@ See `backend/package.json` for Jest config and tests. Add route/model tests unde
 
 ---
 Contributions welcome! Please keep `server.js` slim by adding routes and logic in domain folders.
+
+## Location persistence
+
+See [the location API guide](../docs/location-api.md) for table provisioning, owner JWTs, explicit publication consent, precision, kilometre radius semantics, and bounded discovery pagination. New location data stays in a separate operator-local table, outside generic user exports.

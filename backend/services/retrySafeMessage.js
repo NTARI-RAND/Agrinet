@@ -20,16 +20,41 @@ function problem(status, code, error) { return { status, body: { code, error } }
 const failed = () => problem(500, 'message_send_failed',
   'This send failed and will not be repeated automatically. Inspect the conversation before starting a new send.');
 
-async function send(req, deliver) {
+function readInput(req) {
   const key = req.headers['idempotency-key'];
   if (typeof key !== 'string' || !/^[\x21-\x7e]{1,128}$/.test(key)) {
-    return problem(400, 'invalid_idempotency_key', 'Idempotency-Key must be 1–128 printable ASCII characters without spaces.');
+    return { error: problem(400, 'invalid_idempotency_key', 'Idempotency-Key must be 1–128 printable ASCII characters without spaces.') };
   }
   // Auth middleware has already verified the JWT or accepted the configured
   // API key. Never use body.from (a display/role label) as the caller identity.
   const userId = typeof req.user?.userId === 'string' && req.user.userId ? req.user.userId : null;
   const apiKey = req.user ? null : req.headers['x-api-key'];
-  if (!userId && !apiKey) return problem(400, 'idempotency_identity_required', 'Retry-safe sends require a stable authenticated user ID or API key.');
+  if (!userId && !apiKey) {
+    return { error: problem(400, 'idempotency_identity_required', 'Retry-safe sends require a stable authenticated user ID or API key.') };
+  }
+  return { key, userId, apiKey };
+}
+
+async function replay(receipt, fingerprint, conversationId) {
+  if (receipt.fingerprint !== fingerprint) {
+    return problem(409, 'idempotency_key_conflict', 'This key was already used with a different message payload.');
+  }
+  if (receipt.state !== 'complete') {
+    return problem(409, 'message_send_pending', 'This send is still running or was interrupted. Retry this key later; inspect the conversation before starting a new send.');
+  }
+  if (receipt.outcome.status === 500) return failed();
+  const message = await Message.getMessage(conversationId, receipt.outcome.messageId);
+  const reply = receipt.outcome.replyId ? await Message.getMessage(conversationId, receipt.outcome.replyId) : null;
+  if (!message || (receipt.outcome.replyId && !reply)) {
+    return problem(410, 'message_send_removed', 'The original message or reply is no longer available. It will not be recreated.');
+  }
+  return { status: 201, body: reply ? { message, ai: reply, reply } : { message } };
+}
+
+async function send(req, deliver) {
+  const input = readInput(req);
+  if (input.error) return input.error;
+  const { key, userId, apiKey } = input;
 
   const conversationId = req.params.conversationId;
   const { from, to, content, type = 'text', file } = req.body;
@@ -49,22 +74,7 @@ async function send(req, deliver) {
   } catch {
     return problem(503, 'message_send_unavailable', 'Retry protection is unavailable. No send was started by this request. Retry with the same key.');
   }
-  if (!claim.claimed) {
-    const { receipt } = claim;
-    if (receipt.fingerprint !== fingerprint) {
-      return problem(409, 'idempotency_key_conflict', 'This key was already used with a different message payload.');
-    }
-    if (receipt.state !== 'complete') {
-      return problem(409, 'message_send_pending', 'This send is still running or was interrupted. Retry this key later; inspect the conversation before starting a new send.');
-    }
-    if (receipt.outcome.status === 500) return failed();
-    const message = await Message.getMessage(conversationId, receipt.outcome.messageId);
-    const reply = receipt.outcome.replyId ? await Message.getMessage(conversationId, receipt.outcome.replyId) : null;
-    if (!message || (receipt.outcome.replyId && !reply)) {
-      return problem(410, 'message_send_removed', 'The original message or reply is no longer available. It will not be recreated.');
-    }
-    return { status: 201, body: reply ? { message, ai: reply, reply } : { message } };
-  }
+  if (!claim.claimed) return replay(claim.receipt, fingerprint, conversationId);
 
   let result, outcome;
   try {
