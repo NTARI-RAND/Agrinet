@@ -1,5 +1,9 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const { randomUUID } = require('node:crypto');
 const Message = require('../models/message');
 
 test('sendMessage stores and listMessages retrieves', async () => {
@@ -18,3 +22,78 @@ test('sendMessage stores and listMessages retrieves', async () => {
   assert.strictEqual(list[0].content, 'hello');
 });
 
+test('attachment names cannot overwrite files outside uploads', async (t) => {
+  const targetName = `upload-sentinel-${randomUUID()}.txt`;
+  const target = path.join(__dirname, '..', targetName);
+  fs.writeFileSync(target, 'keep existing content');
+  t.after(() => fs.rmSync(target, { force: true }));
+  Message.setDocClient({ put: () => ({ promise: async () => ({}) }) });
+
+  const msg = await Message.sendMessage('c1', {
+    from: 'u1',
+    file: {
+      name: `/../../${targetName}`,
+      data: Buffer.from('uploaded content').toString('base64'),
+      type: 'text/plain',
+    },
+  });
+  const storedPath = path.join(__dirname, '..', msg.file.path);
+  if (path.dirname(storedPath) === path.join(__dirname, '../uploads')) {
+    t.after(() => fs.rmSync(storedPath, { force: true }));
+  }
+
+  assert.strictEqual(fs.readFileSync(target, 'utf8'), 'keep existing content');
+  assert.strictEqual(path.dirname(storedPath), path.join(__dirname, '../uploads'));
+  assert.strictEqual(fs.readFileSync(storedPath, 'utf8'), 'uploaded content');
+  assert.strictEqual(msg.file.originalname, `/../../${targetName}`);
+  assert.strictEqual(msg.file.mimetype, 'text/plain');
+});
+
+test('an existing attachment is never overwritten or persisted on a filename collision', async (t) => {
+  const writeFileSync = fs.writeFileSync;
+  let target;
+  let persisted = false;
+  Message.setDocClient({ put: () => ({ promise: async () => { persisted = true; } }) });
+  t.mock.method(fs, 'writeFileSync', (filename, data, options) => {
+    target = filename;
+    writeFileSync(filename, 'existing attachment');
+    return writeFileSync(filename, data, options);
+  });
+  t.after(() => { if (target) fs.rmSync(target, { force: true }); });
+
+  await assert.rejects(Message.sendMessage('c1', {
+    file: { name: 'report.txt', data: Buffer.from('replacement').toString('base64') },
+  }), { code: 'EEXIST' });
+  assert.strictEqual(fs.readFileSync(target, 'utf8'), 'existing attachment');
+  assert.strictEqual(persisted, false);
+});
+
+for (const targetExists of [true, false]) {
+  test(`an attachment cannot follow a ${targetExists ? 'live' : 'dangling'} symlink`, async t => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'agrinet-upload-target-'));
+    const outside = path.join(directory, 'outside.txt');
+    if (targetExists) fs.writeFileSync(outside, 'untouched outside bytes');
+    let destination;
+    let persisted = false;
+    t.after(() => {
+      if (destination) fs.unlinkSync(destination);
+      fs.rmSync(directory, { recursive: true, force: true });
+    });
+    Message.setDocClient({ put: () => ({ promise: async () => { persisted = true; } }) });
+    const writeFileSync = fs.writeFileSync;
+    // Simulate a pre-existing destination link, then perform the real write.
+    t.mock.method(fs, 'writeFileSync', (filename, data, options) => {
+      destination = filename;
+      fs.symlinkSync(outside, filename);
+      return writeFileSync(filename, data, options);
+    });
+
+    await assert.rejects(Message.sendMessage('owned-chat', {
+      file: { name: 'report.txt', data: Buffer.from('replacement').toString('base64') },
+    }), { code: 'EEXIST' });
+    assert.strictEqual(fs.lstatSync(destination).isSymbolicLink(), true);
+    if (targetExists) assert.strictEqual(fs.readFileSync(outside, 'utf8'), 'untouched outside bytes');
+    else assert.strictEqual(fs.existsSync(outside), false);
+    assert.strictEqual(persisted, false);
+  });
+}
