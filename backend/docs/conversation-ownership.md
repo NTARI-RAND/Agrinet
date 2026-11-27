@@ -52,12 +52,14 @@ that conversation partition, including continuation pages. No new index or
 table is required. New files use UUID names, safe extensions and exclusive
 writes; original names remain in message metadata.
 
-This branch includes the merged account/federation security baseline. Legacy
-`/events` and `/stream/:conversationId` return 410; keep that protection until
-#192 installs owner-authenticated streaming. #191 restores only authenticated,
-rate-limited, owner-checked attachment access. It can merge while streams remain
-disabled. Restore streaming only after reviewing #192 against this branch and
-its shared concurrent-stream reservation helper.
+This branch includes merged conversation ownership (#191) and account/federation
+security hardening (#197). The global `/events` feed remains retired with 410.
+`/stream/:conversationId` now requires an account token, account-keyed throttling,
+a shared concurrent-stream reservation and conversation ownership before sending
+stream headers. Attachment access retains its independent authentication, rate
+limits and ownership checks. Deploy the complete reviewed protections together;
+see `authenticated-streams.md` for Redis configuration and remaining replica
+delivery/revocation limits.
 
 Operators can count ownerless conversations without changing records:
 

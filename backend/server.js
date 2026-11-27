@@ -10,7 +10,8 @@ let dotenv;
 try { dotenv = require('dotenv'); } catch { dotenv = { config: () => {} }; }
 dotenv.config();
 const authMiddleware = require('./middleware/authMiddleware');
-const { apiRateLimit, streamRateLimit, locationRateLimit } = require('./middleware/rateLimit');
+const { apiRateLimit, locationRateLimit } = require('./middleware/rateLimit');
+const { createConcurrentStreamLimit } = require('./middleware/streamConcurrency');
 const minimal = process.env.MINIMAL_SERVER === 'true';
 const app = express();
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || 'https://www.ntari.org').split(',').map(origin => origin.trim()).filter(Boolean);
@@ -20,22 +21,32 @@ const tryMount = (route, modPath) => { try { app.use(route, require(modPath)); }
 if (!minimal) tryMount('/deposit', './routes/depositRoutes');
 app.get('/health', (_req, res) => res.status(200).send('OK'));
 const server = http.createServer(app);
-// Fail closed until owner-authenticated streaming (#192) is merged.
-app.get('/events', (_req, res) => res.status(410).json({ error: 'Global event stream retired; use authenticated conversation streams' }));
-app.get('/stream/:conversationId', streamRateLimit, (_req, res) => res.status(410).json({ error: 'Conversation streaming is temporarily unavailable pending owner-authenticated stream support' }));
-const conversationStreams = new Map();
-function sendConversationEvent(conversationId, event, data) { const clients = conversationStreams.get(conversationId); if (!clients) return; const payload = 'event: ' + event + '\ndata: ' + JSON.stringify(data) + '\n\n'; clients.forEach(res => res.write(payload)); }
-function broadcast(event, data, conversationId) { if (conversationId) sendConversationEvent(conversationId, event, data); }
+// Account-scoped streams share the same owner check as message reads/sends.
+const conversationStreams = require('./lib/conversationStreams');
+app.get('/events', (_req, res) => {
+  res.status(410).json({ error: 'Global event feed retired; use an owned conversation stream' });
+});
+app.get('/stream/:conversationId',
+  rateLimit(require('./middleware/chatRateLimit').options(300, 'stream-attempt')), chatAuth,
+  rateLimit(require('./middleware/chatRateLimit').options(60, 'stream')),
+  createConcurrentStreamLimit({ maximum: 5 }), asyncHandler(conversationStreams.open));
+
+function broadcast(event, data, conversationId) {
+  if (conversationId) conversationStreams.send(conversationId, event, data);
+  // Generic transaction broadcasts have no recipient authorization contract.
+  // Keep producers callable, but never expose them through a global feed.
+}
 global.broadcast = broadcast;
-global.emitToken = (conversationId, id, token) => sendConversationEvent(conversationId, 'token', { id, token });
-global.emitMessage = (conversationId, message) => sendConversationEvent(conversationId, 'message', { message });
+global.emitToken = (conversationId, id, token) => conversationStreams.send(conversationId, 'token', { id, token });
+global.emitMessage = (conversationId, message) => conversationStreams.send(conversationId, 'message', { message });
+
 // Federation authenticates with per-peer HMAC credentials, independently of browser API keys.
 if (!minimal) tryMount('/federation', './federation/federationRoutes');
 // Public account creation/login have their own IP throttles and do not require the browser integration key.
 if (!minimal) tryMount('/api/auth', './routes/authRoutes');
 app.use(authMiddleware);
 app.use(apiRateLimit);
-// Private uploads are disabled until conversation-owner authorization is deployed (#191).
+// Private uploads retain the merged conversation-owner authorization boundary.
 app.use('/uploads', chatAuth, rateLimit(require('./middleware/chatRateLimit').options(60, 'uploads')), asyncHandler(require('./middleware/attachmentOwner')), express.static(path.join(__dirname, 'uploads'), {
   dotfiles: 'deny', index: false,
   setHeaders(res) {

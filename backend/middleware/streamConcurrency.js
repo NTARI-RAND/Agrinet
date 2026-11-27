@@ -89,7 +89,12 @@ function createConcurrentStreamLimit({ maximum = 5 } = {}) {
     res.once('close', cleanup);
     res.once('finish', cleanup);
     res.once('error', cleanup);
-    return next();
+    // A disconnected response may have closed while the Redis acquire was pending.
+    if (res.destroyed || res.writableEnded) {
+      cleanup();
+    } else {
+      return next();
+    }
   };
 }
 
