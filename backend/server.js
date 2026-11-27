@@ -14,7 +14,7 @@ const { apiRateLimit, streamRateLimit, locationRateLimit } = require('./middlewa
 const minimal = process.env.MINIMAL_SERVER === 'true';
 const app = express();
 const allowedOrigins = (process.env.CORS_ALLOWED_ORIGINS || 'https://www.ntari.org').split(',').map(origin => origin.trim()).filter(Boolean);
-app.use(cors({ origin(origin, callback) { if (!origin || allowedOrigins.includes(origin)) return callback(null, true); return callback(new Error('CORS not allowed for this origin')); }, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-API-Key', 'X-Federation-Node-Id', 'X-Federation-Timestamp', 'X-Federation-Signature'] }));
+app.use(cors({ origin(origin, callback) { if (!origin || allowedOrigins.includes(origin)) return callback(null, true); return callback(new Error('CORS not allowed for this origin')); }, credentials: true, methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-API-Key', 'X-Federation-Node-Id', 'X-Federation-Timestamp', 'X-Federation-Signature'], exposedHeaders: ['X-Pagination', 'X-Next-Cursor', 'X-Page-Limit'] }));
 app.use(express.json({ verify(req, _res, buffer) { req.rawBody = Buffer.from(buffer); } }));
 const tryMount = (route, modPath) => { try { app.use(route, require(modPath)); } catch (err) { console.warn('Skipping ' + modPath + ': ' + err.message); } };
 if (!minimal) tryMount('/deposit', './routes/depositRoutes');

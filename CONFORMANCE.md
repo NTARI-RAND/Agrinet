@@ -42,6 +42,15 @@ Adopts the covenant scale (LBTAS, v2 floor) and carries its own record instance.
 
 ## Product-specific notes (last, per the ordering rule)
 
+### Bounded application reads
+
+Conversation pages retain the account and owner boundary on every scan. The
+account directory allowlists discovery fields, offers coarse location only
+after sharing opt-in, and excludes scalar reputation. Encrypted continuations
+bind the account, collection, filters and limit. The collection HTTP tests and
+DynamoDB Local check exercise these boundaries. See
+[Collection pagination](backend/docs/collection-pagination.md).
+
 The reference economy. Its operator/federation model is the named reference for the substrate's frontend-as-operator design target.
 
 The application message API supports optional retry receipts, scoped to the

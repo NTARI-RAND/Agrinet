@@ -51,8 +51,7 @@ export function createAccountClient({ baseUrl = '', apiKey = '', fetchImpl = (..
   }
   const url = path => apiUrl(baseUrl, path);
   const headers = () => requestHeaders(token, apiKey);
-  async function read(method, path, body, binary = false) {
-    const started = version;
+  async function readPage(method, path, body, binary, started) {
     const options = { method, headers: headers(), redirect: 'error' };
     if (body !== undefined) {
       options.headers['Content-Type'] = 'application/json';
@@ -65,7 +64,29 @@ export function createAccountClient({ baseUrl = '', apiKey = '', fetchImpl = (..
       if (response.status === 401) setToken(null);
       throw requestError(response, data);
     }
-    return data;
+    return { data, cursor: method === 'GET' && !binary && response.headers.get('X-Next-Cursor') };
+  }
+  async function read(method, path, body, binary = false) {
+    const started = version;
+    let page = await readPage(method, path, body, binary, started);
+    if (!page.cursor || !Array.isArray(page.data)) return page.data;
+
+    const items = [...page.data];
+    const seen = new Set();
+    const [pathname, query = ''] = path.split('?');
+    const params = new URLSearchParams(query);
+    while (page.cursor) {
+      if (seen.size >= 9999 || seen.has(page.cursor) || !/^[\w-]+$/.test(page.cursor) || page.cursor.length > 16384) {
+        throw new Error('Invalid collection cursor');
+      }
+      if (version !== started) throw new Error('Account changed during request');
+      seen.add(page.cursor);
+      params.set('cursor', page.cursor);
+      page = await readPage(method, `${pathname}?${params}`, undefined, false, started);
+      if (!Array.isArray(page.data)) throw new Error('Invalid collection page');
+      items.push(...page.data);
+    }
+    return items;
   }
   async function attachment(path, conversationId) {
     if (!token) throw new Error('Sign in to download attachments');

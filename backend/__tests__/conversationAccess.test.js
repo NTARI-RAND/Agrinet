@@ -97,9 +97,16 @@ describe('private conversation HTTP boundary', () => {
     expect(mockTables.Conversations.get(result.body.id).ownerId).toBe('alice');
   });
   test('listing traverses empty filtered pages without exposing foreign or legacy chats', async () => {
-    const result = await request(app).get('/conversations').set('Authorization', authorization('alice'));
-    expect(result.status).toBe(200);
-    expect(result.body.map(item => item.id)).toEqual(['mine']);
+    const token = authorization('alice');
+    const first = await request(app).get('/conversations').set('Authorization', token);
+    expect(first.status).toBe(200);
+    expect(first.body).toEqual([]);
+    const cursor = first.headers['x-next-cursor'];
+    expect(typeof cursor).toBe('string');
+    const second = await request(app).get('/conversations').query({ cursor }).set('Authorization', token);
+    expect(second.status).toBe(200);
+    expect(second.body.map(item => item.id)).toEqual(['mine']);
+    expect(second.headers['x-next-cursor']).toBeUndefined();
   });
   test.each(['foreign', 'legacy', 'missing'])('all ID routes conceal %s and have no message side effects', async id => {
     for (const [method, url, body] of [
@@ -126,10 +133,16 @@ describe('private conversation HTTP boundary', () => {
       if (bearer) call = call.set('Authorization', bearer);
       expect((await call).status).toBe(401);
     }
-    const result = await request(app).get('/conversations').set('x-api-key', process.env.API_KEY)
-      .set('Authorization', authorization('alice'));
-    expect(result.status).toBe(200);
-    expect(result.body.map(item => item.id)).toEqual(['mine']);
+    const headers = { 'x-api-key': process.env.API_KEY, Authorization: authorization('alice') };
+    const first = await request(app).get('/conversations').set(headers);
+    expect(first.status).toBe(200);
+    expect(first.body).toEqual([]);
+    const cursor = first.headers['x-next-cursor'];
+    expect(typeof cursor).toBe('string');
+    const second = await request(app).get('/conversations').query({ cursor }).set(headers);
+    expect(second.status).toBe(200);
+    expect(second.body.map(item => item.id)).toEqual(['mine']);
+    expect(second.headers['x-next-cursor']).toBeUndefined();
   });
   test('the rightful owner can read, rename, pin, send, list and delete', async () => {
     const auth = authorization('alice');
